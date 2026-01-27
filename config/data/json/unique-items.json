@@ -1,0 +1,47 @@
+{
+  "description": "唯一物品配置 - 这些物品玩家只能拥有一个",
+  "comment": "服装类物品通常是唯一的，其他特殊物品也可以配置为唯一",
+  "uniqueItems": [
+    {
+      "comment": "服装类物品范围",
+      "rangeStart": 100001,
+      "rangeEnd": 191001,
+      "description": "所有服装类物品"
+    },
+    {
+      "comment": "特殊道具示例",
+      "items": [
+        300001,
+        300002,
+        300003
+      ],
+      "description": "特殊唯一道具"
+    }
+  ],
+  "uniqueItemIds": [
+    100001,
+    100002,
+    100003,
+    100004,
+    100005,
+    100006,
+    100007,
+    100008,
+    100009,
+    100010
+  ],
+  "uniqueRanges": [
+    {
+      "start": 100001,
+      "end": 191001,
+      "category": "cloth",
+      "description": "服装类物品"
+    },
+    {
+      "start": 500001,
+      "end": 500100,
+      "category": "special_equipment",
+      "description": "特殊装备"
+    }
+  ]
+}

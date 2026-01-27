@@ -1,0 +1,335 @@
+<!--
+1. 免疫"能力(battle_lv)下降"
+	Args: NULL;
+
+2. 免疫 "异常状态"
+	Args: NULL;
+
+3. 受到任何伤害减免 n%
+	Args: a1: 0-100 (百分比);
+
+4. 受到与自身相同系属的攻击会恢复自身相应体力
+	Args: NULL;
+
+5. 只受到来自普通属性和某类属性的攻击伤害
+	Args: a1-a8: mon_type(1,2,3, ...);
+
+6. 受到`普通属性'(128)伤害时以n%的概率使对方进入`异常状态'(仅一个异常状态)
+	Args: a1: spec_stat_type(0,1,2,5,6,8), a2: n (百分比);
+
+7. 任何技能对自身的命中率下降 n%;
+	Args: a1: 0-100(百分比)
+
+8. 自身的会心一击率为 n/16;
+	Args: a1: n(0-16)
+
+9. 如果mon被打到BurstRecoverHP以下, 且没有挂掉, 则马上恢复到满HP;
+	Args: a1: burst_hp high-32, a2: burst_hp low-32
+
+10. 无限PP值;
+	Args: NULL
+
+11. 受到任何攻击都会反弹1/n的伤害给对方;
+	Args: a1: n
+
+12. 受到特殊攻击时使自身的一种 battle_lv 提升1个等级，可提升n次;
+	Args: a1: which blv, a2: max_blv_up_times
+
+13. n 回合逃跑;
+	Args: a1: n
+
+14. 若遇到天敌, 则战斗开始时连续害怕 n 回合;
+	Args: a1: n
+
+15. 若遇到天敌, 则整个战斗中对天敌的伤害减少 n%;
+	Args: a1: 0-100 (百分比)
+
+16. hp 与 battle_lv 的某一种绑定, 自身体力每减少1/8, 则该battle_lv上升1个等级, 最高到12;
+	Args: a1: which blv
+
+17. 自身体力降到N以下时，每次攻击必定致命一击;
+	Args: a1: high 32, a2: low 32
+
+18. 自身所有技能必中;
+	Args: NULL
+
+19. 自身所有技能必先出手;
+	Args: NULL
+
+20. 在被ID为xxx的技能命中前，任何技能都不能伤害自身;
+	Args: a1 - a8: 有效技能ID
+
+21. 除ID为xxx的技能外，任何能将自身体力降为 0 的技能都会使自身余下 1 体力;
+	Args: a1 - a8: 有效技能ID (能打死这个精灵的技能ID)
+
+22. 被打时受到直接攻击伤害提高至n倍;
+	Args: a1: n
+
+23. 自身体力降到N以下时, 每次（针对多宠）攻击必定秒杀对方, 且必定先手;
+	Args: a1: high 16, a2: low 16
+
+24. 对方用这些技能时, 对自身的命中率为0 (最多8个 / 不要与必中技能一起配置);
+	Args: a1 - a8: 有效技能ID (打不中这个精灵的技能ID)
+
+25. 如果 hp 被打成 0, 则立刻增加一些hp
+	Args: NULL
+
+26. 给一种 battle_attr 增加固定 n 点属性值;
+	Args: a1: battle_attr, a2: n
+
+27. 按一定的属性顺序出招的技能才能对去血
+	Args: a1-a8: mon_type(1,2,3, ...)
+
+28. XX系技能伤害增加n%
+	Args: a1: mon_type(1,2,3, ...), a2: n(百分比)
+
+29. 自身的所有技能命中率增加 n%;
+	Args: a1: n (百分比)
+
+30. 所有技能的致命一击率增加1/16;
+	Args: a1: n (1-16)
+
+31. 受到致死攻击时有n%几率余下 m 点体力;
+	Args: a1: n (百分比), a2: m点体力
+
+32. 进攻类技能有n%几率秒杀对方;
+	Args: a1: n (百分比)
+
+33. 精灵体力降低到 1/n 时有 m% 几率体力回满;
+	Args: a1: 1/n的n, a2: m (百分比)
+
+34. 受到特殊攻击时有 n% 几率使 对方 battle_lv 降低1个等级;
+	Args: a1: battle_lv (atk(0), def(1), sp_atk(2), sp_def(3), spd(4), accuracy(5)), a2: n (百分比)
+
+35. 受到任何攻击时有 n% 几率使 自身 battle_lv 提升1个等级;
+	Args: a1: battle_lv (atk(0), def(1), sp_atk(2), sp_def(3), spd(4), accuracy(5)), a2: n (百分比)
+
+36. 按5回合轮换属性顺序出招的技能才能对去血
+	Args: a1 - a8: 既是btl_stat, 又是仅受攻击的elem_type
+
+37. 自身 一次受到大于n 的伤害时直接将对方体力降至0;
+	Args: a1: high 16, a2: low 16
+
+38. 自身造成的伤害增加n%;
+	Args: a1: n (百分比)
+
+39. 偶数伤害(dmg) 提升到 n * dmg;
+	Args: a1: n
+	
+40. 奇数伤害(dmg) 改为 1/n * dmg;
+	Args: a1: n
+
+-->
+
+<!--
+* battle_lv: atk(0), def(1), sp_atk(2), sp_def(3), spd(4), accuracy(5)
+* battle_attr: 0:hp, 1:atk, 2:def, 3:sp_atk, 4:sp_def, 5:spd
+* spec_stat: 0:paralysis, 1:poisoned, 2:burning, 5:frosted, 6:frightened, 8:sleep
+* 攻击类型: 1 Physical, 2 Special, 4 Status
+-->
+
+<!-- NewSeIdx: 精灵特效索引 (默认0: 无效) -->
+<!-- Eid: 精灵特效eid (默认0: 无效) -->
+<!-- Stat: 精灵特效Stat: 0: 无效(默认值), 1: 永久, 2: 有`有效次数'的特效 -->
+<!-- Times: 精灵特效可使用次数: 当type==2时有效 (默认值:0) -->
+<!-- Args: 特效参数, 不超过8个 (注意: 每个参数不能超过 65535) -->
+
+<NewSe>
+	<!-- 1 - 1000: 玩家精灵特效 -->
+
+	<NewSeIdx Idx="1" Stat= "1" Eid="1" Args="" />
+
+	<NewSeIdx Idx="2" Stat= "1" Eid="2" Args="" />
+
+	<NewSeIdx Idx="3" Stat= "1" Eid="3" Args="5" />
+	<NewSeIdx Idx="4" Stat= "1" Eid="3" Args="15" />
+	<NewSeIdx Idx="5" Stat= "1" Eid="3" Args="20" />
+	<NewSeIdx Idx="6" Stat= "1" Eid="3" Args="25" />
+	<NewSeIdx Idx="7" Stat= "1" Eid="3" Args="30" />
+	<NewSeIdx Idx="8" Stat= "1" Eid="3" Args="35" />
+	<NewSeIdx Idx="9" Stat= "1" Eid="3" Args="40" />
+	<NewSeIdx Idx="10" Stat= "1" Eid="3" Args="45" />
+	<NewSeIdx Idx="11" Stat= "1" Eid="3" Args="50" />
+	<NewSeIdx Idx="12" Stat= "1" Eid="3" Args="55" />
+	<NewSeIdx Idx="13" Stat= "1" Eid="3" Args="60" />
+	<NewSeIdx Idx="14" Stat= "1" Eid="3" Args="65" />
+	<NewSeIdx Idx="15" Stat= "1" Eid="3" Args="70" />
+	<NewSeIdx Idx="16" Stat= "1" Eid="3" Args="75" />
+	<NewSeIdx Idx="17" Stat= "1" Eid="3" Args="80" />
+	<NewSeIdx Idx="18" Stat= "1" Eid="3" Args="85" />
+	<NewSeIdx Idx="19" Stat= "1" Eid="3" Args="90" />
+	<NewSeIdx Idx="20" Stat= "1" Eid="3" Args="95" />
+	<NewSeIdx Idx="21" Stat= "1" Eid="3" Args="100" />
+
+	<NewSeIdx Idx="22" Stat= "1" Eid="4" Args="" />
+
+	<NewSeIdx Idx="23" Stat= "1" Eid="5" Args="1" Desc="草" />
+	<NewSeIdx Idx="24" Stat= "1" Eid="5" Args="2" Desc="水" />
+	<NewSeIdx Idx="25" Stat= "1" Eid="5" Args="3" Desc="火" />
+	<NewSeIdx Idx="26" Stat= "1" Eid="5" Args="4" Desc="飞" />
+	<NewSeIdx Idx="27" Stat= "1" Eid="5" Args="5" Desc="电" />
+	<NewSeIdx Idx="28" Stat= "1" Eid="5" Args="6" Desc="机械" />
+	<NewSeIdx Idx="29" Stat= "1" Eid="5" Args="7" Desc="地面" />
+	<NewSeIdx Idx="30" Stat= "1" Eid="5" Args="8" Desc="普通" />
+	<NewSeIdx Idx="31" Stat= "1" Eid="5" Args="9" Desc="冰" />
+	<NewSeIdx Idx="32" Stat= "1" Eid="5" Args="10" Desc="超能" />
+	<NewSeIdx Idx="33" Stat= "1" Eid="5" Args="11" Desc="战斗" />
+	<NewSeIdx Idx="34" Stat= "1" Eid="5" Args="12" Desc="光" />
+	<NewSeIdx Idx="35" Stat= "1" Eid="5" Args="13" Desc="暗影" />
+	<NewSeIdx Idx="36" Stat= "1" Eid="5" Args="14" Desc="神秘" />
+	<NewSeIdx Idx="37" Stat= "1" Eid="5" Args="15" Desc="龙" />
+	<NewSeIdx Idx="38" Stat= "1" Eid="5" Args="16" Desc="圣灵" />
+
+	<NewSeIdx Idx="39" Stat= "1" Eid="6" Args="0 50" />
+	<NewSeIdx Idx="40" Stat= "1" Eid="6" Args="0 100" />
+	<NewSeIdx Idx="41" Stat= "1" Eid="6" Args="1 50" />
+	<NewSeIdx Idx="42" Stat= "1" Eid="6" Args="1 100" />
+	<NewSeIdx Idx="43" Stat= "1" Eid="6" Args="2 50" />
+	<NewSeIdx Idx="44" Stat= "1" Eid="6" Args="2 100" />
+	<NewSeIdx Idx="45" Stat= "1" Eid="6" Args="5 50" />
+	<NewSeIdx Idx="46" Stat= "1" Eid="6" Args="5 100" />
+	<NewSeIdx Idx="47" Stat= "1" Eid="6" Args="6 50" />
+	<NewSeIdx Idx="48" Stat= "1" Eid="6" Args="6 100" />
+	<NewSeIdx Idx="49" Stat= "1" Eid="6" Args="8 50" />
+	<NewSeIdx Idx="50" Stat= "1" Eid="6" Args="8 100" />
+
+	<NewSeIdx Idx="51" Stat= "1" Eid="7" Args="20" />
+	<NewSeIdx Idx="52" Stat= "1" Eid="7" Args="25" />
+	<NewSeIdx Idx="53" Stat= "1" Eid="7" Args="30" />
+	<NewSeIdx Idx="54" Stat= "1" Eid="7" Args="40" />
+
+	<NewSeIdx Idx="55" Stat= "1" Eid="8" Args="4" />
+	<NewSeIdx Idx="56" Stat= "1" Eid="8" Args="8" />
+
+	<NewSeIdx Idx="57" Stat= "1" Eid="9" Args="0 100" />
+
+	<NewSeIdx Idx="58" Stat= "1" Eid="10" Args="" />
+
+	<NewSeIdx Idx="59" Stat= "1" Eid="11" Args="4" />
+
+	<NewSeIdx Idx="60" Stat= "1" Eid="12" Args="0 6" />
+	<NewSeIdx Idx="61" Stat= "1" Eid="12" Args="1 6" />
+	<NewSeIdx Idx="62" Stat= "1" Eid="12" Args="2 6" />
+	<NewSeIdx Idx="63" Stat= "1" Eid="12" Args="3 6" />
+	<NewSeIdx Idx="64" Stat= "1" Eid="12" Args="4 6" />
+	<NewSeIdx Idx="65" Stat= "1" Eid="12" Args="5 6" />
+
+	<NewSeIdx Idx="66" Stat= "1" Eid="13" Args="5" />
+	<NewSeIdx Idx="67" Stat= "1" Eid="13" Args="10" />
+
+	<NewSeIdx Idx="68" Stat= "1" Eid="14" Args="3" />
+
+	<NewSeIdx Idx="69" Stat= "1" Eid="15" Args="50" />
+
+	<NewSeIdx Idx="70" Stat= "1" Eid="16" Args="0" />
+	<NewSeIdx Idx="71" Stat= "1" Eid="16" Args="1" />
+	<NewSeIdx Idx="72" Stat= "1" Eid="16" Args="2" />
+	<NewSeIdx Idx="73" Stat= "1" Eid="16" Args="3" />
+	<NewSeIdx Idx="74" Stat= "1" Eid="16" Args="4" />
+	<NewSeIdx Idx="75" Stat= "1" Eid="16" Args="5" />
+
+	<NewSeIdx Idx="76" Stat= "1" Eid="17" Args="0 200" />
+	<NewSeIdx Idx="77" Stat= "1" Eid="17" Args="0 375" />
+	<NewSeIdx Idx="78" Stat= "1" Eid="17" Args="0 5000" />
+
+	<NewSeIdx Idx="79" Stat= "1" Eid="18" Args="" />
+
+	<NewSeIdx Idx="80" Stat= "1" Eid="19" Args="" />
+
+	<NewSeIdx Idx="81" Stat= "1" Eid="20" Args="10323" />
+
+	<NewSeIdx Idx="82" Stat= "1" Eid="21" Args="10100" />
+
+	<NewSeIdx Idx="83" Stat= "1" Eid="22" Args="100" />
+
+	<NewSeIdx Idx="84" Stat= "1" Eid="23" Args="15 16960" Desc="1000000" />
+	<NewSeIdx Idx="85" Stat= "1" Eid="23" Args="0 20000" />
+
+	<NewSeIdx Idx="86" Stat= "1" Eid="24" Args="10036 10210 20215" />
+	<NewSeIdx Idx="87" Stat= "1" Eid="24" Args="10036 10210 20215 20099" />
+
+	<NewSeIdx Idx="88" Stat= "1" Eid="25" Args="" />
+
+	<NewSeIdx Idx="89" Stat= "1" Eid="27" Args="2 3 1" />
+
+	<NewSeIdx Idx="90" Stat= "1" Eid="24" Args="10036 10210 20007 20143 20215" />
+
+	<NewSeIdx Idx="91" Stat= "1" Eid="7" Args="100" />
+
+	<NewSeIdx Idx="92" Stat= "1" Eid="36" Args="13 12" />
+
+	<NewSeIdx Idx="93" Stat= "1" Eid="37" Args="0 100" Desc="自身一次受到大于100点的伤害时直接将对方体力降至0" />
+
+	<NewSeIdx Idx="94" Stat= "1" Eid="24" Args="20007 20048 20143 20150 20178 20215 20218 10036" />
+
+	<NewSeIdx Idx="95" Stat= "1" Eid="38" Args="50" />
+
+	<NewSeIdx Idx="96" Stat= "1" Eid="39" Args="3" />
+
+	<NewSeIdx Idx="97" Stat= "1" Eid="40" Args="3" />
+
+	<!-- 1001 - 2000: 玩家精灵特效 -->
+	<NewSeIdx Idx="1001" Stat= "2" Times="20" Eid="26" Args="1 20" ItemId="300030" Des="增加精灵防御20（赛尔间对战无效）"/>
+	<NewSeIdx Idx="1002" Stat= "2" Times="20" Eid="26" Args="2 20" ItemId="300031" Des="增加精灵特防20（赛尔间对战无效）"/>
+	<NewSeIdx Idx="1003" Stat= "2" Times="20" Eid="26" Args="3 20" ItemId="300032" Des="增加精灵攻击20（赛尔间对战无效）"/>
+	<NewSeIdx Idx="1004" Stat= "2" Times="20" Eid="26" Args="4 20" ItemId="300033" Des="增加精灵特攻20（赛尔间对战无效）"/>
+	<NewSeIdx Idx="1005" Stat= "2" Times="10" Eid="26" Args="5 10" ItemId="300034" Des="增加精灵速度10（赛尔间对战无效）"/>
+
+	<NewSeIdx Idx="1006" Stat= "1" Eid="28" Args="1 5" Desc="叶绿" Desc2="草属性技能伤害增加5%" />
+	<NewSeIdx Idx="1007" Stat= "1" Eid="28" Args="2 5" Desc="流水" Desc2="水属性技能伤害增加5%" />
+	<NewSeIdx Idx="1008" Stat= "1" Eid="28" Args="3 5" Desc="炎火" Desc2="火属性技能伤害增加5%" />
+	<NewSeIdx Idx="1009" Stat= "1" Eid="28" Args="4 5" Desc="飞空" Desc2="飞行属性技能伤害增加5%" />
+	<NewSeIdx Idx="1010" Stat= "1" Eid="28" Args="5 5" Desc="蓄电" Desc2="电属性技能伤害增加5%" />
+	<NewSeIdx Idx="1011" Stat= "1" Eid="28" Args="6 5" Desc="机能" Desc2="机械属性技能伤害增加5%" />
+	<NewSeIdx Idx="1012" Stat= "1" Eid="28" Args="7 5" Desc="碎裂" Desc2="地面属性技能伤害增加5%" />
+	<NewSeIdx Idx="1013" Stat= "1" Eid="28" Args="8 5" Desc="平衡" Desc2="普通属性技能伤害增加5%" />
+	<NewSeIdx Idx="1014" Stat= "1" Eid="28" Args="9 5" Desc="冰霜" Desc2="冰属性技能伤害增加5%" />
+	<NewSeIdx Idx="1015" Stat= "1" Eid="28" Args="10 5" Desc="魔幻" Desc2="超能属性技能伤害增加5%" />
+	<NewSeIdx Idx="1016" Stat= "1" Eid="28" Args="11 5" Desc="战意" Desc2="战斗属性技能伤害增加5%" />
+	<NewSeIdx Idx="1017" Stat= "1" Eid="28" Args="12 5" Desc="光环" Desc2="光属性技能伤害增加5%" />
+	<NewSeIdx Idx="1018" Stat= "1" Eid="28" Args="13 5" Desc="黑夜" Desc2="暗影属性技能伤害增加5%" />
+	<NewSeIdx Idx="1019" Stat= "1" Eid="28" Args="14 5" Desc="奇异" Desc2="神秘属性技能伤害增加5%" />
+	<NewSeIdx Idx="1020" Stat= "1" Eid="28" Args="15 5" Desc="威严" Desc2="龙属性技能伤害增加5%" />
+	<NewSeIdx Idx="1021" Stat= "1" Eid="28" Args="16 5" Desc="圣灵" Desc2="圣灵属性技能伤害增加5%" />
+
+	<NewSeIdx Idx="1022" Stat= "1" Eid="29" Args="5" Desc="精准" Desc2="所有技能命中率增加5%" />
+
+	<NewSeIdx Idx="1023" Stat= "1" Eid="30" Args="1" Desc="会心" Desc2="所有技能的致命一击率增加1/16" />
+
+	<NewSeIdx Idx="1024" Stat= "1" Eid="3" Args="5" Desc="坚硬" Desc2="受到的伤害减少5%" />
+
+	<NewSeIdx Idx="1025" Stat= "1" Eid="7" Args="5" Desc="回避" Desc2="被技能命中的几率减少5%" />
+
+	<NewSeIdx Idx="1026" Stat= "1" Eid="31" Args="3 1" Desc="顽强" Desc2="受到致死攻击时有3%几率余下1点体力" />
+
+	<NewSeIdx Idx="1027" Stat= "1" Eid="32" Args="3" Desc="瞬杀" Desc2="进攻类技能有3%几率秒杀对方" />
+
+	<NewSeIdx Idx="1028" Stat= "1" Eid="33" Args="8 3" Desc="回神" Desc2="精灵体力降低到1/8时有3%几率体力回满" />
+
+	<NewSeIdx Idx="1029" Stat= "1" Eid="6" Args="0 3" Desc="带电" Desc2="受到普通攻击时有3%几率使对方麻痹" />
+	<NewSeIdx Idx="1030" Stat= "1" Eid="6" Args="1 3" Desc="中毒" Desc2="受到普通攻击时有3%几率使对方中毒" />
+	<NewSeIdx Idx="1031" Stat= "1" Eid="6" Args="2 3" Desc="高热" Desc2="受到普通攻击时有3%几率使对方烧伤" />
+	<NewSeIdx Idx="1032" Stat= "1" Eid="6" Args="5 3" Desc="冰冷" Desc2="受到普通攻击时有3%几率使对方冻伤" />
+	<NewSeIdx Idx="1033" Stat= "1" Eid="6" Args="6 3" Desc="阴森" Desc2="受到普通攻击时有3%几率使对方害怕" />
+	<NewSeIdx Idx="1034" Stat= "1" Eid="6" Args="8 3" Desc="睡眠" Desc2="受到普通攻击时有3%几率使对方睡眠" />
+
+	<NewSeIdx Idx="1035" Stat= "1" Eid="34" Args="0 5" Desc="反抗" Desc2="受到特殊攻击时有5%概率使对面攻击降低1个等级" />
+	<NewSeIdx Idx="1036" Stat= "1" Eid="34" Args="1 5" Desc="反驳" Desc2="受到特殊攻击时有5%概率使对面防御降低1个等级" />
+	<NewSeIdx Idx="1037" Stat= "1" Eid="34" Args="2 5" Desc="忽略" Desc2="受到特殊攻击时有5%概率使对面特攻降低1个等级" />
+	<NewSeIdx Idx="1038" Stat= "1" Eid="34" Args="3 5" Desc="草率" Desc2="受到特殊攻击时有5%概率使对面特防降低1个等级" />
+	<NewSeIdx Idx="1039" Stat= "1" Eid="36" Args="8" Desc="汲取" Desc2="攻击技能命中后吸取命中伤害的8%体力" />
+	<NewSeIdx Idx="1040" Stat= "1" Eid="34" Args="4 5" Desc="慌张" Desc2="受到特殊攻击时有5%概率使对面速度降低1个等级" />
+
+	<NewSeIdx Idx="1041" Stat= "1" Eid="35" Args="0 5" Desc="反击" Desc2="受到任何攻击时有5%概率使自身攻击提升1个等级" />
+	<NewSeIdx Idx="1042" Stat= "1" Eid="35" Args="1 5" Desc="抵抗" Desc2="受到任何攻击时有5%概率使自身防御提升1个等级" />
+	<NewSeIdx Idx="1043" Stat= "1" Eid="35" Args="2 5" Desc="反攻" Desc2="受到任何攻击时有5%概率使自身特攻提升1个等级" />
+	<NewSeIdx Idx="1044" Stat= "1" Eid="35" Args="3 5" Desc="坚韧" Desc2="受到任何攻击时有5%概率使自身特防提升1个等级" />
+	<NewSeIdx Idx="1045" Stat= "1" Eid="35" Args="4 5" Desc="借风" Desc2="受到任何攻击时有5%概率使自身速度提升1个等级" />
+
+	<NewSeIdx Idx="1046" Stat= "2" Times="20" Eid="26" Args="1 30" ItemId="300045" Des="增加精灵防御30（赛尔间对战无效）"/>
+	<NewSeIdx Idx="1047" Stat= "2" Times="20" Eid="26" Args="2 30" ItemId="300046" Des="增加精灵特防30（赛尔间对战无效）"/>
+	<NewSeIdx Idx="1048" Stat= "2" Times="20" Eid="26" Args="3 30" ItemId="300047" Des="增加精灵攻击30（赛尔间对战无效）"/>
+	<NewSeIdx Idx="1049" Stat= "2" Times="20" Eid="26" Args="4 30" ItemId="300048" Des="增加精灵特攻30（赛尔间对战无效）"/>
+	<NewSeIdx Idx="1050" Stat= "2" Times="10" Eid="26" Args="5 15" ItemId="300049" Des="增加精灵速度15（赛尔间对战无效）"/>
+	<NewSeIdx Idx="1051" Stat= "2" Times="10" Eid="30" Args="1" ItemId="300050" Des="增加精灵技能致命一击率1/16（赛尔间对战无效）"/>
+</NewSe>

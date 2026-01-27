@@ -1,0 +1,70 @@
+{
+  "name": "kose_server",
+  "version": "1.0.0",
+  "description": "赛尔号怀旧服服务端",
+  "main": "dist/index.js",
+  "bin": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "dev:game": "ts-node-dev --respawn src/index.ts -- --game",
+    "dev:email": "ts-node-dev --respawn src/index.ts -- --email",
+    "dev:regist": "ts-node-dev --respawn src/index.ts -- --regist",
+    "dev:proxy": "ts-node-dev --respawn src/index.ts -- --proxy",
+    "dev:gateway": "ts-node-dev --respawn src/index.ts -- --gateway",
+    "db:migrate": "ts-node src/db-init.ts migrate",
+    "db:rollback": "ts-node src/db-init.ts rollback",
+    "db:status": "ts-node src/db-init.ts status",
+    "build": "tsc",
+    "build:services": "npm run build && node scripts/build-services.js",
+    "start": "node dist/index.js",
+    "start:game": "node dist/index.js --game",
+    "start:email": "node dist/index.js --email",
+    "start:regist": "node dist/index.js --regist",
+    "start:proxy": "node dist/index.js --proxy",
+    "start:gateway": "node dist/index.js --gateway",
+    "release:win": "node scripts/build.js win",
+    "release:linux": "node scripts/build.js linux",
+    "release:macos": "node scripts/build.js macos",
+    "release:all": "node scripts/build.js all",
+    "tools:proto-to-meta": "ts-node tools/meta-proto-converter.ts proto-to-meta",
+    "tools:meta-to-proto": "ts-node tools/meta-proto-converter.ts meta-to-proto",
+    "tools:validate-proto": "ts-node tools/validate-proto.ts",
+    "tools:generate-docs": "ts-node tools/generate-proto-docs.ts"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [
+      "config/**/*",
+      "src/ProxyServer/public/**/*"
+    ],
+    "outputPath": "release",
+    "targets": [
+      "node22-win-x64"
+    ]
+  },
+  "keywords": [
+    "kose",
+    "game-server"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^20.19.30",
+    "@types/nodemailer": "^7.0.5",
+    "@types/ws": "^8.18.1",
+    "@types/xml2js": "^0.4.14",
+    "@yao-pkg/pkg": "^5.12.0",
+    "ts-node": "^10.9.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "amf-js": "^1.0.0",
+    "better-sqlite3": "^9.2.0",
+    "fast-xml-parser": "^4.5.3",
+    "mysql2": "^3.6.0",
+    "nodemailer": "^7.0.12",
+    "ws": "^8.19.0",
+    "xml2js": "^0.6.2"
+  }
+}

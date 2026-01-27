@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KOSE Proxy Monitor</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Consolas', 'Monaco', monospace;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部工具栏 */
+    .toolbar {
+      background: #333;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      border-bottom: 1px solid #444;
+    }
+
+    .toolbar h1 {
+      font-size: 16px;
+      color: #4fc3f7;
+      margin-right: 20px;
+    }
+
+    .toolbar button {
+      background: #0e639c;
+      color: white;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .toolbar button:hover {
+      background: #1177bb;
+    }
+
+    .toolbar button.danger {
+      background: #c53030;
+    }
+
+    .toolbar button.danger:hover {
+      background: #e53e3e;
+    }
+
+    .toolbar .status {
+      margin-left: auto;
+      font-size: 12px;
+    }
+
+    .toolbar .status.connected {
+      color: #4caf50;
+    }
+
+    .toolbar .status.disconnected {
+      color: #f44336;
+    }
+
+    .toolbar .filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar input {
+      background: #2d2d2d;
+      border: 1px solid #444;
+      color: #d4d4d4;
+      padding: 5px 10px;
+      border-radius: 3px;
+      width: 200px;
+    }
+
+    /* 主内容区 */
+    .main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* 数据包列表 */
+    .packet-list {
+      flex: 1;
+      overflow-y: auto;
+      border-right: 1px solid #444;
+    }
+
+    .packet-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .packet-table th {
+      background: #2d2d2d;
+      padding: 8px 12px;
+      text-align: left;
+      position: sticky;
+      top: 0;
+      border-bottom: 1px solid #444;
+    }
+
+    .packet-table td {
+      padding: 6px 12px;
+      border-bottom: 1px solid #333;
+      white-space: nowrap;
+    }
+
+    .packet-table tr:hover {
+      background: #2a2d2e;
+    }
+
+    .packet-table tr.selected {
+      background: #094771;
+    }
+
+    .packet-table tr.c2s {
+      color: #4fc3f7;
+    }
+
+    .packet-table tr.s2c {
+      color: #81c784;
+    }
+
+    .direction {
+      font-weight: bold;
+      width: 50px;
+    }
+
+    .direction.c2s {
+      color: #ff9800;
+    }
+
+    .direction.s2c {
+      color: #4caf50;
+    }
+
+    /* 详情面板 */
+    .detail-panel {
+      width: 450px;
+      min-width: 300px;
+      max-width: 800px;
+      background: #252526;
+      overflow-y: auto;
+      display: none;
+      position: relative;
+    }
+
+    .detail-panel.visible {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 拖动条 */
+    .resize-handle {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      cursor: ew-resize;
+      background: transparent;
+    }
+
+    .resize-handle:hover {
+      background: #0e639c;
+    }
+
+    .detail-header {
+      background: #333;
+      padding: 12px 15px;
+      border-bottom: 1px solid #444;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .detail-header h2 {
+      font-size: 14px;
+      color: #4fc3f7;
+    }
+
+    .detail-header .close-btn {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .detail-header .close-btn:hover {
+      color: #fff;
+    }
+
+    .detail-section {
+      padding: 15px;
+      border-bottom: 1px solid #333;
+    }
+
+    .detail-section h3 {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .detail-row {
+      display: flex;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+
+    .detail-row .label {
+      color: #9cdcfe;
+      width: 120px;
+      flex-shrink: 0;
+    }
+
+    .detail-row .value {
+      color: #ce9178;
+      word-break: break-all;
+    }
+
+    .field-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .field-table th {
+      background: #2d2d2d;
+      padding: 6px 10px;
+      text-align: left;
+      color: #888;
+    }
+
+    .field-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #333;
+    }
+
+    .field-table .field-name {
+      color: #9cdcfe;
+    }
+
+    .field-table .field-value {
+      color: #ce9178;
+      word-break: break-all;
+      max-width: 200px;
+    }
+
+    .field-table .field-desc {
+      color: #6a9955;
+      font-size: 11px;
+    }
+
+    .hex-view {
+      background: #1e1e1e;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 11px;
+      word-break: break-all;
+      color: #808080;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    /* JSON 格式显示 */
+    .json-view {
+      background: #1e1e1e;
+      padding: 12px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .json-view .json-key {
+      color: #9cdcfe;
+    }
+
+    .json-view .json-string {
+      color: #ce9178;
+    }
+
+    .json-view .json-number {
+      color: #b5cea8;
+    }
+
+    .json-view .json-bracket {
+      color: #ffd700;
+    }
+
+    .json-view .json-comment {
+      color: #6a9955;
+      font-style: italic;
+    }
+
+    /* 复制按钮 */
+    .copy-btn {
+      background: #0e639c;
+      color: white;
+      border: none;
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+
+    .copy-btn:hover {
+      background: #1177bb;
+    }
+
+    .copy-btn.copied {
+      background: #4caf50;
+    }
+
+    /* 折叠/展开按钮 */
+    .json-toggle {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      line-height: 14px;
+      text-align: center;
+      cursor: pointer;
+      color: #888;
+      font-size: 10px;
+      margin-right: 4px;
+      border: 1px solid #555;
+      border-radius: 2px;
+      background: #2d2d2d;
+      user-select: none;
+    }
+
+    .json-toggle:hover {
+      background: #3d3d3d;
+      color: #fff;
+    }
+
+    .json-collapsible {
+      display: block;
+    }
+
+    .json-collapsible.collapsed {
+      display: none;
+    }
+
+    .json-preview {
+      color: #888;
+      font-style: italic;
+    }
+
+    /* 解析数据预览 */
+    .parsed-data {
+      background: #1a1a2e;
+      padding: 12px 15px;
+      border-bottom: 1px solid #444;
+      font-family: monospace;
+      font-size: 13px;
+      color: #ffd700;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .parsed-data .label {
+      color: #888;
+      font-size: 11px;
+      margin-bottom: 5px;
+    }
+
+    .parsed-data .values {
+      color: #ce9178;
+      word-break: break-all;
+    }
+
+    .parsed-data .separator {
+      color: #666;
+      margin: 0 8px;
+    }
+
+    /* 底部状态栏 */
+    .statusbar {
+      background: #007acc;
+      padding: 4px 15px;
+      font-size: 12px;
+      display: flex;
+      gap: 20px;
+    }
+
+    .statusbar span {
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>KOSE Proxy Monitor</h1>
+    <button onclick="clearPackets()" class="danger">清空</button>
+    <div class="filter">
+      <span>过滤:</span>
+      <input type="text" id="filterInput" placeholder="CMD / 名称 / UserID" oninput="applyFilter()">
+    </div>
+    <div class="status disconnected" id="wsStatus">未连接</div>
+  </div>
+
+  <div class="main">
+    <div class="packet-list">
+      <table class="packet-table">
+        <thead>
+          <tr>
+            <th style="width:50px">#</th>
+            <th style="width:80px">时间</th>
+            <th style="width:50px">方向</th>
+            <th style="width:80px">CMD</th>
+            <th style="width:180px">名称</th>
+            <th style="width:100px">UserID</th>
+            <th style="width:80px">Result</th>
+            <th>解析数据</th>
+          </tr>
+        </thead>
+        <tbody id="packetBody">
+        </tbody>
+      </table>
+    </div>
+
+    <div class="detail-panel" id="detailPanel">
+      <div class="resize-handle" id="resizeHandle"></div>
+      <div class="detail-header">
+        <h2>数据包详情</h2>
+        <button class="close-btn" onclick="closeDetail()">&times;</button>
+      </div>
+      <div class="parsed-data" id="parsedData">
+        <div class="label">解析数据</div>
+        <div class="values" id="parsedValues">-</div>
+      </div>
+      <div id="detailContent" style="flex:1;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span id="packetCount">数据包: 0</span>
+    <span id="proxyInfo">代理: 127.0.0.1:9000 → 远程服务器</span>
+  </div>
+
+  <script>
+    let packets = [];
+    let selectedId = null;
+    let ws = null;
+    let filterText = '';
+
+    // 初始化
+    function init() {
+      connectWebSocket();
+      loadPackets();
+      initResize();
+    }
+
+    // 初始化拖动调整宽度
+    function initResize() {
+      const panel = document.getElementById('detailPanel');
+      const handle = document.getElementById('resizeHandle');
+      let isResizing = false;
+
+      handle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const newWidth = window.innerWidth - e.clientX;
+        if (newWidth >= 300 && newWidth <= 800) {
+          panel.style.width = newWidth + 'px';
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isResizing) {
+          isResizing = false;
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+        }
+      });
+    }
+
+    // 连接 WebSocket
+    function connectWebSocket() {
+      ws = new WebSocket(`ws://${location.host}`);
+
+      ws.onopen = () => {
+        document.getElementById('wsStatus').textContent = '已连接';
+        document.getElementById('wsStatus').className = 'status connected';
+      };
+
+      ws.onclose = () => {
+        document.getElementById('wsStatus').textContent = '未连接';
+        document.getElementById('wsStatus').className = 'status disconnected';
+        // 重连
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'packet') {
+          addPacket(msg.data);
+        }
+      };
+    }
+
+    // 加载历史数据包
+    async function loadPackets() {
+      try {
+        const res = await fetch('/api/packets');
+        packets = await res.json();
+        renderPackets();
+      } catch (e) {
+        console.error('加载数据包失败', e);
+      }
+    }
+
+    // 添加新数据包
+    function addPacket(packet) {
+      packets.push(packet);
+      if (matchFilter(packet)) {
+        appendPacketRow(packet);
+      }
+      updateCount();
+      // 自动滚动到底部
+      const list = document.querySelector('.packet-list');
+      list.scrollTop = list.scrollHeight;
+    }
+
+    // 渲染所有数据包
+    function renderPackets() {
+      const tbody = document.getElementById('packetBody');
+      tbody.innerHTML = '';
+      for (const p of packets) {
+        if (matchFilter(p)) {
+          appendPacketRow(p);
+        }
+      }
+      updateCount();
+    }
+
+    // 添加数据包行
+    function appendPacketRow(p) {
+      const tbody = document.getElementById('packetBody');
+      const tr = document.createElement('tr');
+      tr.className = p.direction.toLowerCase();
+      tr.dataset.id = p.id;
+      tr.onclick = () => selectPacket(p.id);
+
+      const time = new Date(p.timestamp);
+      const timeStr = time.toTimeString().split(' ')[0] + '.' + String(time.getMilliseconds()).padStart(3, '0');
+
+      // 生成字段预览：CMD | 字段1 | 字段2 | ...
+      let fieldsPreview = '';
+      if (p.fields.length > 0) {
+        const values = p.fields.slice(0, 4).map(f => {
+          // 截断过长的值
+          let val = f.value;
+          if (val.length > 20) val = val.substring(0, 17) + '...';
+          return val;
+        });
+        fieldsPreview = values.join(' | ');
+      }
+
+      tr.innerHTML = `
+        <td>${p.id}</td>
+        <td>${timeStr}</td>
+        <td class="direction ${p.direction.toLowerCase()}">${p.direction === 'C2S' ? '发送' : '接收'}</td>
+        <td>${p.cmdID}</td>
+        <td>${p.cmdName} ${p.cmdDesc ? `<span style="color:#6a9955">[${p.cmdDesc}]</span>` : ''}</td>
+        <td>${p.userID}</td>
+        <td>${p.result}</td>
+        <td style="color:#ce9178">${fieldsPreview}</td>
+      `;
+
+      tbody.appendChild(tr);
+    }
+
+    // 选择数据包
+    function selectPacket(id) {
+      if (selectedId === id) return; // 避免重复点击
+      selectedId = id;
+      const packet = packets.find(p => p.id === id);
+      if (!packet) return;
+
+      // 更新选中状态 - 使用更高效的方式
+      const rows = document.querySelectorAll('.packet-table tbody tr');
+      rows.forEach(tr => {
+        if (tr.dataset.id == id) {
+          tr.classList.add('selected');
+        } else {
+          tr.classList.remove('selected');
+        }
+      });
+
+      // 显示详情
+      showDetail(packet);
+    }
+
+    // 显示详情
+    function showDetail(p) {
+      const panel = document.getElementById('detailPanel');
+      const content = document.getElementById('detailContent');
+      const parsedValues = document.getElementById('parsedValues');
+
+      // 生成解析数据预览
+      if (p.fields.length > 0) {
+        const parts = p.fields.map(f => `<span style="color:#ce9178">${f.value}</span>`);
+        parsedValues.innerHTML = parts.join('<span class="separator">|</span>');
+      } else {
+        parsedValues.textContent = '(无解析数据)';
+      }
+
+      const time = new Date(p.timestamp);
+      const timeStr = time.toLocaleString() + '.' + String(time.getMilliseconds()).padStart(3, '0');
+
+      // 将字段转换为 JSON 格式显示
+      let fieldsHtml = '';
+      let jsonDataId = 'jsonData_' + p.id;
+      if (p.fields.length > 0) {
+        fieldsHtml = `<div class="json-view" id="${jsonDataId}">${formatFieldsAsJson(p.fields)}</div>`;
+      } else {
+        fieldsHtml = '<div style="color:#888;padding:10px">无字段数据</div>';
+      }
+
+      content.innerHTML = `
+        <div class="detail-section">
+          <h3>基本信息</h3>
+          <div class="detail-row"><span class="label">ID:</span><span class="value">${p.id}</span></div>
+          <div class="detail-row"><span class="label">时间:</span><span class="value">${timeStr}</span></div>
+          <div class="detail-row"><span class="label">方向:</span><span class="value">${p.direction === 'C2S' ? '客户端 → 服务器' : '服务器 → 客户端'}</span></div>
+          <div class="detail-row"><span class="label">命令ID:</span><span class="value">${p.cmdID}</span></div>
+          <div class="detail-row"><span class="label">命令名称:</span><span class="value">${p.cmdName}</span></div>
+          <div class="detail-row"><span class="label">命令描述:</span><span class="value">${p.cmdDesc || '-'}</span></div>
+          <div class="detail-row"><span class="label">UserID:</span><span class="value">${p.userID}</span></div>
+          <div class="detail-row"><span class="label">Result:</span><span class="value">${p.result}</span></div>
+          <div class="detail-row"><span class="label">Body长度:</span><span class="value">${p.bodyLength} 字节</span></div>
+        </div>
+        <div class="detail-section">
+          <h3>数据格式</h3>
+          <div class="hex-view" style="color:#4fc3f7">${p.formatString || '(未定义)'}</div>
+        </div>
+        <div class="detail-section">
+          <h3>字段解析 (JSON) <button class="copy-btn" onclick="copyJson('${jsonDataId}')">复制</button></h3>
+          ${fieldsHtml}
+        </div>
+        <div class="detail-section">
+          <h3>Body (Hex)</h3>
+          <div class="hex-view">${p.bodyHex || '(空)'}</div>
+        </div>
+        <div class="detail-section">
+          <h3>原始数据 (Hex)</h3>
+          <div class="hex-view">${p.rawHex}</div>
+        </div>
+      `;
+
+      panel.classList.add('visible');
+    }
+
+    // 将字段数组转换为 JSON 格式的 HTML
+    let toggleIdCounter = 0;
+    function formatFieldsAsJson(fields) {
+      toggleIdCounter = 0; // 重置计数器
+      // 将扁平的字段数组转换为嵌套对象结构
+      const obj = {};
+
+      for (const field of fields) {
+        const name = field.name;
+        const value = field.value;
+        const desc = field.desc;
+
+        // 检查是否是数组字段 (如 server[0].onlineID)
+        const arrayMatch = name.match(/^(\w+)\[(\d+)\]\.(\w+)$/);
+        if (arrayMatch) {
+          const [, arrayName, index, propName] = arrayMatch;
+          if (!obj[arrayName]) {
+            obj[arrayName] = [];
+          }
+          const idx = parseInt(index, 10);
+          if (!obj[arrayName][idx]) {
+            obj[arrayName][idx] = {};
+          }
+          obj[arrayName][idx][propName] = { value, desc };
+        } else {
+          obj[name] = { value, desc };
+        }
+      }
+
+      // 生成带语法高亮的 JSON HTML
+      return renderJsonObject(obj, 0);
+    }
+
+    // 切换折叠状态
+    function toggleJson(toggleId) {
+      const content = document.getElementById('json-content-' + toggleId);
+      const toggle = document.getElementById('json-toggle-' + toggleId);
+      const preview = document.getElementById('json-preview-' + toggleId);
+
+      if (content.classList.contains('collapsed')) {
+        content.classList.remove('collapsed');
+        toggle.textContent = '−';
+        if (preview) preview.style.display = 'none';
+      } else {
+        content.classList.add('collapsed');
+        toggle.textContent = '+';
+        if (preview) preview.style.display = 'inline';
+      }
+    }
+
+    // 渲染 JSON 对象为 HTML
+    function renderJsonObject(obj, indent) {
+      const spaces = '  '.repeat(indent);
+      const lines = [];
+
+      lines.push('<span class="json-bracket">{</span>');
+
+      const keys = Object.keys(obj);
+      keys.forEach((key, i) => {
+        const val = obj[key];
+        const comma = i < keys.length - 1 ? ',' : '';
+        const innerSpaces = '  '.repeat(indent + 1);
+
+        if (Array.isArray(val)) {
+          // 数组 - 添加折叠功能
+          const toggleId = toggleIdCounter++;
+          const arrayLen = val.length;
+          const preview = `<span id="json-preview-${toggleId}" class="json-preview" style="display:none"> // ${arrayLen} items</span>`;
+
+          lines.push(`${innerSpaces}<span class="json-toggle" id="json-toggle-${toggleId}" onclick="toggleJson(${toggleId})">−</span><span class="json-key">"${key}"</span>: <span class="json-bracket">[</span>${preview}`);
+          lines.push(`<span id="json-content-${toggleId}" class="json-collapsible">`);
+          val.forEach((item, j) => {
+            const itemComma = j < val.length - 1 ? ',' : '';
+            const itemSpaces = '  '.repeat(indent + 2);
+            lines.push(`${itemSpaces}${renderJsonSimpleObject(item, indent + 2)}${itemComma}`);
+          });
+          lines.push(`${innerSpaces}<span class="json-bracket">]</span>${comma}</span>`);
+        } else if (val && typeof val === 'object' && 'value' in val) {
+          // 简单字段
+          const displayValue = formatJsonValue(val.value);
+          const comment = val.desc ? ` <span class="json-comment">// ${val.desc}</span>` : '';
+          lines.push(`${innerSpaces}<span class="json-key">"${key}"</span>: ${displayValue}${comma}${comment}`);
+        } else {
+          // 嵌套对象 - 添加折叠功能
+          const toggleId = toggleIdCounter++;
+          const objKeys = Object.keys(val);
+          const preview = `<span id="json-preview-${toggleId}" class="json-preview" style="display:none"> // ${objKeys.length} fields</span>`;
+
+          lines.push(`${innerSpaces}<span class="json-toggle" id="json-toggle-${toggleId}" onclick="toggleJson(${toggleId})">−</span><span class="json-key">"${key}"</span>: ${preview}<span id="json-content-${toggleId}" class="json-collapsible">${renderJsonObject(val, indent + 1)}</span>${comma}`);
+        }
+      });
+
+      lines.push(`${spaces}<span class="json-bracket">}</span>`);
+      return lines.join('\n');
+    }
+
+    // 渲染简单对象 (数组元素)
+    function renderJsonSimpleObject(obj, indent) {
+      const spaces = '  '.repeat(indent);
+      const innerSpaces = '  '.repeat(indent + 1);
+
+      const keys = Object.keys(obj);
+      const toggleId = toggleIdCounter++;
+
+      // 生成预览文本
+      const previewParts = keys.slice(0, 2).map(k => {
+        const v = obj[k].value;
+        return v.length > 15 ? v.substring(0, 12) + '...' : v;
+      });
+      const previewText = previewParts.join(', ') + (keys.length > 2 ? ', ...' : '');
+      const preview = `<span id="json-preview-${toggleId}" class="json-preview" style="display:none"> { ${previewText} }</span>`;
+
+      const lines = [`<span class="json-toggle" id="json-toggle-${toggleId}" onclick="toggleJson(${toggleId})">−</span><span class="json-bracket">{</span>${preview}<span id="json-content-${toggleId}" class="json-collapsible">`];
+
+      keys.forEach((key, i) => {
+        const val = obj[key];
+        const comma = i < keys.length - 1 ? ',' : '';
+        const displayValue = formatJsonValue(val.value);
+        const comment = val.desc ? ` <span class="json-comment">// ${val.desc}</span>` : '';
+        lines.push(`${innerSpaces}<span class="json-key">"${key}"</span>: ${displayValue}${comma}${comment}`);
+      });
+
+      lines.push(`${spaces}<span class="json-bracket">}</span></span>`);
+      return lines.join('\n');
+    }
+
+    // 格式化 JSON 值
+    function formatJsonValue(value) {
+      // 尝试解析为数字
+      if (/^-?\d+$/.test(value)) {
+        return `<span class="json-number">${value}</span>`;
+      }
+      if (/^-?\d+\.\d+$/.test(value)) {
+        return `<span class="json-number">${value}</span>`;
+      }
+      // 字符串
+      return `<span class="json-string">"${escapeHtml(value)}"</span>`;
+    }
+
+    // HTML 转义
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+    }
+
+    // 复制 JSON 到剪贴板
+    function copyJson(elementId) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+
+      // 获取纯文本内容（去除 HTML 标签）
+      const text = element.innerText;
+
+      navigator.clipboard.writeText(text).then(() => {
+        // 显示复制成功
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '已复制';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove('copied');
+        }, 1500);
+      }).catch(err => {
+        console.error('复制失败:', err);
+      });
+    }
+
+    // 关闭详情
+    function closeDetail() {
+      document.getElementById('detailPanel').classList.remove('visible');
+      selectedId = null;
+      document.querySelectorAll('.packet-table tr.selected').forEach(tr => {
+        tr.classList.remove('selected');
+      });
+    }
+
+    // 清空数据包
+    async function clearPackets() {
+      try {
+        await fetch('/api/clear');
+        packets = [];
+        renderPackets();
+        closeDetail();
+      } catch (e) {
+        console.error('清空失败', e);
+      }
+    }
+
+    // 过滤
+    function applyFilter() {
+      filterText = document.getElementById('filterInput').value.toLowerCase();
+      renderPackets();
+    }
+
+    function matchFilter(p) {
+      if (!filterText) return true;
+      return String(p.cmdID).includes(filterText) ||
+             p.cmdName.toLowerCase().includes(filterText) ||
+             String(p.userID).includes(filterText) ||
+             (p.cmdDesc && p.cmdDesc.toLowerCase().includes(filterText));
+    }
+
+    // 更新计数
+    function updateCount() {
+      const visible = document.querySelectorAll('#packetBody tr').length;
+      document.getElementById('packetCount').textContent = `数据包: ${visible} / ${packets.length}`;
+    }
+
+    // 启动
+    init();
+  </script>
+</body>
+</html>
