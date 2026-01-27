@@ -1,0 +1,192 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-windows:
+    name: Build Windows Release
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: seer_server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: seer_server
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: seer_server
+        run: npm run build
+
+      - name: Build services
+        working-directory: seer_server
+        run: npm run build:services
+
+      - name: Copy config files
+        working-directory: seer_server
+        run: |
+          Copy-Item "config/server.json.default" "release/services/server.json.default"
+          Copy-Item "README.md" "release/services/README.md"
+          Copy-Item "start-all.bat" "release/services/start-all.bat"
+          Copy-Item "start-gateway.bat" "release/services/start-gateway.bat"
+          Copy-Item "start-game.bat" "release/services/start-game.bat"
+          Copy-Item "start-regist.bat" "release/services/start-regist.bat"
+          Copy-Item "start-proxy.bat" "release/services/start-proxy.bat"
+          Copy-Item "stop-all.bat" "release/services/stop-all.bat"
+        shell: pwsh
+
+      - name: Create release archive
+        working-directory: seer_server/release
+        run: |
+          $version = "${{ github.ref_name }}"
+          if ("${{ github.event.inputs.version }}" -ne "") {
+            $version = "${{ github.event.inputs.version }}"
+          }
+          Compress-Archive -Path "services/*" -DestinationPath "seer-server-windows-$version.zip"
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: seer-server-windows
+          path: seer_server/release/*.zip
+          retention-days: 30
+
+  build-linux:
+    name: Build Linux Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: seer_server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: seer_server
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: seer_server
+        run: npm run build
+
+      - name: Build services
+        working-directory: seer_server
+        run: npm run build:services
+
+      - name: Copy config files
+        working-directory: seer_server
+        run: |
+          cp config/server.json.default release/services/server.json.default
+          cp README.md release/services/README.md
+
+      - name: Create startup scripts
+        working-directory: seer_server/release/services
+        run: |
+          cat > start-all.sh << 'EOF'
+          #!/bin/bash
+          ./gateway-server &
+          sleep 2
+          ./game-server &
+          ./regist-server &
+          echo "All services started"
+          EOF
+          
+          cat > stop-all.sh << 'EOF'
+          #!/bin/bash
+          pkill -f gateway-server
+          pkill -f game-server
+          pkill -f regist-server
+          echo "All services stopped"
+          EOF
+          
+          chmod +x start-all.sh stop-all.sh
+
+      - name: Create release archive
+        working-directory: seer_server/release
+        run: |
+          version="${{ github.ref_name }}"
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            version="${{ github.event.inputs.version }}"
+          fi
+          tar -czf "seer-server-linux-${version}.tar.gz" services/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: seer-server-linux
+          path: seer_server/release/*.tar.gz
+          retention-days: 30
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: seer-server-windows
+          path: artifacts
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: seer-server-linux
+          path: artifacts
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          echo "## 🎉 Release Notes" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### 📦 Downloads" >> CHANGELOG.md
+          echo "- Windows: \`seer-server-windows-*.zip\`" >> CHANGELOG.md
+          echo "- Linux: \`seer-server-linux-*.tar.gz\`" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### 🚀 Quick Start" >> CHANGELOG.md
+          echo "1. Download the appropriate package for your platform" >> CHANGELOG.md
+          echo "2. Extract the archive" >> CHANGELOG.md
+          echo "3. Copy \`server.json.default\` to \`server.json\` and configure" >> CHANGELOG.md
+          echo "4. Run \`start-all.bat\` (Windows) or \`./start-all.sh\` (Linux)" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### 📝 Changes" >> CHANGELOG.md
+          git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> CHANGELOG.md || echo "- Initial release" >> CHANGELOG.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/*
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
