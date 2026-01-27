@@ -545,43 +545,80 @@ Gateway
 ### 代码组织
 
 **Handler 职责**
-- 只负责接收和转发请求
-- 不包含业务逻辑
+- 接收客户端请求并解析协议
+- 简单逻辑直接在 Handler 中完成
+- 复杂逻辑调用对应的 Manager 处理
 - 使用 `@Opcode` 装饰器自动注册
 
+**示例**
+```typescript
+// 简单逻辑：直接在 Handler 中完成
+@Opcode(CommandID.SYSTEM_TIME, InjectType.NONE)
+export class SystemTimeHandler implements IHandler {
+  public async Handle(session: IClientSession, _head: HeadInfo, _body: Buffer): Promise<void> {
+    const player = session.Player;
+    if (!player) return;
+    
+    // 简单逻辑直接处理
+    const now = Math.floor(Date.now() / 1000);
+    await player.SendPacket(new SystemTimeRspProto().setTime(now));
+  }
+}
+
+// 复杂逻辑：调用 Manager 处理
+@Opcode(CommandID.LIST_MAP_PLAYER, InjectType.NONE)
+export class ListMapPlayerHandler implements IHandler {
+  public async Handle(session: IClientSession, head: HeadInfo, body: Buffer): Promise<void> {
+    const player = session.Player;
+    if (!player) return;
+    
+    // 复杂逻辑交给 Manager
+    await player.MapManager.HandleListMapPlayer();
+  }
+}
+```
+
 **Manager 职责**
-- 处理业务逻辑
-- 调用 Repository 访问数据库
-- 发送响应给客户端
+- 处理复杂的业务逻辑
+- 通过 `this.Player.XxxRepo` 访问数据库
+- 通过 `this.Player.SendPacket()` 发送响应
+- 继承 `BaseManager` 获得 `Player` 和 `UserID` 属性
 
 **Repository 职责**
 - 封装数据库操作
 - 提供 CRUD 接口
 - 不包含业务逻辑
 
-### 数据使用原则
+### 数据访问原则
 
-**必须使用真实数据**
-- 从数据库读取玩家数据
-- 不使用默认值或模拟数据
-- 确保数据一致性
+**通过 Player 访问数据**
+- 使用 `this.Player.PlayerRepo.data` 获取缓存的玩家数据
+- 使用 `this.Player.XxxRepo` 访问各种数据仓库
+- 数据已在玩家登录时加载并缓存
 
 **示例**
 ```typescript
-// ❌ 错误：使用默认值
+// ❌ 错误：使用默认值或重新查询
 const userInfo = {
   userId: userId,
   nickname: `Player${userId}`,  // 默认昵称
   color: 0xFFFFFF,              // 默认颜色
 };
 
-// ✅ 正确：使用真实数据
+// ❌ 错误：重复查询数据库
 const playerData = await this._playerRepo.FindByUserId(userId);
+
+// ✅ 正确：使用缓存的玩家数据
+const playerInfo = this.Player.PlayerRepo.data;
 const userInfo = {
-  userId: userId,
-  nickname: playerData.nick,    // 真实昵称
-  color: playerData.color,      // 真实颜色
+  userId: this.UserID,
+  nickname: playerInfo.nick,    // 真实昵称
+  color: playerInfo.color,      // 真实颜色
 };
+
+// ✅ 正确：通过 Player 访问其他数据
+const items = await this.Player.ItemRepo.FindByOwnerId();
+const pets = await this.Player.PetRepo.FindByOwnerId();
 ```
 
 ### 异步处理

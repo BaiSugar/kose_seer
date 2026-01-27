@@ -215,11 +215,11 @@ export class MapManager extends BaseManager {
     Logger.Info(`[MapManager] 玩家 ${this.UserID} 聊天: ${req.msg}`);
 
     // 构建响应
-    const rsp = new ChatRspProto();
-    rsp.senderId = this.UserID;
-    rsp.senderNick = this.Player.Nickname;
-    rsp.toId = 0;
-    rsp.msg = req.msg;
+    const rsp = new ChatRspProto()
+      .setSenderId(this.UserID)
+      .setSenderNick(this.Player.Nickname)
+      .setToId(0)
+      .setMsg(req.msg);
 
     // 广播给同地图的所有玩家
     const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
@@ -231,7 +231,7 @@ export class MapManager extends BaseManager {
   }
 
   /**
-   * 发送地图玩家列�?
+   * 发送地图玩家列表
    */
   private async sendMapPlayerList(mapId: number): Promise<void> {
     const playerIds = this._onlineTracker.GetPlayersInMap(mapId);
@@ -259,7 +259,7 @@ export class MapManager extends BaseManager {
 
     await this.Player.SendPacket(rsp);
 
-    Logger.Info(`[MapManager] 发送地�?${mapId} 玩家列表，共 ${players.length} 人`);
+    Logger.Info(`[MapManager] 发送地图 ${mapId} 玩家列表，共 ${players.length} 人`);
   }
 
   /**
