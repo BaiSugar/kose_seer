@@ -15,32 +15,31 @@ jobs:
   build-windows:
     name: Build Windows Release
     runs-on: windows-latest
+    timeout-minutes: 45
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
 
       - name: Install dependencies
-        working-directory: seer_server
         run: npm ci
+        timeout-minutes: 15
 
       - name: Build TypeScript
-        working-directory: seer_server
         run: npm run build
 
       - name: Build services
-        working-directory: seer_server
         run: npm run build:services
 
       - name: Copy config files
-        working-directory: seer_server
         run: |
           Copy-Item "config/server.json.default" "release/services/server.json.default"
           Copy-Item "README.md" "release/services/README.md"
@@ -53,7 +52,7 @@ jobs:
         shell: pwsh
 
       - name: Create release archive
-        working-directory: seer_server/release
+        working-directory: release
         run: |
           $version = "${{ github.ref_name }}"
           if ("${{ github.event.inputs.version }}" -ne "") {
@@ -66,44 +65,43 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: seer-server-windows
-          path: seer_server/release/*.zip
+          path: release/*.zip
           retention-days: 30
 
   build-linux:
     name: Build Linux Release
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
 
       - name: Install dependencies
-        working-directory: seer_server
         run: npm ci
+        timeout-minutes: 15
 
       - name: Build TypeScript
-        working-directory: seer_server
         run: npm run build
 
       - name: Build services
-        working-directory: seer_server
         run: npm run build:services
 
       - name: Copy config files
-        working-directory: seer_server
         run: |
           cp config/server.json.default release/services/server.json.default
           cp README.md release/services/README.md
 
       - name: Create startup scripts
-        working-directory: seer_server/release/services
+        working-directory: release/services
         run: |
           cat > start-all.sh << 'EOF'
           #!/bin/bash
@@ -125,7 +123,7 @@ jobs:
           chmod +x start-all.sh stop-all.sh
 
       - name: Create release archive
-        working-directory: seer_server/release
+        working-directory: release
         run: |
           version="${{ github.ref_name }}"
           if [ -n "${{ github.event.inputs.version }}" ]; then
@@ -137,7 +135,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: seer-server-linux
-          path: seer_server/release/*.tar.gz
+          path: release/*.tar.gz
           retention-days: 30
 
   create-release:
@@ -190,3 +188,4 @@ jobs:
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
