@@ -29,7 +29,8 @@
     "tools:proto-to-meta": "ts-node tools/meta-proto-converter.ts proto-to-meta",
     "tools:meta-to-proto": "ts-node tools/meta-proto-converter.ts meta-to-proto",
     "tools:validate-proto": "ts-node tools/validate-proto.ts",
-    "tools:generate-docs": "ts-node tools/generate-proto-docs.ts"
+    "tools:generate-docs": "ts-node tools/generate-proto-docs.ts",
+    "tools:generate-ogre-config": "ts-node tools/generate-ogre-xml.ts"
   },
   "pkg": {
     "scripts": "dist/**/*.js",

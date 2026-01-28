@@ -1,5 +1,6 @@
 import { Logger } from '../../../../shared/utils';
 import { IBattleInfo, ITurnResult } from '../../../../shared/models/BattleModel';
+import { ISkillConfig } from '../../../../shared/models/SkillModel';
 import { BattleTurnExecutor } from '../BattleTurnExecutor';
 import { BattleCaptureSystem, PokeBallType } from '../BattleCaptureSystem';
 import { BattleEscapeSystem } from '../BattleEscapeSystem';
@@ -22,21 +23,49 @@ export class BattleTurnService {
     Logger.Info(`[BattleTurnService] 回合 ${battle.turn + 1}: 玩家使用技能 ${playerSkillId}`);
 
     // 获取技能配置
-    const skillConfigs = new Map();
+    const skillConfigs = new Map<number, ISkillConfig>();
     
     // 加载玩家技能
     for (const skillId of battle.player.skills) {
-      const skill = GameConfig.GetSkillById(skillId);
-      if (skill) {
-        skillConfigs.set(skillId, skill);
+      const skillMove = GameConfig.GetSkillById(skillId);
+      if (skillMove) {
+        // 转换 ISkillMove 到 ISkillConfig
+        const skillConfig: ISkillConfig = {
+          id: skillMove.ID,
+          name: skillMove.Name,
+          category: skillMove.Category,
+          type: skillMove.Type,
+          power: skillMove.Power,
+          maxPP: skillMove.MaxPP,
+          accuracy: skillMove.Accuracy,
+          critRate: skillMove.CritRate || 1,
+          priority: skillMove.Priority || 0,
+          mustHit: skillMove.MustHit === 1
+        };
+        skillConfigs.set(skillId, skillConfig);
+        Logger.Debug(`[BattleTurnService] 加载玩家技能: ${skillId} - ${skillConfig.name}`);
       }
     }
     
     // 加载敌人技能
     for (const skillId of battle.enemy.skills) {
-      const skill = GameConfig.GetSkillById(skillId);
-      if (skill) {
-        skillConfigs.set(skillId, skill);
+      const skillMove = GameConfig.GetSkillById(skillId);
+      if (skillMove) {
+        // 转换 ISkillMove 到 ISkillConfig
+        const skillConfig: ISkillConfig = {
+          id: skillMove.ID,
+          name: skillMove.Name,
+          category: skillMove.Category,
+          type: skillMove.Type,
+          power: skillMove.Power,
+          maxPP: skillMove.MaxPP,
+          accuracy: skillMove.Accuracy,
+          critRate: skillMove.CritRate || 1,
+          priority: skillMove.Priority || 0,
+          mustHit: skillMove.MustHit === 1
+        };
+        skillConfigs.set(skillId, skillConfig);
+        Logger.Debug(`[BattleTurnService] 加载敌人技能: ${skillId} - ${skillConfig.name}`);
       }
     }
 

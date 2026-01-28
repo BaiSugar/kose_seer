@@ -6,6 +6,8 @@ import { IItemData } from '../../../shared/proto/packets/rsp/item/ItemListRspPro
 import { PlayerInstance } from '../Player/PlayerInstance';
 import { OnlineTracker } from '../Player/OnlineTracker';
 import { ItemSystem } from './ItemSystem';
+import { ItemData } from '../../../DataBase/models/ItemData';
+import { DatabaseHelper } from '../../../DataBase/DatabaseHelper';
 
 /**
  * 物品管理器
@@ -13,11 +15,23 @@ import { ItemSystem } from './ItemSystem';
  * 
  * 架构说明：
  * - 继承 BaseManager 获得便捷方法（Player、UserID、SendPacket）
- * - 使用 Player.ItemRepo 和 Player.PlayerRepo 访问数据库
+ * - 持有 ItemData 对象，直接操作数组
+ * - 使用 DatabaseHelper 实时保存数据
  */
 export class ItemManager extends BaseManager {
+  /** 物品数据 */
+  public ItemData!: ItemData;
+
   constructor(player: PlayerInstance) {
     super(player);
+  }
+
+  /**
+   * 初始化（加载数据）
+   */
+  public async Initialize(): Promise<void> {
+    this.ItemData = await DatabaseHelper.Instance.GetInstanceOrCreateNew_ItemData(this.UserID);
+    Logger.Debug(`[ItemManager] 初始化完成: UserID=${this.UserID}, Items=${this.ItemData.ItemList.length}`);
   }
 
   /**
@@ -27,15 +41,13 @@ export class ItemManager extends BaseManager {
    * @param count 购买数量
    */
   public async HandleItemBuy(itemId: number, count: number): Promise<void> {
-    // 使用缓存的玩家信息
-    const playerInfo = this.Player.PlayerRepo.data;
+    const playerData = this.Player.Data;
 
     // 检查唯一性
     if (ItemSystem.IsUniqueItem(itemId)) {
-      const hasItem = await this.Player.ItemRepo.HasItem(itemId);
-      if (hasItem) {
+      if (this.ItemData.HasItem(itemId)) {
         Logger.Warn(`[ItemManager] 物品 ${itemId} 是唯一物品且用户已拥有，返回错误码 103203`);
-        await this.Player.SendPacket(new PacketItemBuy(playerInfo.coins, itemId, count, 0).setResult(103203));
+        await this.Player.SendPacket(new PacketItemBuy(playerData.coins, itemId, count, 0).setResult(103203));
         return;
       }
     }
@@ -45,24 +57,25 @@ export class ItemManager extends BaseManager {
     const totalCost = unitPrice * count;
 
     // 检查金币是否足够
-    if (playerInfo.coins < totalCost) {
-      Logger.Warn(`[ItemManager] 金币不足! 需要 ${totalCost}, 拥有 ${playerInfo.coins}`);
-      await this.Player.SendPacket(new PacketItemBuy(playerInfo.coins, itemId, count, 0).setResult(10016));
+    if (playerData.coins < totalCost) {
+      Logger.Warn(`[ItemManager] 金币不足! 需要 ${totalCost}, 拥有 ${playerData.coins}`);
+      await this.Player.SendPacket(new PacketItemBuy(playerData.coins, itemId, count, 0).setResult(10016));
       return;
     }
 
-    // 扣除金币
+    // 扣除金币（直接修改 PlayerData，自动保存）
     if (totalCost > 0) {
-      await this.Player.PlayerRepo.AddCurrency(undefined, -totalCost);
-      Logger.Info(`[ItemManager] 扣除 ${totalCost} 金币 (单价 ${unitPrice}), 剩余 ${playerInfo.coins - totalCost}`);
+      playerData.coins -= totalCost;
+      Logger.Info(`[ItemManager] 扣除 ${totalCost} 金币 (单价 ${unitPrice}), 剩余 ${playerData.coins}`);
     }
 
-    // 添加物品到数据库
-    await this.Player.ItemRepo.AddItem(itemId, count, 0x057E40, 0);
+    // 添加物品（直接修改 ItemData）
+    this.ItemData.AddItem(itemId, count, 0x057E40);
+    await DatabaseHelper.Instance.SaveItemData(this.ItemData);
 
     // 发送成功响应（result = 0）
-    await this.Player.SendPacket(new PacketItemBuy(playerInfo.coins - totalCost, itemId, count, 0));
-    Logger.Info(`[ItemManager] 玩家 ${this.UserID} 购买物品 ${itemId} x${count}, 剩余金币 ${playerInfo.coins - totalCost}`);
+    await this.Player.SendPacket(new PacketItemBuy(playerData.coins, itemId, count, 0));
+    Logger.Info(`[ItemManager] 玩家 ${this.UserID} 购买物品 ${itemId} x${count}, 剩余金币 ${playerData.coins}`);
   }
 
   /**
@@ -74,22 +87,23 @@ export class ItemManager extends BaseManager {
    */
   public async GiveItem(itemId: number, count: number): Promise<boolean> {
     try {
+      // 调试日志
+      Logger.Debug(`[ItemManager] GiveItem 开始: UserId=${this.UserID}, ItemId=${itemId}, Count=${count}, ItemData.Uid=${this.ItemData?.Uid}`);
+
       // 检查物品是否存在
       if (!ItemSystem.Exists(itemId)) {
         Logger.Warn(`[ItemManager] 物品不存在: ItemId=${itemId}`);
         return false;
       }
 
-      // 添加物品到数据库
-      const success = await this.Player.ItemRepo.AddItem(itemId, count, 0x057E40, 0);
+      // 添加物品（直接修改 ItemData）
+      this.ItemData.AddItem(itemId, count, 0x057E40);
       
-      if (success) {
-        Logger.Info(`[ItemManager] 赠送物品成功: UserId=${this.UserID}, ItemId=${itemId}, Count=${count}`);
-      } else {
-        Logger.Warn(`[ItemManager] 赠送物品失败: UserId=${this.UserID}, ItemId=${itemId}, Count=${count}`);
-      }
+      Logger.Debug(`[ItemManager] 准备保存 ItemData: Uid=${this.ItemData.Uid}`);
+      await DatabaseHelper.Instance.SaveItemData(this.ItemData);
       
-      return success;
+      Logger.Info(`[ItemManager] 赠送物品成功: UserId=${this.UserID}, ItemId=${itemId}, Count=${count}`);
+      return true;
     } catch (error) {
       Logger.Error(`[ItemManager] 赠送物品异常: ${error}`);
       return false;
@@ -113,7 +127,7 @@ export class ItemManager extends BaseManager {
       const sentCount = await OnlineTracker.Instance.BroadcastToMap(
         mapId,
         new PacketChangeCloth(this.UserID, clothIds),
-        this.UserID // 排除自己
+        this.UserID
       );
       Logger.Info(`[ItemManager] 广播服装变更到地图 ${mapId}，发送给 ${sentCount} 个玩家`);
     }
@@ -135,8 +149,8 @@ export class ItemManager extends BaseManager {
   ): Promise<void> {
     Logger.Info(`[ItemManager] 玩家 ${this.UserID} 查询物品列表，范围: ${itemType1}-${itemType2}, 单个: ${itemType3}`);
 
-    // 从数据库读取玩家的所有物品
-    const allItems = await this.Player.ItemRepo.FindByOwnerId();
+    // 从 ItemData 读取所有物品
+    const allItems = this.ItemData.ItemList;
 
     // 过滤符合范围的物品
     const filteredItems: IItemData[] = [];

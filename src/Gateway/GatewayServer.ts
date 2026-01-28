@@ -1,11 +1,11 @@
 /**
- * Gateway服务器
+ * Gateway服务器（单端口版本）
  * 作为前端入口，负责接收客户端连接并路由到后端服务
  */
-import { createServer, Server, Socket } from 'net';
+import { createServer, Server } from 'net';
 import { Logger } from '../shared/utils';
 import { Config } from '../shared/config';
-import { HeadInfo, PacketParser, CommandID } from '../shared/protocol';
+import { HeadInfo } from '../shared/protocol';
 import { Router } from './Router';
 import { GatewaySessionManager } from './SessionManager';
 import { PolicyHandler } from './PolicyHandler';
@@ -14,67 +14,49 @@ import { PolicyHandler } from './PolicyHandler';
  * Gateway服务器
  */
 export class GatewayServer {
-  private _loginServer: Server;
-  private _gameServer: Server;
+  private _server: Server;
   private _sessionManager: GatewaySessionManager;
   private _router: Router;
   private _running: boolean = false;
 
   constructor() {
-    this._loginServer = createServer();
-    this._gameServer = createServer();
+    this._server = createServer();
     this._sessionManager = new GatewaySessionManager();
     this._router = new Router();
     
-    this.SetupLoginServer();
-    this.SetupGameServer();
+    this.setupServer();
   }
 
   /**
-   * 设置登录服务器连接处理
+   * 设置服务器连接处理
    */
-  private SetupLoginServer(): void {
-    this._loginServer.on('connection', (socket) => {
+  private setupServer(): void {
+    this._server.on('connection', (socket) => {
       const address = `${socket.remoteAddress}:${socket.remotePort}`;
-      Logger.Info(`[Gateway] 登录服务器接入: ${address}`);
+      Logger.Info(`[Gateway] 客户端连接: ${address}`);
 
-      const session = this._sessionManager.CreateSession(socket, 'login');
+      const session = this._sessionManager.CreateSession(socket, 'main');
 
       socket.on('data', (data) => {
-        this.HandleData(session, data, 'login');
+        this.handleData(session, data);
       });
 
       socket.on('error', (err) => {
-        Logger.Error(`[Gateway] 登录连接错误: ${address}`, err);
+        Logger.Error(`[Gateway] 连接错误: ${address}`, err);
       });
 
       socket.on('close', () => {
-        Logger.Info(`[Gateway] 登录连接断开: ${address}`);
-        this._sessionManager.RemoveSession(session.id);
-      });
-    });
-  }
-
-  /**
-   * 设置游戏服务器连接处理
-   */
-  private SetupGameServer(): void {
-    this._gameServer.on('connection', (socket) => {
-      const address = `${socket.remoteAddress}:${socket.remotePort}`;
-      Logger.Info(`[Gateway] 游戏服务器接入: ${address}`);
-
-      const session = this._sessionManager.CreateSession(socket, 'game');
-
-      socket.on('data', (data) => {
-        this.HandleData(session, data, 'game');
-      });
-
-      socket.on('error', (err) => {
-        Logger.Error(`[Gateway] 游戏连接错误: ${address}`, err);
-      });
-
-      socket.on('close', () => {
-        Logger.Info(`[Gateway] 游戏连接断开: ${address}`);
+        Logger.Info(`[Gateway] 连接断开: ${address}`);
+        
+        // 如果有 userId，通知 GameServer 玩家下线
+        if (session.userId) {
+          Logger.Info(`[Gateway] 通知 GameServer 玩家 ${session.userId} 下线`);
+          // 通过 Router 通知 GameServer
+          this._router.NotifyPlayerDisconnect(session.userId).catch(err => {
+            Logger.Error(`[Gateway] 通知玩家下线失败: ${session.userId}`, err);
+          });
+        }
+        
         this._sessionManager.RemoveSession(session.id);
       });
     });
@@ -83,11 +65,13 @@ export class GatewayServer {
   /**
    * 处理接收到的数据
    */
-  private HandleData(session: any, data: Buffer, serverType: 'login' | 'game'): void {
+  private async handleData(session: any, data: Buffer): Promise<void> {
     // 检查是否是 Flash Socket Policy 请求
     if (!session.policyHandled) {
+      Logger.Debug(`[Gateway] 检查策略请求: ${session.address}, 数据长度=${data.length}`);
       if (PolicyHandler.Handle(session.socket, data, session.address)) {
         session.policyHandled = true;
+        Logger.Info(`[Gateway] 策略文件已发送: ${session.address}`);
         return;
       }
       session.policyHandled = true;
@@ -97,25 +81,46 @@ export class GatewayServer {
 
     let packet;
     while ((packet = session.parser.TryParse()) !== null) {
-      this.ProcessPacket(session, packet.head, packet.body, serverType);
+      await this.processPacket(session, packet.head, packet.body);
     }
   }
 
   /**
-   * 处理数据包
+   * 处理数据包（支持多个响应）
    */
-  private async ProcessPacket(
+  private async processPacket(
     session: any,
     head: HeadInfo,
-    body: Buffer,
-    serverType: 'login' | 'game'
+    body: Buffer
   ): Promise<void> {
     try {
-      // 路由请求到对应的后端服务
-      const response = await this._router.Route(head, body, serverType);
+      // 记录 userId 到 session（用于断线通知）
+      if (head.UserID > 0 && !session.userId) {
+        session.userId = head.UserID;
+        Logger.Debug(`[Gateway] 记录会话 UserID: ${head.UserID}`);
+      }
+      
+      Logger.Debug(`[Gateway] 处理数据包: CMD=${head.CmdID}, UserID=${head.UserID}`);
+      
+      // 路由请求到对应的后端服务（可能返回多个响应）
+      const responses = await this._router.Route(head, body);
 
-      if (response && session.socket.writable) {
-        session.socket.write(response);
+      Logger.Debug(`[Gateway] 收到 ${responses.length} 个响应: CMD=${head.CmdID}`);
+
+      if (responses.length > 0 && session.socket.writable) {
+        // 发送所有响应给客户端
+        for (let i = 0; i < responses.length; i++) {
+          const response = responses[i];
+          Logger.Info(`[Gateway] 发送响应 ${i + 1}/${responses.length} 给客户端: CMD=${head.CmdID}, 大小=${response.length} 字节`);
+          session.socket.write(response);
+        }
+      } else {
+        if (responses.length === 0) {
+          Logger.Warn(`[Gateway] 响应为空: CMD=${head.CmdID}`);
+        }
+        if (!session.socket.writable) {
+          Logger.Warn(`[Gateway] Socket 不可写: CMD=${head.CmdID}`);
+        }
       }
     } catch (err) {
       Logger.Error(`[Gateway] 处理数据包失败 CMD=${head.CmdID}`, err instanceof Error ? err : undefined);
@@ -130,21 +135,19 @@ export class GatewayServer {
 
     Logger.Info('[Gateway] 正在启动...');
 
+    // 调试：打印配置信息
+    Logger.Info(`[Gateway] 配置信息: host=${Config.Gateway.host}, port=${Config.Gateway.port}, rpcPort=${Config.Gateway.rpcPort}`);
+
     // 初始化路由器（连接到后端服务）
     await this._router.Initialize();
 
-    // 启动登录服务器
-    await new Promise<void>((resolve) => {
-      this._loginServer.listen(Config.Gateway.loginPort, Config.Gateway.host, () => {
-        Logger.Info(`[Gateway] 登录服务器启动 ${Config.Gateway.host}:${Config.Gateway.loginPort}`);
-        resolve();
-      });
-    });
+    const port = Config.Gateway.port;
+    const host = Config.Gateway.host;
 
-    // 启动游戏服务器
+    // 启动服务器
     await new Promise<void>((resolve) => {
-      this._gameServer.listen(Config.Gateway.gamePort, Config.Gateway.host, () => {
-        Logger.Info(`[Gateway] 游戏服务器启动 ${Config.Gateway.host}:${Config.Gateway.gamePort}`);
+      this._server.listen(port, host, () => {
+        Logger.Info(`[Gateway] 服务器启动成功: ${host}:${port}`);
         resolve();
       });
     });
@@ -166,15 +169,8 @@ export class GatewayServer {
 
     // 关闭服务器
     await new Promise<void>((resolve) => {
-      this._loginServer.close(() => {
-        Logger.Info('[Gateway] 登录服务器已停止');
-        resolve();
-      });
-    });
-
-    await new Promise<void>((resolve) => {
-      this._gameServer.close(() => {
-        Logger.Info('[Gateway] 游戏服务器已停止');
+      this._server.close(() => {
+        Logger.Info('[Gateway] 服务器已停止');
         resolve();
       });
     });

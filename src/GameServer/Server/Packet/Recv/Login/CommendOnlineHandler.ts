@@ -18,8 +18,13 @@ export class CommendOnlineHandler implements IHandler {
   }
 
   public async Handle(session: IClientSession, head: HeadInfo, _body: Buffer): Promise<void> {
-    Logger.Info(`请求服务器列表?UserID=${head.UserID}`);
-    await this._serverManager.HandleCommendOnline(session, head.UserID);
+    Logger.Info(`[CommendOnlineHandler] 请求服务器列表: UserID=${head.UserID}`);
+    try {
+      await this._serverManager.HandleCommendOnline(session, head.UserID);
+      Logger.Info(`[CommendOnlineHandler] 服务器列表已发送`);
+    } catch (err) {
+      Logger.Error(`[CommendOnlineHandler] 处理失败`, err as Error);
+    }
   }
 }
 

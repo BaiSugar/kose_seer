@@ -1,6 +1,6 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { Logger } from '../utils';
+import { ConfigLoader } from './ConfigLoader';
+import { ConfigKeys, ConfigPaths } from './ConfigDefinitions';
 
 /**
  * 服务配置接口
@@ -9,8 +9,7 @@ export interface IServerConfig {
   services: {
     gateway: {
       enabled: boolean;
-      loginPort: number;
-      gamePort: number;
+      port: number;
       rpcPort: number;
       host: string;
     };
@@ -98,17 +97,18 @@ export class ServerConfig {
    * 加载配置文件
    */
   private LoadConfig(): IServerConfig {
-    try {
-      const configPath = join(process.cwd(), 'config', 'server.json');
-      const configData = readFileSync(configPath, 'utf-8');
-      const config = JSON.parse(configData) as IServerConfig;
-      
-      Logger.Info(`[ServerConfig] 配置文件加载成功: ${configPath}`);
-      return config;
-    } catch (error) {
-      Logger.Error('[ServerConfig] 配置文件加载失败，使用默认配置', error as Error);
+    const configPath = ConfigPaths[ConfigKeys.SERVER_CONFIG];
+    Logger.Info(`[ServerConfig] 正在加载配置: ${configPath}`);
+    
+    const config = ConfigLoader.Instance.LoadJson<IServerConfig>(configPath);
+    
+    if (!config) {
+      Logger.Warn('[ServerConfig] 配置文件加载失败，使用默认配置');
       return this.GetDefaultConfig();
     }
+    
+    Logger.Info(`[ServerConfig] 配置加载成功: Gateway端口=${config.services.gateway.port}`);
+    return config;
   }
 
   /**
@@ -119,8 +119,7 @@ export class ServerConfig {
       services: {
         gateway: {
           enabled: true,
-          loginPort: 9999,
-          gamePort: 27777,
+          port: 9999,
           rpcPort: 50000,
           host: '0.0.0.0'
         },
@@ -254,6 +253,8 @@ export class ServerConfig {
    * 重新加载配置
    */
   public Reload(): void {
+    const configPath = ConfigPaths[ConfigKeys.SERVER_CONFIG];
+    ConfigLoader.Instance.Reload(configPath);
     this._config = this.LoadConfig();
     Logger.Info('[ServerConfig] 配置已重新加载');
   }

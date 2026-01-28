@@ -2,6 +2,8 @@ import { PacketBuilder } from '../../../shared/protocol/PacketBuilder';
 import { IServerInfo } from '../../Server/Packet/Send/ServerPacket';
 import { IClientSession } from '../../Server/Packet/IHandler';
 import { CommendOnlineRspProto, RangeOnlineRspProto } from '../../../shared/proto';
+import { DatabaseHelper } from '../../../DataBase/DatabaseHelper';
+import { Logger } from '../../../shared/utils';
 
 /**
  * 服务器管理器
@@ -9,9 +11,19 @@ import { CommendOnlineRspProto, RangeOnlineRspProto } from '../../../shared/prot
  */
 export class ServerManager {
   private _servers: IServerInfo[] = [];
+  private _packetBuilder: PacketBuilder;
 
   constructor(packetBuilder: PacketBuilder) {
-    // packetBuilder保留用于未来扩展
+    this._packetBuilder = packetBuilder;
+    
+    // 添加默认服务器（当前服务器）
+    this.AddServer({
+      onlineID: 1,
+      userCnt: 0,
+      ip: '127.0.0.1',
+      port: 9999,
+      friends: 1
+    });
   }
 
   /**
@@ -50,10 +62,11 @@ export class ServerManager {
    */
   private buildServerList() {
     return this._servers.map(s => ({
-      id: s.onlineID,
-      name: `${s.ip}:${s.port}`,
-      online: s.userCnt,
-      status: 0
+      onlineID: s.onlineID,
+      userCnt: s.userCnt,
+      ip: s.ip,
+      port: s.port,
+      friends: s.friends
     }));
   }
 
@@ -62,13 +75,46 @@ export class ServerManager {
    */
   public async HandleCommendOnline(session: IClientSession, userID: number): Promise<void> {
     const proto = new CommendOnlineRspProto();
-    proto.maxOnlineID = this._servers.length > 0 ? Math.max(...this._servers.map(s => s.onlineID)) : 0;
+    proto.maxOnlineID = this._servers.length > 0 ? Math.max(...this._servers.map(s => s.onlineID)) : 1;
     proto.isVIP = 0;
     proto.onlineCnt = this._servers.length;
     proto.servers = this.buildServerList();
+    
+    Logger.Info(`[ServerManager] 构建服务器列表: count=${proto.onlineCnt}`);
+    
+    // 加载好友列表和黑名单
+    try {
+      const friendData = await DatabaseHelper.Instance.GetInstance_FriendData(userID);
+      if (friendData) {
+        // 构建好友信息（timePoke 暂时设为 0）
+        proto.friends = friendData.FriendList.map(uid => ({
+          userID: uid,
+          timePoke: 0
+        }));
+        proto.blacklist = friendData.BlackList;
+        Logger.Info(`[ServerManager] 加载好友数据: friends=${proto.friends.length}, blacklist=${proto.blacklist.length}`);
+      } else {
+        proto.friends = [];
+        proto.blacklist = [];
+        Logger.Info(`[ServerManager] 无好友数据，使用空列表`);
+      }
+    } catch (err) {
+      Logger.Error(`[ServerManager] 加载好友数据失败: uid=${userID}`, err as Error);
+      proto.friends = [];
+      proto.blacklist = [];
+    }
 
-    // 一行发包
-    await session.Player!.SendPacket(proto);
+    const bodyData = proto.serialize();
+    Logger.Info(`[ServerManager] 响应体大小: ${bodyData.length} 字节`);
+
+    // 使用 PacketBuilder 构建完整数据包
+    const packet = this._packetBuilder.Build(
+      proto.getCmdId(),
+      userID,
+      proto.getResult(),
+      bodyData
+    );
+    session.Socket.write(packet);
   }
 
   /**
@@ -79,8 +125,14 @@ export class ServerManager {
     proto.onlineCnt = this._servers.length;
     proto.servers = this.buildServerList();
 
-    // 一行发包
-    await session.Player!.SendPacket(proto);
+    // 使用 PacketBuilder 构建完整数据包
+    const packet = this._packetBuilder.Build(
+      proto.getCmdId(),
+      userID,
+      proto.getResult(),
+      proto.serialize()
+    );
+    session.Socket.write(packet);
   }
 }
 

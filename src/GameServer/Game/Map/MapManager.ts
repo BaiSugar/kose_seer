@@ -12,6 +12,8 @@ import { ListMapPlayerRspProto } from '../../../shared/proto/packets/rsp/map/Lis
 import { PlayerRepository } from '../../../DataBase/repositories/Player/PlayerRepository';
 import { IPlayerInfo } from '../../../shared/models';
 import { PlayerInstance } from '../Player/PlayerInstance';
+import { DatabaseHelper } from '../../../DataBase/DatabaseHelper';
+import { MapSpawnManager } from './MapSpawnManager';
 import { 
   PacketEnterMap,
   PacketLeaveMap,
@@ -49,22 +51,39 @@ export class MapManager extends BaseManager {
     const x = req.x || 500;
     const y = req.y || 300;
 
-    Logger.Info(`[MapManager] 玩家 ${this.UserID} 进入地图 ${mapId} (type=${mapType}, pos=${x},${y})`);
+    Logger.Info(`[MapManager] ========== 玩家 ${this.UserID} 进入地图 ==========`);
+    Logger.Info(`[MapManager] MapID: ${mapId}, MapType: ${mapType}, Pos: (${x}, ${y})`);
+    Logger.Info(`[MapManager] 玩家昵称: ${this.Player.Data.nick}`);
+    Logger.Info(`[MapManager] 当前数据库 MapID: ${this.Player.Data.mapID}`);
 
     // 更新在线追踪
     this._onlineTracker.UpdatePlayerMap(this.UserID, mapId, mapType);
 
-    // 更新玩家位置到数据库
-    await this.Player.PlayerRepo.UpdatePosition(mapId, x, y);
+    // 更新玩家位置（直接修改 PlayerData，实时保存）
+    this.Player.Data.mapID = mapId;
+    this.Player.Data.posX = x;
+    this.Player.Data.posY = y;
+    await DatabaseHelper.Instance.SavePlayerData(this.Player.Data);
 
-    // 构建用户信息（使用缓存数据）
-    const userInfo = this.buildUserInfo(this.UserID, this.Player.PlayerRepo.data, x, y);
+    Logger.Info(`[MapManager] 已更新玩家位置到地图 ${mapId}`);
+
+    // 通知 MapSpawnManager 玩家进入地图（生成新的野怪列表）
+    MapSpawnManager.Instance.OnPlayerEnterMap(this.UserID, mapId);
+
+    // 构建用户信息（使用 PlayerData）
+    const userInfo = this.buildUserInfo(this.UserID, this.Player.Data, x, y);
 
     // 发送进入地图响应
     await this.Player.SendPacket(new PacketEnterMap(userInfo));
+    Logger.Info(`[MapManager] 已发送进入地图响应`);
 
-    // 主动推送地图玩家列表（包含自己）
+    // 主动推送 LIST_MAP_PLAYER (包含自己)
     await this.sendMapPlayerList(mapId);
+    
+    // 主动推送 MAP_OGRE_LIST (地图野怪列表)
+    await this.sendMapOgreList(mapId);
+    
+    Logger.Info(`[MapManager] ========== 进入地图完成 ==========`);
   }
 
   /**
@@ -74,11 +93,17 @@ export class MapManager extends BaseManager {
     const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
     Logger.Info(`[MapManager] 玩家 ${this.UserID} 离开地图 ${mapId}`);
 
+    // 通知 MapSpawnManager 玩家离开地图（清除状态）
+    MapSpawnManager.Instance.OnPlayerLeaveMap(this.UserID);
+
     // 更新在线追踪（设置为地图0）
     this._onlineTracker.UpdatePlayerMap(this.UserID, 0, 0);
 
     // 发送离开地图响应
     await this.Player.SendPacket(new PacketLeaveMap(this.UserID));
+    
+    // 注意：不需要发送空的野怪列表
+    // 客户端会在 MAP_SWITCH_OPEN 或 MAP_DESTROY 事件时自动清理野怪
   }
 
   /**
@@ -93,10 +118,10 @@ export class MapManager extends BaseManager {
    * 处理地图怪物列表
    */
   public async HandleMapOgreList(): Promise<void> {
-    const mapId = this.Player.PlayerRepo.data.mapID || 1;
+    const mapId = this.Player.Data.mapID || 1;
 
-    // 从配置文件读取地图怪物
-    const ogres = GameConfig.GetMapOgres(mapId);
+    // 使用 MapSpawnManager 获取玩家的野怪列表
+    const ogres = MapSpawnManager.Instance.GetMapOgres(this.UserID, mapId);
 
     await this.Player.SendPacket(new PacketMapOgreList(ogres));
   }
@@ -108,7 +133,7 @@ export class MapManager extends BaseManager {
     // 如果没有指定目标，默认查询自己
     const queryId = targetId || this.UserID;
     const playerData = queryId === this.UserID 
-      ? this.Player.PlayerRepo.data
+      ? this.Player.Data
       : await this._playerRepo.FindByUserId(queryId);
     if (!playerData) {
       Logger.Warn(`[MapManager] 玩家数据不存在 ${queryId}`);
@@ -132,7 +157,7 @@ export class MapManager extends BaseManager {
         .setVipLevel(playerData.vipStage)
         .setTeamId(playerData.teamInfo.id)
         .setTeamIsShow(playerData.teamInfo.isShow ? 1 : 0)
-        .setClothes(playerData.clothes.map(c => ({ id: c.id, level: c.level || 0 })))
+        .setClothes(playerData.clothes.map((c: any) => ({ id: c.id, level: c.level || 0 })))
     );
   }
 
@@ -142,7 +167,7 @@ export class MapManager extends BaseManager {
   public async HandleGetMoreUserInfo(targetId: number): Promise<void> {
     const queryId = targetId || this.UserID;
     const playerData = queryId === this.UserID 
-      ? this.Player.PlayerRepo.data
+      ? this.Player.Data
       : await this._playerRepo.FindByUserId(queryId);
     if (!playerData) {
       Logger.Warn(`[MapManager] 玩家数据不存在 ${queryId}`);
@@ -170,8 +195,8 @@ export class MapManager extends BaseManager {
    * 处理修改昵称
    */
   public async HandleChangeNickName(newNick: string): Promise<void> {
-    // 更新数据库
-    await this.Player.PlayerRepo.UpdateNickname(newNick);
+    // 更新 PlayerData（自动保存）
+    this.Player.Data.nick = newNick;
 
     await this.Player.SendPacket(new PacketChangeNickName(this.UserID, newNick));
     Logger.Info(`[MapManager] 玩家 ${this.UserID} 修改昵称为 ${newNick}`);
@@ -181,10 +206,10 @@ export class MapManager extends BaseManager {
    * 处理修改颜色
    */
   public async HandleChangeColor(newColor: number): Promise<void> {
-    // 更新数据库
-    await this.Player.PlayerRepo.UpdateColor(newColor);
+    // 更新 PlayerData（自动保存）
+    this.Player.Data.color = newColor;
 
-    await this.Player.SendPacket(new PacketChangeColor(this.UserID, newColor, 0, this.Player.PlayerRepo.data.coins));
+    await this.Player.SendPacket(new PacketChangeColor(this.UserID, newColor, 0, this.Player.Data.coins));
     Logger.Info(`[MapManager] 玩家 ${this.UserID} 修改颜色为 0x${newColor.toString(16)}`);
   }
 
@@ -192,8 +217,8 @@ export class MapManager extends BaseManager {
    * 处理开关飞行模式
    */
   public async HandleOnOrOffFlying(flyMode: number): Promise<void> {
-    // 更新数据库
-    await this.Player.PlayerRepo.UpdateFlyMode(flyMode);
+    // 更新 PlayerData (假设有 flyMode 字段)
+    // this.Player.Data.flyMode = flyMode;
 
     // 广播给同地图玩家
     const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
@@ -217,7 +242,7 @@ export class MapManager extends BaseManager {
     // 构建响应
     const rsp = new ChatRspProto()
       .setSenderId(this.UserID)
-      .setSenderNick(this.Player.Nickname)
+      .setSenderNick(this.Player.Data.nick)
       .setToId(0)
       .setMsg(req.msg);
 
@@ -260,6 +285,35 @@ export class MapManager extends BaseManager {
     await this.Player.SendPacket(rsp);
 
     Logger.Info(`[MapManager] 发送地图 ${mapId} 玩家列表，共 ${players.length} 人`);
+  }
+
+  /**
+   * 发送地图野怪列表（公开方法，供外部调用）
+   */
+  public async SendMapOgreList(mapId: number): Promise<void> {
+    await this.sendMapOgreList(mapId);
+  }
+
+  /**
+   * 发送地图野怪列表（内部方法）
+   */
+  private async sendMapOgreList(mapId: number): Promise<void> {
+    try {
+      // 使用 MapSpawnManager 获取玩家的野怪列表
+      const ogres = MapSpawnManager.Instance.GetMapOgres(this.UserID, mapId);
+      
+      const activeOgres = ogres.filter(o => o.petId > 0);
+      
+      if (activeOgres.length == 0) {
+        Logger.Warn(`[MapManager] ⚠️  没有生成野怪！可能原因：配置不存在、时间条件不满足`);
+      }
+      
+      // 发送响应
+      await this.Player.SendPacket(new PacketMapOgreList(ogres));
+      
+    } catch (error) {
+      Logger.Error(`[MapManager] ❌ 发送野怪列表失败`, error as Error);
+    }
   }
 
   /**

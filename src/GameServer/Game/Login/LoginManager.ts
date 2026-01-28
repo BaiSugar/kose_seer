@@ -5,7 +5,7 @@ import { Logger } from '../../../shared/utils';
 import { IClientSession } from '../../Server/Packet/IHandler';
 import { PlayerManager } from '../Player/PlayerManager';
 import { MainLoginRspProto, CreateRoleRspProto } from '../../../shared/proto';
-import { CryptoHandler } from '../../../shared/crypto';
+import { PetInfoProto } from '../../../shared/proto/common/PetInfoProto';
 
 /**
  * 登录结果码 (与客户端 ParseLoginSocketError.as 保持一致)
@@ -120,7 +120,7 @@ export class LoginManager {
       // 检查是否已创建角色
       const roleCreated = account.roleCreated;
 
-      Logger.Info(`[LoginManager] 登录成功: userID=${userID}, roleCreated=${roleCreated}`);
+      Logger.Info(`[LoginManager] 主登录成功（玩家上线，未进入服务器）: userID=${userID}, roleCreated=${roleCreated}`);
       const proto = new MainLoginRspProto()
         .setSession(sessionInfo.sessionKey)
         .setRoleCreated(roleCreated);
@@ -180,6 +180,10 @@ export class LoginManager {
       // 6. 检查是否已创建角色
       const roleCreated = account.roleCreated;
 
+      // 注意：不在这里创建 PlayerInstance
+      // PlayerInstance 应该在 CMD 1001 (LOGIN_IN) 时创建
+      // 这里只是验证账号密码，返回 session token
+
       Logger.Info(`[LoginManager] 邮箱登录成功: userID=${userID}, email=${email}, roleCreated=${roleCreated}`);
       const proto = new MainLoginRspProto()
         .setSession(sessionInfo.sessionKey)
@@ -233,32 +237,58 @@ export class LoginManager {
       // 更新登录次数
       await this._playerRepo.IncrementLoginCount(userID);
 
+      // 随机登录地图（除新账号外）
+      // 新账号判断：mapID == 515 表示在新手地图，保持不变
+      // 老玩家：随机传送到 1-9 地图
+      if (player.mapID !== 515) {
+        const randomMapId = Math.floor(Math.random() * 9) + 1; // 1-9随机
+        player.mapID = randomMapId;
+        await this._playerRepo.UpdatePlayerMap(userID, randomMapId);
+        Logger.Info(`[LoginManager] 老玩家随机登录地图: userID=${userID}, mapID=${randomMapId}`);
+      } else {
+        Logger.Info(`[LoginManager] 新玩家保持新手地图: userID=${userID}, mapID=515`);
+      }
+
       // 创建Player实例
       const playerInstance = await this._playerManager.CreatePlayer(session, userID, player.nick);
 
-      // 生成加密密钥种子（随机数）
-      const keySeed = Math.floor(Math.random() * 0xFFFFFFFF);
-
       Logger.Info(`[LoginManager] 游戏登录成功: userID=${userID}, nick=${player.nick}`);
       
-      // 构建登录响应并设置 keySeed
+      // 构建登录响应
       const proto = this._loginPacket.BuildGameLoginProto(player, sessionKey);
-      proto.setKeySeed(keySeed);
       
-      // 发送响应
-      await playerInstance.SendPacket(proto);
-
-      // 更新服务器端加密密钥
-      if (!session.Crypto) {
-        session.Crypto = new CryptoHandler();
+      Logger.Debug(`[LoginManager] 发送登录响应: loginCnt=${proto.loginCnt}, timeLimit=${proto.timeLimit}, mapId=${proto.mapId}, curStage=${proto.curStage}, maxStage=${proto.maxStage}, curFreshStage=${proto.curFreshStage}, maxFreshStage=${proto.maxFreshStage}`);
+      Logger.Debug(`[LoginManager] regTime=${proto.regTime} (${new Date(proto.regTime * 1000).toISOString()}), userId=${proto.userId}, nick=${proto.nickname}`);
+      
+      // 加载任务数据并填充到 Proto
+      proto.taskList = playerInstance.TaskManager.TaskData.GetTaskStatusArray();
+      
+      Logger.Debug(`[LoginManager] 任务数据: 共${playerInstance.TaskManager.TaskData.TaskList.size}个任务`);
+      
+      // 加载精灵数据并填充到 Proto（所有精灵，包括背包和仓库）
+      const allPets = playerInstance.PetManager.PetData.PetList;
+      Logger.Debug(`[LoginManager] PetData.PetList 总数: ${allPets.length}`);
+      
+      if (allPets.length > 0) {
+        Logger.Debug(`[LoginManager] 所有精灵列表: ${JSON.stringify(allPets.map(p => ({
+          petId: p.petId,
+          level: p.level,
+          isInBag: p.isInBag,
+          catchTime: p.catchTime
+        })))}`);
+      }
+      
+      proto.petList = playerInstance.PetManager.GetPetProtoList(playerInstance.PetManager.PetData.PetList);
+      
+      Logger.Info(`[LoginManager] 精灵数据: 共${allPets.length}个精灵（包括背包和仓库）`);
+      if (allPets.length > 0) {
+        Logger.Info(`[LoginManager] 精灵列表: ${allPets.map(p => `${p.petId}(Lv${p.level},${p.isInBag ? '背包' : '仓库'},CT:0x${p.catchTime.toString(16)})`).join(', ')}`);
+      } else {
+        Logger.Warn(`[LoginManager] 玩家没有精灵！UserID=${userID}`);
       }
 
-      // 使用与客户端相同的算法生成密钥
-      const newKey = CryptoHandler.GenerateKey(keySeed, userID);
-      session.Crypto.initKey(newKey);
-      session.EncryptionEnabled = true;
-
-      Logger.Info(`[LoginManager] 加密密钥已更新: userID=${userID}, keySeed=${keySeed}, key=${newKey}`);
+      // 发送响应
+      await playerInstance.SendPacket(proto);
 
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -300,9 +330,10 @@ export class LoginManager {
    */
   public async CreatePlayer(session: IClientSession, userID: number, nickname: string, color: number = 0): Promise<void> {
     try {
-      // 1. 创建玩家记录
+      // 1. 创建玩家记录（使用 Repository）
+      // 注意：PlayerData 不走 DataSaver，而是通过 PlayerRepository 直接操作数据库
       await this._playerRepo.CreatePlayer(userID, nickname, color);
-
+      
       // 2. 标记角色已创建
       await this._accountRepo.UpdateRoleCreated(userID, true);
 

@@ -4,117 +4,290 @@ import { CommandID } from '../../../../protocol/CommandID';
 
 /**
  * [CMD: LOGIN_IN (1001)] 游戏登录响应
+ * 
+ * 完整协议格式（基于 UserInfo.setForLoginInfo）:
+ * - userID (4)
+ * - regTime (4)
+ * - nick (16 UTF bytes)
+ * - vipFlags (4): bit0=vip, bit1=viped
+ * - dsFlag (4)
+ * - color (4)
+ * - texture (4)
+ * - energy (4)
+ * - coins (4)
+ * - fightBadge (4)
+ * - mapID (4)
+ * - posX (4)
+ * - posY (4)
+ * - timeToday (4)
+ * - timeLimit (4)
+ * - isClothHalfDay (1)
+ * - isRoomHalfDay (1)
+ * - iFortressHalfDay (1)
+ * - isHQHalfDay (1)
+ * - loginCnt (4)
+ * - inviter (4)
+ * - newInviteeCnt (4)
+ * - vipLevel (4)
+ * - vipValue (4)
+ * - vipStage (4)
+ * - autoCharge (4)
+ * - vipEndTime (4)
+ * - freshManBonus (4)
+ * - nonoChipList (80 bytes)
+ * - dailyResArr (50 bytes)
+ * - teacherID (4)
+ * - studentID (4)
+ * - graduationCount (4)
+ * - maxPuniLv (4)
+ * - petMaxLev (4)
+ * - petAllNum (4)
+ * - monKingWin (4)
+ * - curStage (4)
+ * - maxStage (4)
+ * - curFreshStage (4)
+ * - maxFreshStage (4)
+ * - maxArenaWins (4)
+ * - twoTimes (4)
+ * - threeTimes (4)
+ * - autoFight (4)
+ * - autoFightTimes (4)
+ * - energyTimes (4)
+ * - learnTimes (4)
+ * - monBtlMedal (4)
+ * - recordCnt (4)
+ * - obtainTm (4)
+ * - soulBeadItemID (4)
+ * - expireTm (4)
+ * - fuseTimes (4)
+ * - hasNono (4)
+ * - superNono (4)
+ * - nonoState (4): 32 bits
+ * - nonoColor (4)
+ * - nonoNick (16 UTF bytes)
+ * - teamInfo (variable)
+ * - teamPKInfo (variable)
+ * - padding (1)
+ * - badge (4)
+ * - reserved (27 bytes)
  */
 export class LoginRspProto extends BaseProto {
   // 基础信息
   userId: number = 0;
-  session: Buffer = Buffer.alloc(8);
+  regTime: number = 0;
   nickname: string = '';
-  nicknameExtra: Buffer = Buffer.alloc(20);
-
-  // 等级和经验
-  level: number = 1;
-  exp: number = 0;
-
-  // 货币
-  coins: number = 0;
+  vip: boolean = false;
+  viped: boolean = false;
+  dsFlag: number = 0;
+  color: number = 0;
+  texture: number = 0;
   energy: number = 0;
-
-  // VIP信息
-  vipLevel: number = 0;
-  vipValue: number = 0;
-
-  // 服装信息
-  clothCount: number = 0;
-  clothes: Array<{ id: number }> = [];
-
-  // 精灵信息
-  currentPetId: number = 0;
-  catchId: number = 0;
-
-  // 地图信息
+  coins: number = 0;
+  fightBadge: number = 0;
   mapId: number = 0;
   posX: number = 0;
   posY: number = 0;
-
-  // 加密密钥种子（用于更新加密密钥）
-  keySeed: number = 0;
+  timeToday: number = 0;
+  timeLimit: number = 0;
+  isClothHalfDay: boolean = false;
+  isRoomHalfDay: boolean = false;
+  iFortressHalfDay: boolean = false;
+  isHQHalfDay: boolean = false;
+  loginCnt: number = 0;
+  inviter: number = 0;
+  newInviteeCnt: number = 0;
+  vipLevel: number = 0;
+  vipValue: number = 0;
+  vipStage: number = 1;
+  autoCharge: number = 0;
+  vipEndTime: number = 0;
+  freshManBonus: number = 0;
+  nonoChipList: boolean[] = new Array(80).fill(false);
+  dailyResArr: number[] = new Array(50).fill(0);
+  teacherID: number = 0;
+  studentID: number = 0;
+  graduationCount: number = 0;
+  maxPuniLv: number = 0;
+  petMaxLev: number = 0;
+  petAllNum: number = 0;
+  monKingWin: number = 0;
+  curStage: number = 0;
+  maxStage: number = 0;
+  curFreshStage: number = 0;
+  maxFreshStage: number = 0;
+  maxArenaWins: number = 0;
+  twoTimes: number = 0;
+  threeTimes: number = 0;
+  autoFight: number = 0;
+  autoFightTimes: number = 0;
+  energyTimes: number = 0;
+  learnTimes: number = 0;
+  monBtlMedal: number = 0;
+  recordCnt: number = 0;
+  obtainTm: number = 0;
+  soulBeadItemID: number = 0;
+  expireTm: number = 0;
+  fuseTimes: number = 0;
+  hasNono: boolean = false;
+  superNono: boolean = false;
+  nonoState: number = 0;
+  nonoColor: number = 0;
+  nonoNick: string = '';
+  badge: number = 0;
+  
+  // 任务列表 (500个任务状态)
+  taskList: number[] = new Array(500).fill(0);
+  
+  // 精灵列表
+  petList: any[] = [];
 
   constructor() {
     super(CommandID.LOGIN_IN);
   }
 
   serialize(): Buffer {
-    const writer = new BufferWriter(300);
+    const writer = new BufferWriter(2048);
 
     // 基础信息
     writer.WriteUInt32(this.userId);
-    writer.WriteBytes(this.session);
-    writer.WriteBytes(this.buildString(this.nickname, 20));
-    writer.WriteBytes(this.nicknameExtra);
-
-    // 等级和经验
-    writer.WriteUInt32(this.level);
-    writer.WriteUInt32(this.exp);
-
-    // 货币
-    writer.WriteUInt32(this.coins);
+    writer.WriteUInt32(this.regTime);
+    writer.WriteBytes(this.buildString(this.nickname, 16));
+    
+    // VIP flags (bit0=vip, bit1=viped)
+    let vipFlags = 0;
+    if (this.vip) vipFlags |= 1;
+    if (this.viped) vipFlags |= 2;
+    writer.WriteUInt32(vipFlags);
+    
+    writer.WriteUInt32(this.dsFlag);
+    writer.WriteUInt32(this.color);
+    writer.WriteUInt32(this.texture);
     writer.WriteUInt32(this.energy);
-
-    // VIP信息
-    writer.WriteUInt32(this.vipLevel);
-    writer.WriteUInt32(this.vipValue);
-
-    // 服装信息
-    writer.WriteUInt32(this.clothCount);
-    for (let i = 0; i < this.clothCount && i < this.clothes.length; i++) {
-      writer.WriteUInt32(this.clothes[i].id);
-    }
-
-    // 精灵信息
-    writer.WriteUInt32(this.currentPetId);
-    writer.WriteUInt32(this.catchId);
-
-    // 地图信息
+    writer.WriteUInt32(this.coins);
+    writer.WriteUInt32(this.fightBadge);
     writer.WriteUInt32(this.mapId);
     writer.WriteUInt32(this.posX);
     writer.WriteUInt32(this.posY);
+    writer.WriteUInt32(this.timeToday);
+    writer.WriteUInt32(this.timeLimit);
+    writer.WriteUInt8(this.isClothHalfDay ? 1 : 0);
+    writer.WriteUInt8(this.isRoomHalfDay ? 1 : 0);
+    writer.WriteUInt8(this.iFortressHalfDay ? 1 : 0);
+    writer.WriteUInt8(this.isHQHalfDay ? 1 : 0);
+    writer.WriteUInt32(this.loginCnt);
+    writer.WriteUInt32(this.inviter);
+    writer.WriteUInt32(this.newInviteeCnt);
+    writer.WriteUInt32(this.vipLevel);
+    writer.WriteUInt32(this.vipValue);
+    writer.WriteUInt32(this.vipStage);
+    writer.WriteUInt32(this.autoCharge);
+    writer.WriteUInt32(this.vipEndTime);
+    writer.WriteUInt32(this.freshManBonus);
+    
+    // nonoChipList (80 bytes)
+    for (let i = 0; i < 80; i++) {
+      writer.WriteUInt8(this.nonoChipList[i] ? 1 : 0);
+    }
+    
+    // dailyResArr (50 bytes)
+    for (let i = 0; i < 50; i++) {
+      writer.WriteUInt8(this.dailyResArr[i]);
+    }
+    
+    writer.WriteUInt32(this.teacherID);
+    writer.WriteUInt32(this.studentID);
+    writer.WriteUInt32(this.graduationCount);
+    writer.WriteUInt32(this.maxPuniLv);
+    writer.WriteUInt32(this.petMaxLev);
+    writer.WriteUInt32(this.petAllNum);
+    writer.WriteUInt32(this.monKingWin);
+    writer.WriteUInt32(this.curStage);
+    writer.WriteUInt32(this.maxStage);
+    writer.WriteUInt32(this.curFreshStage);
+    writer.WriteUInt32(this.maxFreshStage);
+    writer.WriteUInt32(this.maxArenaWins);
+    writer.WriteUInt32(this.twoTimes);
+    writer.WriteUInt32(this.threeTimes);
+    writer.WriteUInt32(this.autoFight);
+    writer.WriteUInt32(this.autoFightTimes);
+    writer.WriteUInt32(this.energyTimes);
+    writer.WriteUInt32(this.learnTimes);
+    writer.WriteUInt32(this.monBtlMedal);
+    writer.WriteUInt32(this.recordCnt);
+    writer.WriteUInt32(this.obtainTm);
+    writer.WriteUInt32(this.soulBeadItemID);
+    writer.WriteUInt32(this.expireTm);
+    writer.WriteUInt32(this.fuseTimes);
+    writer.WriteUInt32(this.hasNono ? 1 : 0);
+    writer.WriteUInt32(this.superNono ? 1 : 0);
+    writer.WriteUInt32(this.nonoState);
+    writer.WriteUInt32(this.nonoColor);
+    writer.WriteBytes(this.buildString(this.nonoNick, 16));
+    
+    // teamInfo (24 bytes: 6 x uint32)
+    writer.WriteUInt32(0); // id
+    writer.WriteUInt32(0); // priv
+    writer.WriteUInt32(0); // superCore
+    writer.WriteUInt32(0); // isShow
+    writer.WriteUInt32(0); // allContribution
+    writer.WriteUInt32(0); // canExContribution
+    
+    // teamPKInfo (8 bytes: 2 x uint32)
+    writer.WriteUInt32(0); // groupID
+    writer.WriteUInt32(0); // homeTeamID
+    
+    // padding
+    writer.WriteUInt8(0);
+    
+    // badge
+    writer.WriteUInt32(this.badge);
+    
+    // reserved (27 bytes)
+    writer.WriteBytes(Buffer.alloc(27));
 
-    // 填充到至少200字节
-    const currentLen = writer.Offset;
-    if (currentLen < 200) {
-      writer.WriteBytes(Buffer.alloc(200 - currentLen));
+    // ========== 任务列表 (500 bytes) ==========
+    // TasksManager.taskList - 每个任务1字节状态
+    for (let i = 0; i < 500; i++) {
+      writer.WriteUInt8(this.taskList[i] || 0);
     }
 
-    // 加密密钥种子（在末尾添加，不计入200字节填充）
-    writer.WriteUInt32(this.keySeed);
-
-    return writer.ToBuffer();
-  }
-
-  /**
-   * 辅助方法：设置Session
-   */
-  setSession(sessionKey: string | undefined): this {
-    if (sessionKey) {
-      this.session = this.buildBuffer(sessionKey, 8);
+    // ========== 精灵数据 ==========
+    // petNum (4 bytes)
+    const petCount = this.petList?.length || 0;
+    writer.WriteUInt32(petCount);
+    
+    console.log(`[LoginRspProto] 精灵数量: ${petCount}`);
+    
+    // PetManager.initData - 如果 petNum > 0，写入精灵数据
+    if (petCount > 0 && this.petList) {
+      for (let i = 0; i < this.petList.length; i++) {
+        const pet = this.petList[i];
+        console.log(`[LoginRspProto] 序列化精灵 ${i + 1}/${petCount}: PetId=${pet.id}, Level=${pet.level}, CatchTime=0x${pet.catchTime.toString(16)}`);
+        
+        // 写入完整的精灵信息（使用 PetInfoProto 的简化版本）
+        const petBytes = pet.serialize();
+        console.log(`[LoginRspProto] 精灵 ${i + 1} 序列化后字节数: ${petBytes.length}`);
+        writer.WriteBytes(petBytes);
+      }
     }
-    return this;
-  }
 
-  /**
-   * 辅助方法：设置昵称
-   */
-  setNickname(nickname: string): this {
-    this.nickname = nickname;
-    return this;
-  }
+    // ========== 服装数据 ==========
+    // clothes count (4 bytes)
+    writer.WriteUInt32(0); // 暂时没有服装
+    
+    // clothes data - 如果 count > 0，每个服装 8 bytes (id + level)
+    // 暂时跳过，因为 count = 0
 
-  /**
-   * 辅助方法：设置加密密钥种子
-   */
-  setKeySeed(keySeed: number): this {
-    this.keySeed = keySeed;
-    return this;
+    // ========== 当前称号 ==========
+    writer.WriteUInt32(0); // curTitle
+
+    // ========== Boss成就 (200 bytes) ==========
+    for (let i = 0; i < 200; i++) {
+      writer.WriteUInt8(0); // false
+    }
+
+    const buffer = writer.ToBuffer();
+    console.log(`[LoginRspProto] 序列化完成，总字节数: ${buffer.length}`);
+    return buffer;
   }
 }

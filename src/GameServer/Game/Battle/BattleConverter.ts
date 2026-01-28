@@ -13,14 +13,20 @@ export class BattleConverter {
    * 用于 NOTE_READY_TO_FIGHT (2503)
    */
   public static ToSimplePetInfo(pet: IBattlePet): SimplePetInfoProto {
+    // 获取技能PP（从skillPP数组或默认20）
+    const skillsWithPP = pet.skills.map((id, index) => ({
+      id,
+      pp: pet.skillPP && pet.skillPP[index] !== undefined ? pet.skillPP[index] : 20
+    }));
+
     return new SimplePetInfoProto()
       .setPetId(pet.id)
       .setLevel(pet.level)
       .setHP(pet.hp, pet.maxHp)
-      .setSkills(pet.skills.map(id => ({ id, pp: 20 })))
+      .setSkills(skillsWithPP)
       .setCatchTime(pet.catchTime)
-      .setCatchMap(301)
-      .setCatchLevel(pet.level)
+      .setCatchMap(301)  // 默认地图301
+      .setCatchLevel(pet.level)  // 捕获等级（简化为当前等级）
       .setSkinID(0);
   }
 

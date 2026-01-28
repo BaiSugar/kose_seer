@@ -12,14 +12,10 @@ export class Migration006CreateItems implements IMigration {
       CREATE TABLE IF NOT EXISTS player_items (
         id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '记录ID',
         owner_id INT NOT NULL COMMENT '所属玩家ID',
-        item_id INT NOT NULL COMMENT '物品ID',
-        count INT NOT NULL DEFAULT 1 COMMENT '数量',
-        expire_time INT NOT NULL DEFAULT 0 COMMENT '过期时间（0=永久）',
-        item_level INT NOT NULL DEFAULT 0 COMMENT '物品等级',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '获得时间',
-        INDEX idx_owner_id (owner_id),
-        INDEX idx_item_id (item_id),
-        UNIQUE KEY uk_owner_item (owner_id, item_id),
+        item_list TEXT COMMENT '物品列表（JSON格式）',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        UNIQUE KEY uk_owner_id (owner_id),
         FOREIGN KEY (owner_id) REFERENCES players(user_id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='玩家物品表'
     `];
@@ -29,19 +25,12 @@ export class Migration006CreateItems implements IMigration {
     return [`
       CREATE TABLE IF NOT EXISTS player_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        owner_id INTEGER NOT NULL,
-        item_id INTEGER NOT NULL,
-        count INTEGER NOT NULL DEFAULT 1,
-        expire_time INTEGER NOT NULL DEFAULT 0,
-        item_level INTEGER NOT NULL DEFAULT 0,
+        owner_id INTEGER NOT NULL UNIQUE,
+        item_list TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(owner_id, item_id),
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (owner_id) REFERENCES players(user_id) ON DELETE CASCADE
       )
-    `, `
-      CREATE INDEX IF NOT EXISTS idx_player_items_owner_id ON player_items(owner_id)
-    `, `
-      CREATE INDEX IF NOT EXISTS idx_player_items_item_id ON player_items(item_id)
     `];
   }
 

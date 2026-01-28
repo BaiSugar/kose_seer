@@ -11,7 +11,12 @@ import { Migration002CreateSessions } from './scripts/002_create_sessions';
 import { Migration003CreatePlayers } from './scripts/003_create_players';
 import { Migration004CreatePets } from './scripts/004_create_pets';
 import { Migration005CreateEmailCodes } from './scripts/005_create_email_codes';
-import { Migration006CreateMails } from './scripts/006_create_mails';
+import { Migration006CreateItems } from './scripts/006_create_items';
+import { Migration009CreateFriendsTables } from './scripts/009_create_friends_tables';
+import { Migration010CreateTasksTables } from './scripts/010_create_tasks_tables';
+import { Migration011CreateMails } from './scripts/006_create_mails';
+import { Migration012FixAllTables } from './scripts/012_fix_all_tables';
+import { Migration013AddAllocatableExp } from './scripts/013_add_allocatable_exp';
 
 /**
  * 所有迁移脚本（按版本号排序）
@@ -22,7 +27,12 @@ const AllMigrations: IMigration[] = [
   new Migration003CreatePlayers(),
   new Migration004CreatePets(),
   new Migration005CreateEmailCodes(),
-  new Migration006CreateMails(),
+  new Migration006CreateItems(),
+  new Migration009CreateFriendsTables(),
+  new Migration010CreateTasksTables(),
+  new Migration011CreateMails(),
+  new Migration012FixAllTables(),
+  new Migration013AddAllocatableExp(),
 ];
 
 export class MigrationRunner {

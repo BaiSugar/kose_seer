@@ -4,7 +4,6 @@ import { PlayerInstance } from '../Player/PlayerInstance';
  * Manager 基类
  * 所有玩家相关的 Manager 都应该继承此类
  * 
- * 参考 DanhengServer 的 BasePlayerManager 设计：
  * - 只提供 Player 属性
  * - Manager 中直接使用 Player.SendPacket()
  * - 不提供便捷方法，保持简单
@@ -20,7 +19,7 @@ export abstract class BaseManager {
    * 获取玩家 UserID（便捷访问）
    */
   protected get UserID(): number {
-    return this.Player.UserID;
+    return this.Player.Uid;
   }
   
   /**

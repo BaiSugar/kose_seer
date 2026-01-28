@@ -4,48 +4,42 @@ import { PlayerInstance } from '../Player/PlayerInstance';
 import { PacketGetPetList, PacketGetPetInfo, PacketPetRelease, PacketPetShow, PacketPetCure, PacketPetDefault } from '../../Server/Packet/Send/Pet';
 import { PacketEmpty } from '../../Server/Packet/Send/PacketEmpty';
 import { CommandID } from '../../../shared/protocol/CommandID';
-import { PetInfoService, PetBattleService, PetStorageService, PetSkillService } from './services';
-import { IPetInfo } from '../../../shared/models/PetModel';
+import { IPetInfo, createDefaultPetInfo } from '../../../shared/models/PetModel';
 import { PetInfoProto } from '../../../shared/proto/common/PetInfoProto';
-import { PetStudySkillReqProto } from '../../../shared/proto/packets/req/pet/PetStudySkillReqProto';
-import { PetSkillSwitchReqProto } from '../../../shared/proto/packets/req/pet/PetSkillSwitchReqProto';
-import { GetPetSkillReqProto } from '../../../shared/proto/packets/req/pet/GetPetSkillReqProto';
-import { PetStudySkillRspProto } from '../../../shared/proto/packets/rsp/pet/PetStudySkillRspProto';
-import { PetSkillSwitchRspProto } from '../../../shared/proto/packets/rsp/pet/PetSkillSwitchRspProto';
-import { GetPetSkillRspProto } from '../../../shared/proto/packets/rsp/pet/GetPetSkillRspProto';
+import { PetData } from '../../../DataBase/models/PetData';
+import { DatabaseHelper } from '../../../DataBase/DatabaseHelper';
+import { PacketPetSetExp } from '../../Server/Packet/Send/Pet/PacketPetSetExp';
+import { PacketPetGetExp } from '../../Server/Packet/Send/Pet/PacketPetGetExp';
 
 /**
  * 精灵管理器
  * 处理精灵相关的所有逻辑：获取精灵信息、精灵列表、治疗、展示等
  * 
  * 架构说明：
- * - Manager 负责协调各个 Service
- * - Service 使用 Player.PetRepo 访问数据库
- * - Manager 只处理请求转发和响应发送
+ * - 持有 PetData 对象，直接操作数据
+ * - 使用 DatabaseHelper 实时保存数据
  */
 export class PetManager extends BaseManager {
-  // 服务实例
-  private _infoService: PetInfoService;
-  private _battleService: PetBattleService;
-  private _storageService: PetStorageService;
-  private _skillService: PetSkillService;
+  /** 精灵数据*/
+  public PetData!: PetData;
 
   constructor(player: PlayerInstance) {
     super(player);
-    
-    // 初始化服务，传入 Player 实例
-    this._infoService = new PetInfoService(player);
-    this._battleService = new PetBattleService(player);
-    this._storageService = new PetStorageService(player);
-    this._skillService = new PetSkillService(player);
+  }
+
+  /**
+   * 初始化（加载数据�?
+   */
+  public async Initialize(): Promise<void> {
+    this.PetData = await DatabaseHelper.Instance.GetInstanceOrCreateNew_PetData(this.UserID);
+    Logger.Debug(`[PetManager] 初始化完�? UserID=${this.UserID}, Pets=${this.PetData.PetList.length}`);
   }
 
   /**
    * 处理获取精灵列表
-   * 复杂逻辑：从数据库读取所有精灵
    */
   public async HandleGetPetList(): Promise<void> {
-    const pets = await this._infoService.GetPetsInBag(this.UserID);
+    const pets = this.PetData.GetPetsInBag();
     const petProtos = pets.map(pet => this.petInfoToProto(pet));
     
     await this.Player.SendPacket(new PacketGetPetList(petProtos));
@@ -54,64 +48,92 @@ export class PetManager extends BaseManager {
 
   /**
    * 处理获取精灵信息
-   * 复杂逻辑：从数据库读取单个精灵详细信息
    */
-  public async HandleGetPetInfo(petId: number): Promise<void> {
-    const pet = await this._infoService.GetPetInfo(petId);
+  public async HandleGetPetInfo(catchTime: number): Promise<void> {
+    Logger.Debug(`[PetManager] HandleGetPetInfo: UserID=${this.UserID}, CatchTime=${catchTime}`);
+    
+    const pet = this.PetData.GetPetByCatchTime(catchTime);
     
     if (pet) {
+      Logger.Info(`[PetManager] 找到精灵: PetID=${pet.petId}, Level=${pet.level}, CatchTime=${pet.catchTime}`);
       const petProto = this.petInfoToProto(pet);
       await this.Player.SendPacket(new PacketGetPetInfo(petProto));
     } else {
+      Logger.Warn(`[PetManager] 精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
+      Logger.Debug(`[PetManager] 当前精灵列表: ${JSON.stringify(this.PetData.PetList.map(p => ({ petId: p.petId, catchTime: p.catchTime })))}`);
       await this.Player.SendPacket(new PacketEmpty(CommandID.GET_PET_INFO).setResult(5001));
     }
   }
 
   /**
    * 处理释放精灵
-   * 复杂逻辑：验证并删除精灵
    */
-  public async HandlePetRelease(petId: number): Promise<void> {
-    const success = await this._infoService.ReleasePet(this.UserID, petId);
+  public async HandlePetRelease(catchTime: number): Promise<void> {
+    const success = this.PetData.RemovePetByCatchTime(catchTime);
     
     if (success) {
-      await this.Player.SendPacket(new PacketPetRelease(0, petId, 1));
+      await DatabaseHelper.Instance.SavePetData(this.PetData);
+      await this.Player.SendPacket(new PacketPetRelease(0, catchTime, 1));
+      Logger.Info(`[PetManager] 释放精灵: UserID=${this.UserID}, CatchTime=${catchTime}`);
     } else {
+      Logger.Warn(`[PetManager] 释放精灵失败，精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
+      await this.Player.SendPacket(new PacketEmpty(CommandID.PET_RELEASE).setResult(5001));
+    }
+  }
+
+  /**
+   * 处理将精灵放入背包（从仓库取出，或确认获得新精灵）
+   */
+  public async HandlePetTakeOut(catchTime: number): Promise<void> {
+    const pet = this.PetData.GetPetByCatchTime(catchTime);
+    
+    if (pet) {
+      // 精灵已经在背包中，发送确认响应（包含精灵信息）
+      const petProto = this.petInfoToProto(pet);
+      await this.Player.SendPacket(new PacketPetRelease(0, catchTime, 1, petProto));
+      Logger.Info(`[PetManager] 确认精灵放入背包: UserID=${this.UserID}, CatchTime=${catchTime}, PetId=${pet.petId}`);
+    } else {
+      Logger.Warn(`[PetManager] 精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_RELEASE).setResult(5001));
     }
   }
 
   /**
    * 处理展示精灵
-   * 简单逻辑：展示精灵给其他玩家看
    */
-  public async HandlePetShow(petId: number): Promise<void> {
-    const pet = await this._infoService.GetPetInfo(petId);
+  public async HandlePetShow(catchTime: number): Promise<void> {
+    const pet = this.PetData.GetPetByCatchTime(catchTime);
     
     if (pet) {
       await this.Player.SendPacket(new PacketPetShow(this.UserID, pet.catchTime, pet.petId, 1, pet.dvHp, 0));
     } else {
+      Logger.Warn(`[PetManager] 展示精灵失败，精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SHOW).setResult(5001));
     }
   }
 
   /**
    * 处理治疗精灵
-   * 复杂逻辑：恢复精灵HP
    */
   public async HandlePetCure(petId?: number): Promise<void> {
     let success = false;
     
     if (petId) {
       // 治疗单个精灵
-      success = await this._battleService.CurePet(this.UserID, petId);
+      const pet = this.PetData.GetPet(petId);
+      if (pet) {
+        pet.hp = pet.maxHp;
+        success = true;
+      }
     } else {
-      // 治疗所有精灵
-      const curedCount = await this._battleService.CureAllPets(this.UserID);
-      success = curedCount > 0;
+      // 治疗所有精�?
+      const pets = this.PetData.GetPetsInBag();
+      pets.forEach(pet => pet.hp = pet.maxHp);
+      success = pets.length > 0;
     }
     
     if (success) {
+      await DatabaseHelper.Instance.SavePetData(this.PetData);
       await this.Player.SendPacket(new PacketPetCure());
     } else {
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_CURE).setResult(5001));
@@ -120,13 +142,19 @@ export class PetManager extends BaseManager {
 
   /**
    * 处理设置首发精灵
-   * 复杂逻辑：验证并设置首发精灵
    */
   public async HandlePetDefault(petId: number): Promise<void> {
-    const success = await this._infoService.SetDefaultPet(this.UserID, petId);
+    const pet = this.PetData.GetPet(petId);
     
-    if (success) {
+    if (pet && pet.isInBag) {
+      // 清除其他精灵的首发标�?
+      this.PetData.PetList.forEach(p => p.isDefault = false);
+      // 设置当前精灵为首�?
+      pet.isDefault = true;
+      await DatabaseHelper.Instance.SavePetData(this.PetData);
+      
       await this.Player.SendPacket(new PacketPetDefault());
+      Logger.Info(`[PetManager] 设置首发精灵: UserID=${this.UserID}, PetId=${petId}`);
     } else {
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_DEFAULT).setResult(5001));
     }
@@ -134,10 +162,9 @@ export class PetManager extends BaseManager {
 
   /**
    * 处理获取精灵仓库列表
-   * 复杂逻辑：从数据库读取仓库中的精灵
    */
   public async HandlePetBargeList(): Promise<void> {
-    const pets = await this._infoService.GetPetsInStorage(this.UserID);
+    const pets = this.PetData.GetPetsInStorage();
     const petProtos = pets.map(pet => this.petInfoToProto(pet));
     
     await this.Player.SendPacket(new PacketGetPetList(petProtos));
@@ -145,78 +172,200 @@ export class PetManager extends BaseManager {
   }
 
   /**
-   * 处理移动精灵到仓库
-   * 复杂逻辑：验证并移动精灵
+   * 处理移动精灵到仓�?
    */
   public async HandleMovePetToStorage(petId: number): Promise<void> {
-    const success = await this._storageService.MoveToStorage(this.UserID, petId);
+    const pet = this.PetData.GetPet(petId);
     
-    if (success) {
+    if (pet && pet.isInBag) {
+      pet.isInBag = false;
+      await DatabaseHelper.Instance.SavePetData(this.PetData);
+      
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_BARGE_LIST));
+      Logger.Info(`[PetManager] 移动精灵到仓�? UserID=${this.UserID}, PetId=${petId}`);
     } else {
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_BARGE_LIST).setResult(5001));
     }
   }
 
   /**
-   * 处理移动精灵到背包
-   * 复杂逻辑：验证背包空间并移动精灵
+   * 处理移动精灵到背�?
    */
   public async HandleMovePetToBag(petId: number): Promise<void> {
-    const success = await this._storageService.MoveToBag(this.UserID, petId);
+    const pet = this.PetData.GetPet(petId);
+    const { inBag } = this.PetData.GetPetCount();
     
-    if (success) {
+    if (pet && !pet.isInBag && inBag < 6) {
+      pet.isInBag = true;
+      await DatabaseHelper.Instance.SavePetData(this.PetData);
+      
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_BARGE_LIST));
+      Logger.Info(`[PetManager] 移动精灵到背�? UserID=${this.UserID}, PetId=${petId}`);
     } else {
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_BARGE_LIST).setResult(5001));
     }
   }
 
   /**
-   * 处理增加精灵经验
-   * 复杂逻辑：增加经验并处理升级
+   * 处理增加精灵经验（按petId查找）
+   * @deprecated 使用HandleAddPetExpByCatchTime代替
    */
   public async HandleAddPetExp(petId: number, expAmount: number): Promise<boolean> {
-    const result = await this._battleService.AddExp(this.UserID, petId, expAmount);
+    const pet = this.PetData.GetPet(petId);
+    if (!pet) return false;
     
-    if (result) {
-      Logger.Info(`[PetManager] 精灵获得经验: PetId=${petId}, Exp=${expAmount}, LevelUp=${result.levelUp}, NewLevel=${result.newLevel}`);
-      return result.levelUp;
+    pet.exp += expAmount;
+    const levelUp = this.checkLevelUp(pet);
+    
+    // 自动触发保存（通过深度 Proxy）
+    Logger.Info(`[PetManager] 精灵获得经验: PetId=${petId}, Exp=${expAmount}, LevelUp=${levelUp}, NewLevel=${pet.level}`);
+    
+    return levelUp;
+  }
+
+  /**
+   * 处理增加精灵经验（按catchTime查找）
+   */
+  public async HandleAddPetExpByCatchTime(catchTime: number, expAmount: number): Promise<boolean> {
+    const pet = this.PetData.GetPetByCatchTime(catchTime);
+    if (!pet) {
+      Logger.Warn(`[PetManager] 精灵未找到: CatchTime=${catchTime}`);
+      return false;
     }
     
-    return false;
+    pet.exp += expAmount;
+    const levelUp = this.checkLevelUp(pet);
+    
+    // 自动触发保存（通过深度 Proxy）
+    Logger.Info(`[PetManager] 精灵获得经验: CatchTime=${catchTime}, PetId=${pet.petId}, Exp=${expAmount}, LevelUp=${levelUp}, NewLevel=${pet.level}`);
+    
+    return levelUp;
+  }
+
+  /**
+   * 检查并处理升级
+   */
+  private checkLevelUp(pet: IPetInfo): boolean {
+    let levelUp = false;
+    while (pet.exp >= this.calculateLvExp(pet.level + 1) && pet.level < 100) {
+      pet.level++;
+      levelUp = true;
+      this.recalculateStats(pet);
+    }
+    return levelUp;
+  }
+
+  /**
+   * 重新计算属�?
+   */
+  private recalculateStats(pet: IPetInfo): void {
+    pet.maxHp = Math.floor(100 + pet.level * 5 + pet.dvHp + pet.evHp / 4);
+    pet.atk = Math.floor(50 + pet.level * 2 + pet.dvAtk + pet.evAtk / 4);
+    pet.def = Math.floor(50 + pet.level * 2 + pet.dvDef + pet.evDef / 4);
+    pet.spAtk = Math.floor(50 + pet.level * 2 + pet.dvSpAtk + pet.evSpAtk / 4);
+    pet.spDef = Math.floor(50 + pet.level * 2 + pet.dvSpDef + pet.evSpDef / 4);
+    pet.speed = Math.floor(50 + pet.level * 2 + pet.dvSpeed + pet.evSpeed / 4);
+    pet.hp = pet.maxHp;
   }
 
   /**
    * 获取精灵数量信息
    */
   public async GetPetCount(): Promise<{ total: number; inBag: number }> {
-    return await this._infoService.GetPetCount(this.UserID);
+    return this.PetData.GetPetCount();
   }
 
   /**
    * 获取背包剩余空间
    */
   public async GetBagSpace(): Promise<number> {
-    return await this._storageService.GetBagSpace(this.UserID);
+    const { inBag } = this.PetData.GetPetCount();
+    return Math.max(0, 6 - inBag);
   }
 
   /**
-   * 将 IPetInfo 转换为 PetInfoProto
+   * Give pet to player (for mail attachments, task rewards, etc.)
+   */
+  public async GivePet(petId: number, level: number = 1, catchTime?: number): Promise<boolean> {
+    try {
+      Logger.Info(`[PetManager] GivePet 开始: UserId=${this.UserID}, PetId=${petId}, Level=${level}, CatchTime=${catchTime}`);
+      
+      const bagSpace = await this.GetBagSpace();
+      Logger.Debug(`[PetManager] 背包空间: ${bagSpace}`);
+      
+      if (bagSpace <= 0) {
+        Logger.Warn(`[PetManager] Bag full, cannot give pet UserId=${this.UserID}, PetId=${petId}`);
+        return false;
+      }
+
+      // Create new pet using createDefaultPetInfo
+      const newPet = createDefaultPetInfo(this.UserID, petId);
+      Logger.Debug(`[PetManager] 创建精灵对象: PetId=${newPet.petId}, CatchTime=${newPet.catchTime}`);
+      
+      // Set level and catch time
+      newPet.level = level;
+      newPet.obtainLevel = level;
+      if (catchTime) {
+        newPet.catchTime = catchTime;
+      }
+      Logger.Debug(`[PetManager] 设置等级和捕获时间: Level=${newPet.level}, CatchTime=0x${newPet.catchTime.toString(16)}`);
+      
+      // Use PetCalculator to calculate correct stats
+      const { PetCalculator } = await import('./PetCalculator');
+      PetCalculator.UpdatePetStats(newPet);
+      Logger.Debug(`[PetManager] 计算属性: HP=${newPet.hp}/${newPet.maxHp}, ATK=${newPet.atk}`);
+      
+      // Use SptSystem to get default skills
+      const { SptSystem } = await import('./SptSystem');
+      const defaultSkills = SptSystem.GetDefaultSkills(petId, level);
+      newPet.skillArray = defaultSkills.slice(0, 4).map(skill => skill.id);
+      Logger.Debug(`[PetManager] 设置技能: ${newPet.skillArray.join(',')}`);
+      
+      // Add to bag
+      Logger.Debug(`[PetManager] 添加前 PetList 长度: ${this.PetData.PetList.length}`);
+      Logger.Debug(`[PetManager] PetData 对象 Uid: ${this.PetData.Uid}`);
+      Logger.Debug(`[PetManager] PetData 对象引用: ${typeof this.PetData}`);
+      
+      this.PetData.AddPet(newPet);
+      
+      Logger.Debug(`[PetManager] 添加后 PetList 长度: ${this.PetData.PetList.length}`);
+      Logger.Debug(`[PetManager] PetList 内容: ${JSON.stringify(this.PetData.PetList.map(p => ({ petId: p.petId, catchTime: p.catchTime })))}`);
+      Logger.Debug(`[PetManager] 准备保存的 PetData.Uid: ${this.PetData.Uid}`);
+      Logger.Debug(`[PetManager] 准备保存的 PetData.PetList.length: ${this.PetData.PetList.length}`);
+      
+      Logger.Info(`[PetManager] 准备保存精灵数据到数据库...`);
+      await DatabaseHelper.Instance.SavePetData(this.PetData);
+      
+      Logger.Info(`[PetManager] Give pet success UserId=${this.UserID}, PetId=${petId}, Level=${level}, Skills=${newPet.skillArray.join(',')}`);
+      return true;
+    } catch (error) {
+      Logger.Error(`[PetManager] Give pet error`, error as Error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取精灵Proto列表（用于登录响应等）
+   */
+  public GetPetProtoList(pets: IPetInfo[]): PetInfoProto[] {
+    return pets.map(pet => this.petInfoToProto(pet));
+  }
+
+  /**
+   * �?IPetInfo 转换�?PetInfoProto
    */
   private petInfoToProto(pet: IPetInfo): PetInfoProto {
     const proto = new PetInfoProto();
     
     proto.id = pet.petId;
     proto.name = pet.nick || '';
-    proto.dv = pet.dvHp;  // 简化：使用HP个体值代表总个体值
+    proto.dv = pet.dvHp;
     proto.nature = pet.nature;
     proto.level = pet.level;
     proto.exp = pet.exp;
     proto.lvExp = this.calculateLvExp(pet.level);
     proto.nextLvExp = this.calculateLvExp(pet.level + 1);
     
-    // 战斗属性
     proto.hp = pet.hp;
     proto.maxHp = pet.maxHp;
     proto.attack = pet.atk;
@@ -225,7 +374,6 @@ export class PetManager extends BaseManager {
     proto.s_d = pet.spDef;
     proto.speed = pet.speed;
     
-    // 努力值
     proto.ev_hp = pet.evHp;
     proto.ev_attack = pet.evAtk;
     proto.ev_defence = pet.evDef;
@@ -233,20 +381,16 @@ export class PetManager extends BaseManager {
     proto.ev_sd = pet.evSpDef;
     proto.ev_sp = pet.evSpeed;
     
-    // 技能列表
     proto.skills = pet.skillArray.map(skillId => ({
       id: skillId,
       pp: 20,
       maxPp: 20
     }));
     
-    // 捕获信息
     proto.catchTime = pet.catchTime;
     proto.catchMap = 0;
     proto.catchRect = 0;
     proto.catchLevel = pet.obtainLevel;
-    
-    // 效果和皮肤
     proto.effects = [];
     proto.skinID = 0;
     
@@ -254,98 +398,76 @@ export class PetManager extends BaseManager {
   }
 
   /**
-   * 计算等级经验值
+   * 处理获取可分配经验（精灵分配仪）
+   */
+  public async HandlePetGetExp(): Promise<void> {
+    const allocatableExp = this.Player.Data.allocatableExp;
+    await this.Player.SendPacket(new PacketPetGetExp(allocatableExp));
+    Logger.Info(`[PetManager] 查询可分配经验: UserID=${this.UserID}, AllocExp=${allocatableExp}`);
+  }
+
+  /**
+   * 处理设置精灵经验（精灵分配仪）
+   */
+  public async HandlePetSetExp(catchTime: number, expAmount: number): Promise<void> {
+    try {
+      // 1. 验证精灵存在
+      const pet = this.PetData.GetPetByCatchTime(catchTime);
+      if (!pet) {
+        Logger.Warn(`[PetManager] 精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SET_EXP).setResult(5001));
+        return;
+      }
+
+      // 2. 验证经验值有效
+      if (expAmount <= 0) {
+        Logger.Warn(`[PetManager] 经验值无效: UserID=${this.UserID}, ExpAmount=${expAmount}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SET_EXP).setResult(5001));
+        return;
+      }
+
+      // 3. 验证可分配经验足够
+      if (this.Player.Data.allocatableExp < expAmount) {
+        Logger.Warn(`[PetManager] 可分配经验不足: UserID=${this.UserID}, Need=${expAmount}, Have=${this.Player.Data.allocatableExp}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SET_EXP).setResult(5004));
+        return;
+      }
+
+      // 4. 验证精灵未满级
+      if (pet.level >= 100) {
+        Logger.Warn(`[PetManager] 精灵已满级: UserID=${this.UserID}, PetId=${pet.petId}, Level=${pet.level}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SET_EXP).setResult(5001));
+        return;
+      }
+
+      // 5. 扣除可分配经验（自动保存）
+      this.Player.Data.allocatableExp -= expAmount;
+
+      // 6. 增加精灵经验
+      pet.exp += expAmount;
+      this.checkLevelUp(pet);
+
+      // 7. 自动触发保存（通过深度 Proxy）
+
+      // 8. 发送成功响应
+      await this.Player.SendPacket(new PacketPetSetExp(
+        pet.catchTime,
+        pet.level,
+        pet.exp,
+        this.Player.Data.allocatableExp
+      ));
+
+      Logger.Info(`[PetManager] 分配经验成功: UserID=${this.UserID}, PetId=${pet.petId}, ExpAmount=${expAmount}, NewLevel=${pet.level}, RemainingExp=${this.Player.Data.allocatableExp}`);
+    } catch (error) {
+      Logger.Error(`[PetManager] HandlePetSetExp failed`, error as Error);
+      await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SET_EXP).setResult(5000));
+    }
+  }
+
+  /**
+   * 计算等级经验
    */
   private calculateLvExp(level: number): number {
-    // 简化公式：level * 100
     return level * 100;
   }
-
-  /**
-   * 赠送精灵（用于邮件附件、任务奖励等）
-   * 
-   * @param petId 精灵ID（种族ID）
-   * @returns 是否成功
-   */
-  public async GivePet(petId: number): Promise<boolean> {
-    try {
-      // 检查背包空间
-      const bagSpace = await this.GetBagSpace();
-      if (bagSpace <= 0) {
-        Logger.Warn(`[PetManager] 背包已满，无法赠送精灵: UserId=${this.UserID}, PetId=${petId}`);
-        return false;
-      }
-
-      // 使用 PetInfoService 创建精灵
-      const success = await this._infoService.CreatePet(this.UserID, petId);
-      
-      if (success) {
-        Logger.Info(`[PetManager] 赠送精灵成功: UserId=${this.UserID}, PetId=${petId}`);
-      } else {
-        Logger.Warn(`[PetManager] 赠送精灵失败: UserId=${this.UserID}, PetId=${petId}`);
-      }
-      
-      return success;
-    } catch (error) {
-      Logger.Error(`[PetManager] 赠送精灵异常: ${error}`);
-      return false;
-    }
-  }
-
-  /**
-   * 处理精灵学习技能
-   * 复杂逻辑：验证技能、槽位，更新数据库
-   */
-  public async HandleStudySkill(userId: number, req: PetStudySkillReqProto): Promise<void> {
-    const success = await this._skillService.LearnSkill(userId, req.petId, req.skillId, req.slotIndex);
-    
-    if (success) {
-      await this.Player.SendPacket(
-        new PetStudySkillRspProto()
-          .setResult(0)
-          .setPetId(req.petId)
-          .setSkillId(req.skillId)
-          .setSlotIndex(req.slotIndex)
-      );
-      Logger.Info(`[PetManager] 精灵学习技能: PetId=${req.petId}, SkillId=${req.skillId}, Slot=${req.slotIndex}`);
-    } else {
-      await this.Player.SendPacket(new PetStudySkillRspProto().setResult(5001));
-    }
-  }
-
-  /**
-   * 处理精灵技能切换
-   * 复杂逻辑：交换技能槽位置
-   */
-  public async HandleSkillSwitch(userId: number, req: PetSkillSwitchReqProto): Promise<void> {
-    const success = await this._skillService.SwitchSkills(userId, req.petId, req.slot1, req.slot2);
-    
-    if (success) {
-      await this.Player.SendPacket(
-        new PetSkillSwitchRspProto()
-          .setResult(0)
-          .setPetId(req.petId)
-      );
-      Logger.Info(`[PetManager] 切换技能: PetId=${req.petId}, Slot1=${req.slot1}, Slot2=${req.slot2}`);
-    } else {
-      await this.Player.SendPacket(new PetSkillSwitchRspProto().setResult(5001));
-    }
-  }
-
-  /**
-   * 处理获取精灵技能
-   * 复杂逻辑：从数据库读取技能列表
-   */
-  public async HandleGetSkills(userId: number, req: GetPetSkillReqProto): Promise<void> {
-    const skills = await this._skillService.GetPetSkills(userId, req.petId);
-    
-    await this.Player.SendPacket(
-      new GetPetSkillRspProto()
-        .setResult(0)
-        .setPetId(req.petId)
-        .setSkills(skills)
-    );
-    Logger.Info(`[PetManager] 获取精灵技能: PetId=${req.petId}, SkillCount=${skills.length}`);
-  }
 }
-

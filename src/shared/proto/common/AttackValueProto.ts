@@ -53,9 +53,9 @@ export class AttackValueProto extends BaseProto {
       writer.WriteUInt8(this.status[i] || 0);
     }
     
-    // 战斗等级 (6字节)
+    // 战斗等级 (6字节) - 使用有符号字节匹配Lua端
     for (let i = 0; i < 6; i++) {
-      writer.WriteUInt8(this.battleLv[i] || 0); // 简化：使用无符号
+      writer.WriteInt8(this.battleLv[i] || 0);
     }
     
     writer.WriteUInt32(this.maxShield);

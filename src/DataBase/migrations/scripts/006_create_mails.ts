@@ -3,8 +3,8 @@
  */
 import { IMigration } from '../IMigration';
 
-export class Migration006CreateMails implements IMigration {
-  version = 6;
+export class Migration011CreateMails implements IMigration {
+  version = 11;
   name = 'create_mails';
 
   upMySQL(): string[] {

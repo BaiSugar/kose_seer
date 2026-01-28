@@ -8,3 +8,5 @@ export * from './PetDefaultHandler';
 export * from './PetStudySkillHandler';
 export * from './PetSkillSwitchHandler';
 export * from './GetPetSkillHandler';
+export * from './PetGetExpHandler';
+export * from './PetSetExpHandler';

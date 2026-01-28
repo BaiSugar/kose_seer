@@ -18,6 +18,6 @@ export class AimatHandler implements IHandler {
     const req = new AimatReqProto();
     req.deserialize(body);
 
-    await player.SendPacket(new AimatRspProto(player.UserID, req.targetType, req.targetId, req.x, req.y));
+    await player.SendPacket(new AimatRspProto(player.Uid, req.targetType, req.targetId, req.x, req.y));
   }
 }

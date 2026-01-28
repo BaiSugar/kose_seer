@@ -12,69 +12,15 @@ import {
   ISkillEffectsXmlConfig,
   ISptXmlConfig
 } from '../../../shared/config/XmlConfigInterfaces';
-
-/**
- * 地图怪物配置接口
- */
-export interface IMapOgreConfig {
-  description: string;
-  maps: {
-    [mapId: string]: {
-      name: string;
-      ogres: Array<{
-        slot: number;
-        petId: number;
-        shiny: number;
-      }>;
-    };
-  };
-  shinyRate: number;
-  comment: string;
-}
-
-/**
- * 性格配置接口
- */
-export interface INatureConfig {
-  natures: Array<{
-    id: number;
-    name: string;
-    upStat?: number;
-    downStat?: number;
-    category: string;
-  }>;
-}
-
-/**
- * 属性配置接口
- */
-export interface IElementConfig {
-  types: Array<{
-    id: number;
-    name: string;
-    nameEn: string;
-  }>;
-  effectiveness: {
-    [atkType: string]: {
-      [defType: string]: number;
-    };
-  };
-}
-
-/**
- * 唯一物品配置接口
- */
-export interface IUniqueItemsConfig {
-  description: string;
-  comment: string;
-  uniqueItemIds: number[];
-  uniqueRanges: Array<{
-    start: number;
-    end: number;
-    category: string;
-    description: string;
-  }>;
-}
+import {
+  IMapOgreConfig,
+  IOgreRefreshConfig,
+  IMapOgreSlot,
+  INatureConfig,
+  IElementConfig,
+  IUniqueItemsConfig,
+  IDefaultPlayerConfig
+} from './interfaces';
 
 /**
  * 游戏配置管理器
@@ -89,40 +35,16 @@ export class GameConfig {
   }
 
   /**
-   * 获取指定地图的怪物列表
+   * 获取指定地图的配置
    * @param mapId 地图ID
-   * @returns 怪物列表，固定9个槽位
+   * @returns 地图配置，如果不存在返回 null
    */
-  public static GetMapOgres(mapId: number): Array<{ petId: number; shiny: number }> {
+  public static GetMapConfigById(mapId: number): any {
     const config = this.GetMapOgreConfig();
     if (!config) {
-      Logger.Warn('[GameConfig] 地图怪物配置未加载，返回空列表');
-      return Array(9).fill({ petId: 0, shiny: 0 });
+      return null;
     }
-
-    const mapConfig = config.maps[mapId.toString()];
-    if (!mapConfig) {
-      return Array(9).fill({ petId: 0, shiny: 0 });
-    }
-
-    // 初始化9个空槽位
-    const result: Array<{ petId: number; shiny: number }> = Array(9)
-      .fill(null)
-      .map(() => ({ petId: 0, shiny: 0 }));
-
-    // 填充配置的怪物
-    for (const ogre of mapConfig.ogres) {
-      if (ogre.slot >= 0 && ogre.slot < 9) {
-        let shiny = ogre.shiny;
-        // 如果配置为0，则按概率随机闪光
-        if (shiny === 0 && Math.random() < config.shinyRate) {
-          shiny = 1;
-        }
-        result[ogre.slot] = { petId: ogre.petId, shiny };
-      }
-    }
-
-    return result;
+    return config.maps[mapId.toString()] || null;
   }
 
   /**
@@ -250,6 +172,13 @@ export class GameConfig {
    */
   public static GetUniqueItemsConfig(): IUniqueItemsConfig | null {
     return ConfigRegistry.Instance.Get<IUniqueItemsConfig>(ConfigKeys.UNIQUE_ITEMS_CONFIG);
+  }
+
+  /**
+   * 获取默认玩家配置
+   */
+  public static GetDefaultPlayerConfig(): IDefaultPlayerConfig | null {
+    return ConfigRegistry.Instance.Get<IDefaultPlayerConfig>(ConfigKeys.DEFAULT_PLAYER);
   }
 
   /**

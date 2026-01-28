@@ -33,9 +33,12 @@ export class BattleTurnExecutor {
     battle.turn++;
     
     Logger.Info(`[BattleTurnExecutor] 回合 ${battle.turn}: 玩家使用技能 ${playerSkillId}`);
+    Logger.Debug(`[BattleTurnExecutor] 玩家: HP=${battle.player.hp}/${battle.player.maxHp}, Speed=${battle.player.speed}`);
+    Logger.Debug(`[BattleTurnExecutor] 敌人: HP=${battle.enemy.hp}/${battle.enemy.maxHp}, Speed=${battle.enemy.speed}`);
 
     // 1. 获取技能配置
     const playerSkill = skillConfigs.get(playerSkillId) || this.GetDefaultSkill();
+    Logger.Debug(`[BattleTurnExecutor] 玩家技能: ${playerSkill.name} (ID=${playerSkill.id})`);
     
     // 2. AI选择技能
     const enemySkillId = BattleCore.AISelectSkill(
@@ -45,6 +48,7 @@ export class BattleTurnExecutor {
       skillConfigs
     );
     const enemySkill = skillConfigs.get(enemySkillId) || this.GetDefaultSkill();
+    Logger.Debug(`[BattleTurnExecutor] 敌人技能: ${enemySkill.name} (ID=${enemySkill.id})`);
 
     // 3. 处理回合开始时的状态效果
     const playerStatusDamage = BattleCore.ProcessStatusEffects(battle.player);

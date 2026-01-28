@@ -18,6 +18,6 @@ export class PeopleTransformHandler implements IHandler {
     const req = new PeopleTransformReqProto();
     req.deserialize(body);
 
-    await player.SendPacket(new PeopleTransformRspProto(player.UserID, req.transId));
+    await player.SendPacket(new PeopleTransformRspProto(player.Uid, req.transId));
   }
 }

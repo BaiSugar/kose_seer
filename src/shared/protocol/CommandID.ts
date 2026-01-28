@@ -18,6 +18,9 @@ export const CommandID = {
   GET_SESSION_KEY: 1006,             // 获取会话密钥
   READ_COUNT: 1007,                  // 读取计数
 
+  // ============ 内部命令 ============
+  PLAYER_DISCONNECT: 10004,          // 玩家断开连接（内部命令）
+
   // ============ 充值相关 ============
   MONEY_CHECK_PSW: 1101,
   MONEY_BUY_PRODUCT: 1102,
@@ -73,8 +76,8 @@ export const CommandID = {
   BLACK_ADD: 2154,
   BLACK_REMOVE: 2155,
   SEE_ONLINE: 2157,
-  REQUEST_OUT: 2158,
-  REQUEST_ANSWER: 2159,
+  FRIEND_LIST: 2158,              // 好友列表
+  BLACK_LIST: 2159,               // 黑名单列表
 
   // ============ 任务相关 ============
   ACCEPT_TASK: 2201,

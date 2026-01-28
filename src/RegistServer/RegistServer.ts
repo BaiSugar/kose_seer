@@ -78,7 +78,7 @@ export class RegistServer {
   /**
    * 处理来自Gateway的请求
    */
-  private async HandleGatewayRequest(head: HeadInfo, body: Buffer): Promise<Buffer | null> {
+  private async HandleGatewayRequest(head: HeadInfo, body: Buffer): Promise<Buffer[]> {
     Logger.Info(`[RegistServer] 收到Gateway请求: ${head.CmdID} (${head.UserID})`);
 
     let response: Buffer | null = null;
@@ -98,7 +98,7 @@ export class RegistServer {
         break;
     }
 
-    return response;
+    return response ? [response] : [];
   }
 
   /**

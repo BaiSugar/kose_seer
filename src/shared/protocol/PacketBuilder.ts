@@ -59,11 +59,18 @@ export class PacketBuilder {
 
     Logger.Info(`[发包] ${cmdName}(${cmdID})${desc} | UserID=${userID} | Result=${result} | BodyLen=${bodyLength}`);
 
-    // 使用元数据智能解析Body
+    // 暂时禁用 Body 解析，避免性能问题和潜在的死循环
+    // TODO: 修复 CmdMeta.ParseBody 的性能问题后再启用
+    /*
     if (bodyLength > 0 && data) {
-      const bodyStr = CmdMeta.ParseBody(cmdID, data, false);
-      Logger.Debug(`[发包] Body: ${bodyStr}`);
+      try {
+        const bodyStr = CmdMeta.ParseBody(cmdID, data, false);
+        Logger.Debug(`[发包] Body: ${bodyStr}`);
+      } catch (err) {
+        Logger.Debug(`[发包] Body 解析失败: ${(err as Error).message}`);
+      }
     }
+    */
 
     return buffer;
   }

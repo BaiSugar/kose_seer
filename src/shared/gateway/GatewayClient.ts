@@ -19,7 +19,7 @@ export class GatewayClient {
   private _parser: PacketParser;
   private _packetBuilder: PacketBuilder;
   private _reconnectTimer: NodeJS.Timeout | null = null;
-  private _onRequest: ((head: HeadInfo, body: Buffer) => Promise<Buffer | null>) | null = null;
+  private _onRequest: ((head: HeadInfo, body: Buffer) => Promise<Buffer[]>) | null = null;
 
   constructor(
     serviceName: string,
@@ -36,9 +36,9 @@ export class GatewayClient {
   }
 
   /**
-   * 设置请求处理器
+   * 设置请求处理器（支持返回多个响应）
    */
-  public SetRequestHandler(handler: (head: HeadInfo, body: Buffer) => Promise<Buffer | null>): void {
+  public SetRequestHandler(handler: (head: HeadInfo, body: Buffer) => Promise<Buffer[]>): void {
     this._onRequest = handler;
   }
 
@@ -106,11 +106,13 @@ export class GatewayClient {
    * 处理接收到的数据
    */
   private HandleData(data: Buffer, connectResolve?: (value: boolean) => void): void {
+    Logger.Debug(`[GatewayClient] 收到数据: ${data.length} 字节`);
     this._parser.Append(data);
 
     let packet;
     while ((packet = this._parser.TryParse()) !== null) {
       const { head, body } = packet;
+      Logger.Debug(`[GatewayClient] 解析数据包: CMD=${head.CmdID}, UserID=${head.UserID}`);
 
       // 如果是注册响应
       if (!this._connected && head.CmdID === this.GetRegisterCmdID()) {
@@ -124,9 +126,13 @@ export class GatewayClient {
 
       // 处理Gateway转发的请求
       if (this._onRequest) {
-        this._onRequest(head, body).then((response) => {
-          if (response && this._socket && this._socket.writable) {
-            this._socket.write(response);
+        this._onRequest(head, body).then((responses) => {
+          if (responses && responses.length > 0 && this._socket && this._socket.writable) {
+            // 发送所有响应
+            for (const response of responses) {
+              this._socket.write(response);
+            }
+            Logger.Debug(`[GatewayClient] 发送 ${responses.length} 个响应`);
           }
         }).catch((err) => {
           Logger.Error(`[GatewayClient] 处理请求失败 CMD=${head.CmdID}`, err);

@@ -40,8 +40,8 @@ export class PlayerManager {
       await this.RemovePlayer(userID);
     }
 
-    // 创建新的玩家实例
-    const player = new PlayerInstance(session, userID, nickname, this._packetBuilder);
+    // 创建新的玩家实例（不再需要传 nickname）
+    const player = new PlayerInstance(session, userID, this._packetBuilder);
     await player.Initialize();
 
     // 添加到管理器

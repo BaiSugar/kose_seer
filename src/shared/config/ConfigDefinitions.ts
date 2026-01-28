@@ -7,11 +7,15 @@
  * 配置键名常量
  */
 export const ConfigKeys = {
+  // 服务器配置
+  SERVER_CONFIG: 'server_config',
+  
   // 游戏配置 (JSON)
   MAP_OGRES: 'map_ogres',
   BATTLE_CONFIG: 'battle_config',
   TASK_CONFIG: 'task_config',
   SHOP_CONFIG: 'shop_config',
+  DEFAULT_PLAYER: 'default_player',
   
   // 游戏数据配置 (XML)
   PET_CONFIG: 'pet_config',
@@ -30,11 +34,15 @@ export const ConfigKeys = {
  * 配置路径映射
  */
 export const ConfigPaths: Record<string, string> = {
+  // 服务器配置
+  [ConfigKeys.SERVER_CONFIG]: 'server.json',
+  
   // JSON配置
-  [ConfigKeys.MAP_OGRES]: 'game/map-ogres.json',
+  [ConfigKeys.MAP_OGRES]: 'data/json/map-ogres.json',
   [ConfigKeys.BATTLE_CONFIG]: 'game/battle-config.json',
   [ConfigKeys.TASK_CONFIG]: 'game/task-config.json',
   [ConfigKeys.SHOP_CONFIG]: 'game/shop-config.json',
+  [ConfigKeys.DEFAULT_PLAYER]: 'data/json/default-player.json',
   
   // XML配置
   [ConfigKeys.PET_CONFIG]: 'data/xml/pets.xml',
@@ -61,10 +69,13 @@ export enum ConfigType {
  * 配置类型映射
  */
 export const ConfigTypes: Record<string, ConfigType> = {
+  [ConfigKeys.SERVER_CONFIG]: ConfigType.JSON,
+  
   [ConfigKeys.MAP_OGRES]: ConfigType.JSON,
   [ConfigKeys.BATTLE_CONFIG]: ConfigType.JSON,
   [ConfigKeys.TASK_CONFIG]: ConfigType.JSON,
   [ConfigKeys.SHOP_CONFIG]: ConfigType.JSON,
+  [ConfigKeys.DEFAULT_PLAYER]: ConfigType.JSON,
   
   [ConfigKeys.PET_CONFIG]: ConfigType.XML,
   [ConfigKeys.SKILL_CONFIG]: ConfigType.XML,
@@ -83,6 +94,7 @@ export const ConfigTypes: Record<string, ConfigType> = {
 export function GetGameConfigRegistrations(): Array<{ key: string; path: string; type: ConfigType }> {
   return [
     { key: ConfigKeys.MAP_OGRES, path: ConfigPaths[ConfigKeys.MAP_OGRES], type: ConfigTypes[ConfigKeys.MAP_OGRES] },
+    { key: ConfigKeys.DEFAULT_PLAYER, path: ConfigPaths[ConfigKeys.DEFAULT_PLAYER], type: ConfigTypes[ConfigKeys.DEFAULT_PLAYER] },
     { key: ConfigKeys.PET_CONFIG, path: ConfigPaths[ConfigKeys.PET_CONFIG], type: ConfigTypes[ConfigKeys.PET_CONFIG] },
     { key: ConfigKeys.SKILL_CONFIG, path: ConfigPaths[ConfigKeys.SKILL_CONFIG], type: ConfigTypes[ConfigKeys.SKILL_CONFIG] },
     { key: ConfigKeys.ITEM_CONFIG, path: ConfigPaths[ConfigKeys.ITEM_CONFIG], type: ConfigTypes[ConfigKeys.ITEM_CONFIG] },

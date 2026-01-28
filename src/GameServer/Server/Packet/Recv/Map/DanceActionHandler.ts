@@ -18,6 +18,6 @@ export class DanceActionHandler implements IHandler {
     const req = new DanceActionReqProto();
     req.deserialize(body);
 
-    await player.SendPacket(new DanceActionRspProto(player.UserID, req.actionId, req.actionType));
+    await player.SendPacket(new DanceActionRspProto(player.Uid, req.actionId, req.actionType));
   }
 }

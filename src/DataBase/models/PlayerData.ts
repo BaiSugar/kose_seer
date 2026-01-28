@@ -1,0 +1,402 @@
+/**
+ * 玩家数据类
+ * 直接映射数据库表，提供静态方法便捷访问
+ * 
+ * 特性：使用 Proxy 实现属性修改时自动保存到数据库
+ */
+
+import { DatabaseHelper } from '../DatabaseHelper';
+import { IPlayerInfo, createDefaultTeamInfo, createDefaultTeamPKInfo } from '../../shared/models/PlayerModel';
+import { Logger } from '../../shared/utils/Logger';
+
+/**
+ * 不需要自动保存的字段列表（黑名单）
+ * - 只读字段：userID, regTime
+ * - 临时字段：pets, clothes, taskList（从其他表加载）
+ * - 内部状态：_saveTimer, _pendingSave
+ */
+const NO_SAVE_FIELDS = new Set([
+  'userID',           // 主键，不可修改
+  'regTime',          // 注册时间，不可修改
+  'pets',             // 从 pet_bag 表加载
+  'petNum',           // 从 pet_bag 表计算
+  'clothes',          // 从 items 表加载
+  'clothCount',       // 从 items 表计算
+  'taskList',         // 从 tasks 表加载
+  'teamInfo',         // 复杂对象，单独处理
+  'teamPKInfo',       // 复杂对象，单独处理
+  'bossAchievement',  // 复杂对象，单独处理
+  '_saveTimer',       // 内部状态
+  '_pendingSave'      // 内部状态
+]);
+
+/**
+ * 玩家数据（对应数据库表 players）
+ * 
+ * 架构说明：
+ * - 这是一个数据类，直接映射数据库表
+ * - 通过 DatabaseHelper 统一管理加载和保存
+ * - 使用 Proxy 实现属性修改时自动保存（黑名单模式）
+ * - 提供静态方法 GetPlayerByUid 便捷访问
+ */
+export class PlayerData implements IPlayerInfo {
+  // ============ 基本信息 ============
+  userID: number;
+  regTime: number;
+  nick: string;
+  vip: number;
+  viped: number;
+  dsFlag: number;
+  color: number;
+  texture: number;
+
+  // ============ 货币信息 ============
+  energy: number;
+  coins: number;
+  fightBadge: number;
+
+  // ============ 精灵分配仪 ============
+  allocatableExp: number;
+
+  // ============ 位置信息 ============
+  mapID: number;
+  posX: number;
+  posY: number;
+
+  // ============ 时间信息 ============
+  timeToday: number;
+  timeLimit: number;
+
+  // ============ 半价标志 ============
+  isClothHalfDay: boolean;
+  isRoomHalfDay: boolean;
+  iFortressHalfDay: boolean;
+  isHQHalfDay: boolean;
+
+  // ============ 登录信息 ============
+  loginCnt: number;
+  inviter: number;
+  newInviteeCnt: number;
+
+  // ============ VIP信息 ============
+  vipLevel: number;
+  vipValue: number;
+  vipStage: number;
+  autoCharge: number;
+  vipEndTime: number;
+  freshManBonus: number;
+
+  // ============ NONO芯片 ============
+  nonoChipList: number[];
+
+  // ============ 每日资源 ============
+  dailyResArr: number[];
+
+  // ============ 师徒信息 ============
+  teacherID: number;
+  studentID: number;
+  graduationCount: number;
+  maxPuniLv: number;
+
+  // ============ 精灵统计 ============
+  petMaxLev: number;
+  petAllNum: number;
+
+  // ============ 战斗统计 ============
+  monKingWin: number;
+  curStage: number;
+  maxStage: number;
+  curFreshStage: number;
+  maxFreshStage: number;
+  maxArenaWins: number;
+
+  // ============ 倍率信息 ============
+  twoTimes: number;
+  threeTimes: number;
+  autoFight: number;
+  autoFightTimes: number;
+  energyTimes: number;
+  learnTimes: number;
+  monBtlMedal: number;
+
+  // ============ 魂珠信息 ============
+  recordCnt: number;
+  obtainTm: number;
+  soulBeadItemID: number;
+  expireTm: number;
+  fuseTimes: number;
+
+  // ============ NONO信息 ============
+  hasNono: boolean;
+  superNono: boolean;
+  nonoState: number;
+  nonoColor: number;
+  nonoNick: string;
+  nonoFlag: number;
+  nonoPower: number;
+  nonoMate: number;
+  nonoIq: number;
+  nonoAi: number;
+  nonoSuperLevel: number;
+  nonoBio: number;
+  nonoBirth: number;
+  nonoChargeTime: number;
+  nonoExpire: number;
+  nonoChip: number;
+  nonoGrow: number;
+
+  // ============ 战队信息 ============
+  teamInfo: any;
+  teamPKInfo: any;
+
+  // ============ 其他信息 ============
+  badge: number;
+  taskList: number[];
+
+  // ============ 精灵列表 ============
+  petNum: number;
+  pets: any[];
+
+  // ============ 装备列表 ============
+  clothCount: number;
+  clothes: any[];
+
+  // ============ 成就信息 ============
+  curTitle: number;
+  bossAchievement: boolean[];
+
+  // ============ 内部状态 ============
+  private _saveTimer: NodeJS.Timeout | null = null;
+  private _pendingSave: boolean = false;
+
+  constructor(data: IPlayerInfo) {
+    // 基本信息
+    this.userID = data.userID;
+    this.regTime = data.regTime;
+    this.nick = data.nick;
+    this.vip = data.vip;
+    this.viped = data.viped;
+    this.dsFlag = data.dsFlag;
+    this.color = data.color;
+    this.texture = data.texture;
+
+    // 货币信息
+    this.energy = data.energy;
+    this.coins = data.coins;
+    this.fightBadge = data.fightBadge;
+
+    // 精灵分配仪
+    this.allocatableExp = data.allocatableExp || 0;
+
+    // 位置信息
+    this.mapID = data.mapID;
+    this.posX = data.posX;
+    this.posY = data.posY;
+
+    // 时间信息
+    this.timeToday = data.timeToday;
+    this.timeLimit = data.timeLimit;
+
+    // 半价标志
+    this.isClothHalfDay = data.isClothHalfDay;
+    this.isRoomHalfDay = data.isRoomHalfDay;
+    this.iFortressHalfDay = data.iFortressHalfDay;
+    this.isHQHalfDay = data.isHQHalfDay;
+
+    // 登录信息
+    this.loginCnt = data.loginCnt;
+    this.inviter = data.inviter;
+    this.newInviteeCnt = data.newInviteeCnt;
+
+    // VIP信息
+    this.vipLevel = data.vipLevel;
+    this.vipValue = data.vipValue;
+    this.vipStage = data.vipStage;
+    this.autoCharge = data.autoCharge;
+    this.vipEndTime = data.vipEndTime;
+    this.freshManBonus = data.freshManBonus;
+
+    // NONO芯片
+    this.nonoChipList = data.nonoChipList;
+
+    // 每日资源
+    this.dailyResArr = data.dailyResArr;
+
+    // 师徒信息
+    this.teacherID = data.teacherID;
+    this.studentID = data.studentID;
+    this.graduationCount = data.graduationCount;
+    this.maxPuniLv = data.maxPuniLv;
+
+    // 精灵统计
+    this.petMaxLev = data.petMaxLev;
+    this.petAllNum = data.petAllNum;
+
+    // 战斗统计
+    this.monKingWin = data.monKingWin;
+    this.curStage = data.curStage;
+    this.maxStage = data.maxStage;
+    this.curFreshStage = data.curFreshStage;
+    this.maxFreshStage = data.maxFreshStage;
+    this.maxArenaWins = data.maxArenaWins;
+
+    // 倍率信息
+    this.twoTimes = data.twoTimes;
+    this.threeTimes = data.threeTimes;
+    this.autoFight = data.autoFight;
+    this.autoFightTimes = data.autoFightTimes;
+    this.energyTimes = data.energyTimes;
+    this.learnTimes = data.learnTimes;
+    this.monBtlMedal = data.monBtlMedal;
+
+    // 魂珠信息
+    this.recordCnt = data.recordCnt;
+    this.obtainTm = data.obtainTm;
+    this.soulBeadItemID = data.soulBeadItemID;
+    this.expireTm = data.expireTm;
+    this.fuseTimes = data.fuseTimes;
+
+    // NONO信息
+    this.hasNono = data.hasNono;
+    this.superNono = data.superNono;
+    this.nonoState = data.nonoState;
+    this.nonoColor = data.nonoColor;
+    this.nonoNick = data.nonoNick;
+    this.nonoFlag = data.nonoFlag;
+    this.nonoPower = data.nonoPower;
+    this.nonoMate = data.nonoMate;
+    this.nonoIq = data.nonoIq;
+    this.nonoAi = data.nonoAi;
+    this.nonoSuperLevel = data.nonoSuperLevel;
+    this.nonoBio = data.nonoBio;
+    this.nonoBirth = data.nonoBirth;
+    this.nonoChargeTime = data.nonoChargeTime;
+    this.nonoExpire = data.nonoExpire;
+    this.nonoChip = data.nonoChip;
+    this.nonoGrow = data.nonoGrow;
+
+    // 战队信息
+    this.teamInfo = data.teamInfo;
+    this.teamPKInfo = data.teamPKInfo;
+
+    // 其他信息
+    this.badge = data.badge;
+    this.taskList = data.taskList;
+
+    // 精灵列表
+    this.petNum = data.petNum;
+    this.pets = data.pets;
+
+    // 装备列表
+    this.clothCount = data.clothCount;
+    this.clothes = data.clothes;
+
+    // 成就信息
+    this.curTitle = data.curTitle;
+    this.bossAchievement = data.bossAchievement;
+
+    // 返回 Proxy 包装的对象，实现自动保存
+    return this.createProxy();
+  }
+
+  /**
+   * 创建 Proxy 包装，实现属性修改时自动保存
+   */
+  private createProxy(): PlayerData {
+    return new Proxy(this, {
+      set: (target, property: string, value) => {
+        // 设置新值
+        (target as any)[property] = value;
+
+        // 如果不在黑名单中，触发保存
+        if (!NO_SAVE_FIELDS.has(property)) {
+          this.scheduleSave();
+        }
+
+        return true;
+      }
+    });
+  }
+
+  /**
+   * 调度保存操作（防抖，100ms内的多次修改只保存一次）
+   */
+  private scheduleSave(): void {
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+    }
+
+    this._pendingSave = true;
+    this._saveTimer = setTimeout(async () => {
+      if (this._pendingSave) {
+        await this.save();
+        this._pendingSave = false;
+      }
+      this._saveTimer = null;
+    }, 100); // 100ms 防抖
+  }
+
+  /**
+   * 立即保存到数据库
+   */
+  public async save(): Promise<void> {
+    try {
+      await DatabaseHelper.Instance.SavePlayerData(this);
+      Logger.Debug(`[PlayerData] 自动保存成功: uid=${this.userID}`);
+    } catch (error) {
+      Logger.Error(`[PlayerData] 自动保存失败: uid=${this.userID}`, error as Error);
+    }
+  }
+
+  /**
+   * 静态方法：根据 UID 获取玩家数据
+   * 
+   * 
+   * @example
+   * // 在 FriendManager 中使用
+   * const player = await PlayerData.GetPlayerByUid(friendUid);
+   * if (player) {
+   *   console.log(player.nick);
+   * }
+   * 
+   * // 在 Handler 中使用
+   * const targetPlayer = await PlayerData.GetPlayerByUid(req.Uid);
+   */
+  public static async GetPlayerByUid(uid: number): Promise<PlayerData | null> {
+    const data = await DatabaseHelper.Instance.GetInstance_PlayerData(uid);
+    return data;
+  }
+
+  /**
+   * 转换为简单信息（用于好友列表等）
+   */
+  public ToSimpleInfo(): any {
+    return {
+      userID: this.userID,
+      nick: this.nick,
+      color: this.color,
+      texture: this.texture,
+      vip: this.vip,
+      vipLevel: this.vipLevel,
+      mapID: this.mapID
+    };
+  }
+
+  /**
+   * 转换为详细信息（用于查看资料）
+   */
+  public ToDetailInfo(): any {
+    return {
+      userID: this.userID,
+      nick: this.nick,
+      regTime: this.regTime,
+      petAllNum: this.petAllNum,
+      petMaxLev: this.petMaxLev,
+      monKingWin: this.monKingWin,
+      maxStage: this.maxStage,
+      maxArenaWins: this.maxArenaWins,
+      curTitle: this.curTitle,
+      bossAchievement: this.bossAchievement
+    };
+  }
+}

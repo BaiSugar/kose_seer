@@ -284,6 +284,9 @@ export interface IPlayerInfo {
   coins: number;            // 赛尔豆
   fightBadge: number;       // 战斗徽章
 
+  // ============ 精灵分配仪 ============
+  allocatableExp?: number;  // 可分配经验值
+
   // ============ 位置信息 ============
   mapID: number;            // 地图ID
   posX: number;             // X坐标
@@ -594,7 +597,7 @@ export function createDefaultPlayerInfo(userID: number, nick: string): IPlayerIn
     isRoomHalfDay: false,
     iFortressHalfDay: false,
     isHQHalfDay: false,
-    loginCnt: 1,
+    loginCnt: 0,  // 0 for first login to trigger novice rewards
     inviter: 0,
     newInviteeCnt: 0,
     vipLevel: 0,

@@ -1,18 +1,18 @@
 import { BaseProto } from '../../../../../shared/proto/base/BaseProto';
 import { CommandID } from '../../../../../shared/protocol/CommandID';
-import { MapOgreListRspProto } from '../../../../../shared/proto/packets/rsp/map/MapOgreListRspProto';
+import { MapOgreListRspProto, IOgreSlot } from '../../../../../shared/proto/packets/rsp/map/MapOgreListRspProto';
 
 /**
- * 地图怪物列表响应包
- * CMD 1004
+ * [CMD: 2004 MAP_OGRE_LIST] 地图野怪列表响应包
  */
 export class PacketMapOgreList extends BaseProto {
   private _data: Buffer;
 
-  constructor(ogres: Array<{ petId: number; shiny: number }>) {
+  constructor(ogres: IOgreSlot[]) {
     super(CommandID.MAP_OGRE_LIST);
+    
     const proto = new MapOgreListRspProto();
-    proto.ogres = ogres;
+    proto.setOgres(ogres);
     this._data = proto.serialize();
   }
 

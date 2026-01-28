@@ -10,12 +10,22 @@ import { PacketSystemTime } from '../../Send/System/PacketSystemTime';
  */
 @Opcode(CommandID.SYSTEM_TIME, InjectType.NONE)
 export class SystemTimeHandler implements IHandler {
-  public async Handle(session: IClientSession, _head: HeadInfo, _body: Buffer): Promise<void> {
+  public async Handle(session: IClientSession, head: HeadInfo, _body: Buffer): Promise<void> {
     const player = session.Player;
-    if (!player) return;
+    
+    console.log(`[SystemTimeHandler] Handle called: UserID=${head.UserID}, Player=${player ? 'exists' : 'null'}`);
+    
+    if (!player) {
+      console.log(`[SystemTimeHandler] Player is null, returning`);
+      return;
+    }
 
     const timestamp = Math.floor(Date.now() / 1000);
+    console.log(`[SystemTimeHandler] Sending timestamp: ${timestamp}`);
+    
     await player.SendPacket(new PacketSystemTime(timestamp));
+    
+    console.log(`[SystemTimeHandler] Packet sent`);
   }
 }
 

@@ -13,7 +13,7 @@ export interface IGatewaySession {
   socket: Socket;
   address: string;
   parser: PacketParser;
-  serverType: 'login' | 'game';
+  serverType: 'login' | 'game' | 'main';
   policyHandled: boolean;
   userId?: number;
   createdAt: number;
@@ -29,7 +29,7 @@ export class GatewaySessionManager {
   /**
    * 创建会话
    */
-  public CreateSession(socket: Socket, serverType: 'login' | 'game'): IGatewaySession {
+  public CreateSession(socket: Socket, serverType: 'login' | 'game' | 'main'): IGatewaySession {
     const address = `${socket.remoteAddress}:${socket.remotePort}`;
     const id = `${serverType}_${++this._sessionIdCounter}_${Date.now()}`;
 
@@ -65,18 +65,6 @@ export class GatewaySessionManager {
    */
   public GetSession(id: string): IGatewaySession | undefined {
     return this._sessions.get(id);
-  }
-
-  /**
-   * 根据用户ID查找会话
-   */
-  public FindSessionByUserId(userId: number): IGatewaySession | undefined {
-    for (const session of this._sessions.values()) {
-      if (session.userId === userId) {
-        return session;
-      }
-    }
-    return undefined;
   }
 
   /**

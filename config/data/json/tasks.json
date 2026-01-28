@@ -1,0 +1,56 @@
+{
+  "tasks": {
+    "85": {
+      "name": "新手礼物",
+      "type": "normal",
+      "rewards": {
+        "items": [
+          { "id": 100027, "count": 1 },
+          { "id": 100028, "count": 1 },
+          { "id": 500001, "count": 1 },
+          { "id": 300650, "count": 3 },
+          { "id": 300025, "count": 3 },
+          { "id": 300035, "count": 3 },
+          { "id": 500502, "count": 1 },
+          { "id": 500503, "count": 1 }
+        ]
+      }
+    },
+    "86": {
+      "name": "初次伙伴",
+      "type": "select_pet",
+      "paramMap": {
+        "1": 1,
+        "2": 7,
+        "3": 4
+      }
+    },
+    "87": {
+      "name": "初试身手",
+      "type": "normal",
+      "rewards": {
+        "items": [
+          { "id": 300001, "count": 5 },
+          { "id": 300011, "count": 3 }
+        ]
+      }
+    },
+    "88": {
+      "name": "治愈伤痛",
+      "type": "normal",
+      "rewards": {
+        "coins": 50000,
+        "special": [
+          { "type": 1, "value": 50000 },
+          { "type": 3, "value": 250000 },
+          { "type": 5, "value": 20 }
+        ]
+      }
+    },
+    "94": {
+      "name": "获得挖矿钻头",
+      "type": "get_item",
+      "targetItemId": 100014
+    }
+  }
+}

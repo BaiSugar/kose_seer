@@ -20,7 +20,7 @@ Send/
 
 ## 设计模式
 
-参考 DanhengServer 的架构，每个Packet类：
+每个Packet类：
 
 1. **继承 BaseProto**
 2. **构造函数接收业务参数**
@@ -59,10 +59,9 @@ await player.SendPacket(new PacketItemBuy(remainCoins, itemId, count, 0));
 2. **简化Manager**: Manager只需传递业务参数，不需要关心Proto的细节
 3. **类型安全**: 构造函数参数提供完整的类型检查
 4. **易于维护**: 每个Packet类独立文件，按模块分类
-5. **符合参考项目**: 与DanhengServer架构一致
 
 ## TODO
 
-- [ ] 重构 LoginPacket.ts 为模块化结构
-- [ ] 重构 ServerPacket.ts 为模块化结构
-- [ ] 为其他模块（Map, Pet, System）创建Packet类
+- [ ]  重构 LoginPacket.ts 为模块化结构
+- [ ]  重构 ServerPacket.ts 为模块化结构
+- [ ]  为其他模块（Map, Pet, System）创建Packet类

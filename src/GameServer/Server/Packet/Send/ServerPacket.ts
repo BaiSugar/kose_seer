@@ -42,10 +42,11 @@ export class ServerPacket {
     proto.isVIP = 0;
     proto.onlineCnt = servers.length;
     proto.servers = servers.map(s => ({
-      id: s.onlineID,
-      name: `${s.ip}:${s.port}`,
-      online: s.userCnt,
-      status: 0
+      onlineID: s.onlineID,
+      userCnt: s.userCnt,
+      ip: s.ip,
+      port: s.port,
+      friends: s.friends
     }));
 
     return this._packetBuilder.Build(
@@ -69,10 +70,11 @@ export class ServerPacket {
     const proto = new RangeOnlineRspProto();
     proto.onlineCnt = servers.length;
     proto.servers = servers.map(s => ({
-      id: s.onlineID,
-      name: `${s.ip}:${s.port}`,
-      online: s.userCnt,
-      status: 0
+      onlineID: s.onlineID,
+      userCnt: s.userCnt,
+      ip: s.ip,
+      port: s.port,
+      friends: s.friends
     }));
 
     return this._packetBuilder.Build(

@@ -50,6 +50,16 @@ export class BufferWriter {
   }
 
   /**
+   * 写入有符号8位整数
+   */
+  public WriteInt8(value: number): this {
+    this.EnsureCapacity(1);
+    this._buffer.writeInt8(value, this._offset);
+    this._offset += 1;
+    return this;
+  }
+
+  /**
    * 写入定长字符串 (不足补0)
    */
   public WriteString(value: string, length: number): this {

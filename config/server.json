@@ -2,24 +2,23 @@
   "services": {
     "gateway": {
       "enabled": true,
-      "loginPort": 9999,
-      "gamePort": 27777,
-      "rpcPort": 50000,
+      "port": 9999,
+      "rpcPort": 50010,
       "host": "0.0.0.0"
     },
     "regist": {
       "enabled": true,
-      "rpcPort": 50001,
+      "rpcPort": 50011,
       "host": "localhost"
     },
     "game": {
       "enabled": true,
-      "rpcPort": 50002,
+      "rpcPort": 50012,
       "host": "localhost"
     },
     "email": {
       "enabled": true,
-      "rpcPort": 50003,
+      "rpcPort": 50013,
       "host": "localhost"
     },
     "proxy": {
@@ -52,7 +51,7 @@
     "db": 0
   },
   "logging": {
-    "level": "info",
+    "level": "debug",
     "directory": "logs",
     "maxFiles": 30
   },

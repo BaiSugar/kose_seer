@@ -1,6 +1,9 @@
 /**
  * 基础仓库类
- * 提供通用的 CRUD 操作
+ * 提供通用的数据库访问功能
+ * 
+ * 注意：仅用于 Player 相关的 Repository（Account/Session/EmailCode/Player）
+ * 游戏数据（Item/Pet/Task/Friend/Mail）使用 DatabaseHelper + Data 模式
  */
 import { DatabaseManager } from '../DatabaseManager';
 

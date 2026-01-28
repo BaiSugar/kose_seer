@@ -8,9 +8,11 @@ import { PolicyHandler } from './Server/PolicyHandler';
 import { RegistServerProxy } from './Server/Proxy';
 import { LoginManager } from './Game/Login';
 import { ServerManager } from './Game/Server';
+import { PlayerManager } from './Game/Player/PlayerManager';
 // Note: ItemManager, MapManager, PetManager are now created per-player in PlayerInstance
-import { IHandler } from './Server/Packet/IHandler';
+import { IHandler, IClientSession } from './Server/Packet/IHandler';
 import { DatabaseManager } from '../DataBase';
+import { DatabaseHelper } from '../DataBase/DatabaseHelper';
 import { GatewayClient } from '../shared/gateway';
 
 // 导入所有Handler以触发装饰器注册
@@ -29,6 +31,7 @@ export class GameServer {
   private _handlers: Map<number, IHandler>;
   private _running: boolean = false;
   private _gatewayClient: GatewayClient | null = null;
+  private _gatewaySessions: Map<number, IClientSession> = new Map(); // 持久化的 Gateway Session
 
   constructor() {
     this._server = createServer();
@@ -52,6 +55,8 @@ export class GameServer {
   private RegisterHandlers(): void {
     const registeredHandlers = Handlers.GetAll();
 
+    Logger.Info(`[GameServer] 开始注册 Handler，共 ${registeredHandlers.size} 个`);
+
     for (const [cmdID, HandlerClass] of registeredHandlers) {
       let handler: IHandler;
 
@@ -71,9 +76,21 @@ export class GameServer {
       }
 
       this._handlers.set(cmdID, handler);
+      
+      // 记录任务相关的 Handler
+      if (cmdID >= 2200 && cmdID <= 2210) {
+        Logger.Info(`[GameServer] 注册任务 Handler: CMD=${cmdID}, Handler=${HandlerClass.name}`);
+      }
     }
 
-    Logger.Info(`已注册 ${this._handlers.size} 个命令处理器`);
+    Logger.Info(`[GameServer] 已注册 ${this._handlers.size} 个命令处理器`);
+    
+    // 检查 CMD 2201 是否注册
+    if (this._handlers.has(2201)) {
+      Logger.Info(`[GameServer] ✓ CMD 2201 (ACCEPT_TASK) 已注册`);
+    } else {
+      Logger.Warn(`[GameServer] ✗ CMD 2201 (ACCEPT_TASK) 未注册！`);
+    }
   }
 
   /**
@@ -167,6 +184,16 @@ export class GameServer {
     Logger.Info('[GameServer] 初始化数据库...');
     await DatabaseManager.Instance.Initialize();
 
+    // 3.5. 加载任务配置
+    Logger.Info('[GameServer] 加载任务配置...');
+    const { TaskConfig } = await import('./Game/Task/TaskConfig');
+    TaskConfig.Instance.Load();
+
+    // 3.6. 启动自动保存任务（每5分钟）
+    Logger.Info('[GameServer] 启动自动保存任务...');
+    const { AutoSaveTask } = await import('./Game/System/AutoSaveTask');
+    AutoSaveTask.Instance.Start(300000); // 每300秒（5分钟）保存一次
+
     // 4. 启动网络服务
     this._server.listen(Config.Game.rpcPort, Config.Game.host, () => {
       this._running = true;
@@ -202,35 +229,86 @@ export class GameServer {
 
   /**
    * 处理来自Gateway的请求
+   * 支持返回多个响应（用于主动推送）
    */
-  private async HandleGatewayRequest(head: HeadInfo, body: Buffer): Promise<Buffer | null> {
+  private async HandleGatewayRequest(head: HeadInfo, body: Buffer): Promise<Buffer[]> {
+    console.log(`[GameServer.HandleGatewayRequest] 收到请求: CMD=${head.CmdID}, UserID=${head.UserID}`);
+    
     // 检查是否需要转发到 RegistServer
     if (RegistServerProxy.ShouldForward(head.CmdID)) {
-      return await RegistServerProxy.Instance.Forward(null as any, head, body);
+      const result = await RegistServerProxy.Instance.Forward(null as any, head, body);
+      return result ? [result] : [];
     }
 
     const handler = this._handlers.get(head.CmdID);
+    console.log(`[GameServer.HandleGatewayRequest] Handler 查找结果: CMD=${head.CmdID}, found=${handler ? 'yes' : 'no'}`);
+    
     if (handler) {
       try {
-        // 创建临时会话用于处理Gateway请求
-        const tempSession: any = {
-          Socket: null, // Gateway请求不需要socket
-          Address: 'Gateway',
-          Parser: null,
-          PolicyHandled: true,
+        // 获取或创建持久的 Gateway Session
+        let session = this._gatewaySessions.get(head.UserID);
+        
+        if (!session) {
+          // 首次请求，创建持久的 Gateway Session
+          session = {
+            Socket: {
+              write: (data: Buffer) => {
+                // 占位函数，每次请求时会被重写
+                return true;
+              }
+            } as any,
+            Address: 'Gateway',
+            PolicyHandled: true,
+            UserID: head.UserID,
+          } as IClientSession;
+          
+          this._gatewaySessions.set(head.UserID, session);
+          Logger.Info(`[GameServer] 创建持久 Gateway Session: UserID=${head.UserID}`);
+        }
+        
+        // 每次请求重置响应缓冲区数组（支持多个响应）
+        const responseBuffers: Buffer[] = [];
+        
+        (session.Socket as any).write = (data: Buffer) => {
+          responseBuffers.push(data);
+          return true;
         };
         
-        await handler.Handle(tempSession, head, body);
+        // 如果玩家已在线，添加 Player 实例
+        if (head.UserID > 0) {
+          const playerManager = PlayerManager.GetInstance(this._packetBuilder);
+          const player = playerManager.GetPlayer(head.UserID);
+          
+          if (player) {
+            session.Player = player;
+          }
+        }
         
-        // 返回响应（如果handler有设置响应）
-        return this._packetBuilder.Build(head.CmdID, head.UserID, 0, Buffer.alloc(0));
+        await handler.Handle(session, head, body);
+        
+        // 如果handler没有生成响应（例如玩家不在线导致提前返回）
+        // 返回一个错误响应，避免Gateway请求超时
+        if (responseBuffers.length === 0) {
+          Logger.Warn(`[GameServer] Handler未生成响应，返回错误: CMD=${head.CmdID}, UserID=${head.UserID}`);
+          responseBuffers.push(this._packetBuilder.Build(head.CmdID, head.UserID, 5000, Buffer.alloc(0)));
+        } else {
+          Logger.Info(`[GameServer] Handler生成 ${responseBuffers.length} 个响应: CMD=${head.CmdID}, UserID=${head.UserID}`);
+          responseBuffers.forEach((buf, idx) => {
+            Logger.Debug(`[GameServer]   响应 ${idx + 1}: ${buf.length} 字节`);
+          });
+        }
+        
+        // 返回handler写入的所有响应数据
+        return responseBuffers;
       } catch (err) {
         Logger.Error(`处理Gateway请求失败 CMD=${head.CmdID}`, err instanceof Error ? err : undefined);
-        return null;
+        // 返回错误响应
+        return [this._packetBuilder.Build(head.CmdID, head.UserID, 5000, Buffer.alloc(0))];
       }
     } else {
       Logger.Warn(`未处理的Gateway请求 CMD=${head.CmdID}`);
-      return null;
+      // 返回错误响应
+      return [this._packetBuilder.Build(head.CmdID, head.UserID, 5001, Buffer.alloc(0))];
     }
   }
 
@@ -240,16 +318,43 @@ export class GameServer {
   public async Stop(): Promise<void> {
     if (!this._running) return;
 
+    Logger.Info('[GameServer] 正在停止服务器...');
+
+    // 1. 停止自动保存任务
+    const { AutoSaveTask } = await import('./Game/System/AutoSaveTask');
+    AutoSaveTask.Instance.Stop();
+
+    // 2. 立即保存所有数据
+    Logger.Info('[GameServer] 保存所有玩家数据...');
+    await DatabaseHelper.Instance.SaveAll();
+
+    // 3. 清理 Gateway Sessions
+    this._gatewaySessions.clear();
+    Logger.Info('[GameServer] 已清理所有 Gateway Sessions');
+
+    // 4. 断开 Gateway 连接
     if (this._gatewayClient) {
       this._gatewayClient.Disconnect();
     }
 
+    // 5. 关闭数据库连接
     await DatabaseManager.Instance.Shutdown();
 
+    // 6. 关闭网络服务
     this._server.close(() => {
       this._running = false;
       Logger.Info('[GameServer] 已停止');
     });
+  }
+
+  /**
+   * 移除 Gateway Session（玩家登出时调用）
+   */
+  public RemoveGatewaySession(userID: number): void {
+    if (this._gatewaySessions.has(userID)) {
+      this._gatewaySessions.delete(userID);
+      Logger.Info(`[GameServer] 移除 Gateway Session: UserID=${userID}`);
+    }
   }
 
   /**

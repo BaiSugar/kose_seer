@@ -143,6 +143,7 @@ export class SQLiteDriver implements IDriver {
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       Logger.Error(`[SQLiteDriver] 执行失败: ${sql}`, error);
+      Logger.Error(`[SQLiteDriver] 错误详情: ${error.message}`);
       throw err;
     }
   }

@@ -16,33 +16,72 @@ export function PlayerInfoToLoginProto(player: IPlayerInfo, sessionKey?: string)
   
   // 基础信息
   proto.userId = player.userID;
-  proto.setSession(sessionKey);
-  proto.setNickname(player.nick);
-  
-  // 等级和经验（暂时使用固定值，后续可以从player中获取）
-  proto.level = 1;
-  proto.exp = 0;
-  
-  // 货币
-  proto.coins = player.coins;
+  proto.regTime = player.regTime || Math.floor(Date.now() / 1000); // 使用实际注册时间
+  proto.nickname = player.nick;
+  proto.vip = player.vipLevel > 0;
+  proto.viped = player.vipLevel > 0;
+  proto.dsFlag = 0;
+  proto.color = player.color || 0;
+  proto.texture = player.texture || 1;
   proto.energy = player.energy;
-  
-  // VIP信息
-  proto.vipLevel = player.vipLevel;
-  proto.vipValue = player.vipValue;
-  
-  // 服装信息
-  proto.clothCount = player.clothCount;
-  proto.clothes = player.clothes.map(cloth => ({ id: cloth.id }));
-  
-  // 精灵信息（暂时使用固定值）
-  proto.currentPetId = 0;
-  proto.catchId = 0;
-  
-  // 地图信息
+  proto.coins = player.coins;
+  proto.fightBadge = player.fightBadge || 0;
   proto.mapId = player.mapID;
   proto.posX = player.posX;
   proto.posY = player.posY;
+  
+  proto.timeToday = player.timeToday || 0;
+  proto.timeLimit = player.timeLimit || 0;
+  proto.isClothHalfDay = false;
+  proto.isRoomHalfDay = false;
+  proto.iFortressHalfDay = false;
+  proto.isHQHalfDay = false;
+  proto.loginCnt = player.loginCnt || 0;
+  proto.inviter = player.inviter || 0;
+  proto.newInviteeCnt = 0;
+  proto.vipLevel = player.vipLevel;
+  proto.vipValue = player.vipValue;
+  proto.vipStage = player.vipStage || (player.vipLevel > 0 ? Math.min(player.vipLevel, 5) : 1);
+  proto.autoCharge = 0;
+  proto.vipEndTime = player.vipEndTime || 0;
+  proto.freshManBonus = 0;
+  
+  // nonoChipList (80 bytes) - all false for now
+  proto.nonoChipList = new Array(80).fill(false);
+  
+  // dailyResArr (50 bytes) - all 0 for now
+  proto.dailyResArr = new Array(50).fill(0);
+  
+  proto.teacherID = player.teacherID || 0;
+  proto.studentID = player.studentID || 0;
+  proto.graduationCount = player.graduationCount || 0;
+  proto.maxPuniLv = 0;
+  proto.petMaxLev = player.petMaxLev || 0;
+  proto.petAllNum = player.petAllNum || 0;
+  proto.monKingWin = player.monKingWin || 0;
+  proto.curStage = player.curStage || 0;
+  proto.maxStage = player.maxStage || 0;
+  proto.curFreshStage = 0;
+  proto.maxFreshStage = 0;
+  proto.maxArenaWins = player.maxArenaWins || 0;
+  proto.twoTimes = 0;
+  proto.threeTimes = 0;
+  proto.autoFight = 0;
+  proto.autoFightTimes = 0;
+  proto.energyTimes = 0;
+  proto.learnTimes = 0;
+  proto.monBtlMedal = 0;
+  proto.recordCnt = 0;
+  proto.obtainTm = 0;
+  proto.soulBeadItemID = 0;
+  proto.expireTm = 0;
+  proto.fuseTimes = 0;
+  proto.hasNono = player.hasNono || false;
+  proto.superNono = player.superNono || false;
+  proto.nonoState = player.nonoState || 0;
+  proto.nonoColor = player.nonoColor || 0;
+  proto.nonoNick = player.nonoNick || '';
+  proto.badge = player.badge || 0;
   
   return proto;
 }
@@ -60,8 +99,6 @@ export function LoginProtoToPlayerInfo(proto: LoginRspProto, existingPlayer: IPl
     energy: proto.energy,
     vipLevel: proto.vipLevel,
     vipValue: proto.vipValue,
-    clothCount: proto.clothCount,
-    clothes: proto.clothes.map(cloth => ({ id: cloth.id, level: 0 })),
     mapID: proto.mapId,
     posX: proto.posX,
     posY: proto.posY

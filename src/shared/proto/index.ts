@@ -18,3 +18,9 @@ export * from './packets/rsp/login/CreateRoleRspProto';
 // 服务器相关Proto - 响应
 export * from './packets/rsp/server/CommendOnlineRspProto';
 export * from './packets/rsp/server/RangeOnlineRspProto';
+
+// 系统相关Proto - 响应
+export * from './packets/rsp/system/GoldOnlineCheckRemainRspProto';
+
+// 地图相关Proto - 响应
+export * from './packets/rsp/map/MapOgreListRspProto';

@@ -48,7 +48,7 @@ export class ConfigLoader {
 
   /**
    * 加载JSON配置文件
-   * @param relativePath 相对于config目录的路径，如 'game/map-ogres.json'
+   * @param relativePath 相对于config目录的路径，如 'data/json/map-ogres.json'
    * @returns 配置对象
    */
   public LoadJson<T = any>(relativePath: string): T | null {

@@ -3,6 +3,8 @@
  */
 import { BaseRepository } from '../BaseRepository';
 import { IPlayerInfo, createDefaultPlayerInfo } from '../../../shared/models';
+import { GameConfig } from '../../../shared/config/game/GameConfig';
+import { Logger } from '../../../shared/utils/Logger';
 
 /**
  * 数据库玩家行类型
@@ -100,30 +102,19 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
   public async CreatePlayer(userId: number, nick: string, color: number = 0): Promise<boolean> {
     const now = Math.floor(Date.now() / 1000);
 
-    // 默认 NoNo 数据
-    const defaultNoNo = {
-      hasNono: 1,                    // 默认拥有 NoNo
-      superNono: 0,                  // 不是超级 NoNo
-      nonoState: 0,                  // NoNo 状态
-      nonoColor: 0xFFFFFF,           // 白色
-      nonoNick: 'NoNo',              // 默认昵称
-      nonoFlag: 1,                   // NoNo 标志
-      nonoPower: 10000,              // 体力
-      nonoMate: 10000,               // 心情
-      nonoIq: 0,                     // 智商
-      nonoAi: 0,                     // AI
-      nonoSuperLevel: 0,             // 超能等级
-      nonoBio: 0,                    // 生物值
-      nonoBirth: now,                // 出生时间（当前时间）
-      nonoChargeTime: 0,             // 充电时间
-      nonoExpire: 0,                 // 过期时间
-      nonoChip: 0,                   // 芯片
-      nonoGrow: 0                    // 成长值
-    };
+    // 从配置文件读取默认玩家数据
+    const config = GameConfig.GetDefaultPlayerConfig();
+    if (!config) {
+      Logger.Error('[PlayerRepository] 默认玩家配置未加载');
+      throw new Error('默认玩家配置未加载');
+    }
+
+    const defaultPlayer = config.player;
+    const defaultNoNo = config.nono;
 
     const result = await this._db.Execute(
       `INSERT INTO players (user_id, nick, reg_time, vip, viped, ds_flag, color, texture,
-        energy, coins, fight_badge, map_id, pos_x, pos_y, time_today, time_limit,
+        energy, coins, fight_badge, allocatable_exp, map_id, pos_x, pos_y, time_today, time_limit,
         login_cnt, inviter, vip_level, vip_value, vip_stage, vip_end_time,
         teacher_id, student_id, graduation_count, pet_max_lev, pet_all_num,
         mon_king_win, cur_stage, max_stage, max_arena_wins,
@@ -132,22 +123,70 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
         nono_super_level, nono_bio, nono_birth, nono_charge_time,
         nono_expire, nono_chip, nono_grow,
         badge, cur_title, team_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        userId, nick, now, 0, 0, 0, color, 0,
-        100, 1000, 0, 1, 300, 300, 0, 0,
-        1, 0, 0, 0, 1, 0,
-        0, 0, 0, 0, 0,
-        0, 1, 0, 0,
-        defaultNoNo.hasNono, defaultNoNo.superNono, defaultNoNo.nonoState, defaultNoNo.nonoColor, defaultNoNo.nonoNick,
-        defaultNoNo.nonoFlag, defaultNoNo.nonoPower, defaultNoNo.nonoMate, defaultNoNo.nonoIq, defaultNoNo.nonoAi,
-        defaultNoNo.nonoSuperLevel, defaultNoNo.nonoBio, defaultNoNo.nonoBirth, defaultNoNo.nonoChargeTime,
-        defaultNoNo.nonoExpire, defaultNoNo.nonoChip, defaultNoNo.nonoGrow,
+        userId, nick, now, 0, 0, 0, color, 0,  // vip=0(非VIP), viped=0(从未是VIP)
+        defaultPlayer.energy, defaultPlayer.coins, defaultPlayer.fightBadge, defaultPlayer.allocatableExp,
+        defaultPlayer.mapId, defaultPlayer.posX, defaultPlayer.posY,
+        defaultPlayer.timeToday, defaultPlayer.timeLimit,
+        defaultPlayer.loginCnt, defaultPlayer.inviter,
+        defaultPlayer.vipLevel, defaultPlayer.vipValue, defaultPlayer.vipStage, defaultPlayer.vipEndTime,
+        defaultPlayer.teacherId, defaultPlayer.studentId, defaultPlayer.graduationCount,
+        defaultPlayer.petMaxLev, defaultPlayer.petAllNum,
+        defaultPlayer.monKingWin, defaultPlayer.curStage, defaultPlayer.maxStage, defaultPlayer.maxArenaWins,
+        defaultNoNo.hasNono, defaultNoNo.superNono, defaultNoNo.nonoState,
+        defaultNoNo.nonoColor, defaultNoNo.nonoNick,
+        defaultNoNo.nonoFlag, defaultNoNo.nonoPower, defaultNoNo.nonoMate,
+        defaultNoNo.nonoIq, defaultNoNo.nonoAi,
+        defaultNoNo.nonoSuperLevel, defaultNoNo.nonoBio, now,
+        defaultNoNo.nonoChargeTime, defaultNoNo.nonoExpire, defaultNoNo.nonoChip, defaultNoNo.nonoGrow,
         0, 0, 0
       ]
     );
 
-    return result.affectedRows > 0;
+    if (result.affectedRows > 0) {
+      // 初始化关联数据表（items, pets, tasks, mails, friends）
+      try {
+        // 创建空的 items 记录
+        await this._db.Execute(
+          'INSERT INTO player_items (owner_id, item_list) VALUES (?, ?)',
+          [userId, '[]']
+        );
+
+        // 创建空的 pets 记录
+        await this._db.Execute(
+          'INSERT INTO player_pets (owner_id, pet_list) VALUES (?, ?)',
+          [userId, '[]']
+        );
+
+        // 创建空的 tasks 记录（新手任务85预先接受）
+        await this._db.Execute(
+          'INSERT INTO player_tasks (owner_id, task_list, task_buffers) VALUES (?, ?, ?)',
+          [userId, '{"85":{"taskId":85,"status":1,"acceptTime":' + now + ',"completeTime":0}}', '{}']
+        );
+
+        // 创建空的 mails 记录
+        await this._db.Execute(
+          'INSERT INTO player_mails (owner_id, mail_list) VALUES (?, ?)',
+          [userId, '[]']
+        );
+
+        // 创建空的 friends 记录
+        await this._db.Execute(
+          'INSERT INTO player_friends (owner_id, friend_list, black_list, send_apply_list, receive_apply_list, chat_history) VALUES (?, ?, ?, ?, ?, ?)',
+          [userId, '[]', '[]', '[]', '[]', '{}']
+        );
+
+        return true;
+      } catch (error) {
+        // 如果关联表创建失败，记录错误但不影响主流程
+        // 因为 DataLoader 会在需要时自动创建
+        console.error(`[PlayerRepository] 初始化关联数据表失败: userId=${userId}`, error);
+        return true;  // 主表创建成功就返回 true
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -169,6 +208,18 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
     const result = await this._db.Execute(
       'UPDATE players SET map_id = ?, pos_x = ?, pos_y = ? WHERE user_id = ?',
       [mapId, posX, posY, userId]
+    );
+
+    return result.affectedRows > 0;
+  }
+
+  /**
+   * 更新玩家地图（仅地图ID）
+   */
+  public async UpdatePlayerMap(userId: number, mapId: number): Promise<boolean> {
+    const result = await this._db.Execute(
+      'UPDATE players SET map_id = ? WHERE user_id = ?',
+      [mapId, userId]
     );
 
     return result.affectedRows > 0;
@@ -273,6 +324,18 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
     const result = await this._db.Execute(
       'UPDATE players SET color = ? WHERE user_id = ?',
       [color, userId]
+    );
+
+    return result.affectedRows > 0;
+  }
+
+  /**
+   * 更新可分配经验
+   */
+  public async UpdateAllocatableExp(userId: number, allocatableExp: number): Promise<boolean> {
+    const result = await this._db.Execute(
+      'UPDATE players SET allocatable_exp = ? WHERE user_id = ?',
+      [allocatableExp, userId]
     );
 
     return result.affectedRows > 0;
@@ -539,6 +602,7 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
     player.energy = row.energy;
     player.coins = row.coins;
     player.fightBadge = row.fight_badge;
+    player.allocatableExp = (row as any).allocatable_exp || 0;
     player.mapID = row.map_id;
     player.posX = row.pos_x;
     player.posY = row.pos_y;
