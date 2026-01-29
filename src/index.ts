@@ -1,8 +1,5 @@
 import { GameServer } from './GameServer';
-import { EmailServer } from './EmailServer';
-import { RegistServer } from './RegistServer';
 import { ProxyServer } from './ProxyServer';
-import { GatewayServer } from './Gateway';
 import { Logger } from './shared/utils';
 import { Config } from './shared/config';
 
@@ -13,10 +10,7 @@ Logger.Initialize(Config.Logging.level);
  * 命令行参数解析
  */
 interface StartupOptions {
-  gateway: boolean;
   game: boolean;
-  email: boolean;
-  regist: boolean;
   proxy: boolean;
   all: boolean;
   help: boolean;
@@ -25,10 +19,7 @@ interface StartupOptions {
 function parseArgs(): StartupOptions {
   const args = process.argv.slice(2);
   const options: StartupOptions = {
-    gateway: false,
     game: false,
-    email: false,
-    regist: false,
     proxy: false,
     all: false,
     help: false,
@@ -36,21 +27,9 @@ function parseArgs(): StartupOptions {
 
   for (const arg of args) {
     switch (arg.toLowerCase()) {
-      case '--gateway':
-      case '-gw':
-        options.gateway = true;
-        break;
       case '--game':
       case '-g':
         options.game = true;
-        break;
-      case '--email':
-      case '-e':
-        options.email = true;
-        break;
-      case '--regist':
-      case '-r':
-        options.regist = true;
         break;
       case '--proxy':
       case '-p':
@@ -68,7 +47,7 @@ function parseArgs(): StartupOptions {
   }
 
   // 如果没有指定任何服务，默认启动所有
-  if (!options.gateway && !options.game && !options.email && !options.regist && !options.proxy && !options.all && !options.help) {
+  if (!options.game && !options.proxy && !options.all && !options.help) {
     options.all = true;
   }
 
@@ -86,16 +65,13 @@ KOSE Server - 赛尔号怀旧服服务端
 用法: ${exeName} [选项]
 
 选项:
-  --gateway, -gw  启动网关服务器
-  --game,    -g   启动游戏服务器
-  --email,   -e   启动邮件服务器
-  --regist,  -r   启动注册服务器
+  --game,    -g   启动游戏服务器（包含注册和邮件功能）
   --proxy,   -p   启动代理服务器
   --all,     -a   启动所有服务器 (默认)
   --help,    -h   显示帮助信息
 
 示例:
-  ${exeName} --gateway --game --regist  启动网关+游戏+注册服务器
+  ${exeName} --game                     启动游戏服务器
   ${exeName} --proxy                    只启动代理服务器
   ${exeName} --all                      启动所有服务器
   ${exeName}                            启动所有服务器 (默认)
@@ -107,10 +83,7 @@ KOSE Server - 赛尔号怀旧服服务端
  * 统一管理所有服务的启动和停止
  */
 class ServiceManager {
-  private _gatewayServer: GatewayServer | null = null;
   private _gameServer: GameServer | null = null;
-  private _emailServer: EmailServer | null = null;
-  private _registServer: RegistServer | null = null;
   private _proxyServer: ProxyServer | null = null;
 
   constructor() {
@@ -122,12 +95,6 @@ class ServiceManager {
    */
   public async Start(options: StartupOptions): Promise<void> {
     const services: string[] = [];
-
-    if (options.all || options.gateway) {
-      this._gatewayServer = new GatewayServer();
-      await this._gatewayServer.Start();
-      services.push('网关服务器');
-    }
 
     if (options.all || options.game) {
       // 只在启动GameServer时加载战斗效果系统和游戏配置
@@ -141,19 +108,7 @@ class ServiceManager {
       
       this._gameServer = new GameServer();
       await this._gameServer.Start();
-      services.push('游戏服务器');
-    }
-
-    if (options.all || options.email) {
-      this._emailServer = new EmailServer();
-      this._emailServer.Start();
-      services.push('邮件服务器');
-    }
-
-    if (options.all || options.regist) {
-      this._registServer = new RegistServer();
-      await this._registServer.Start();
-      services.push('注册服务器');
+      services.push('游戏服务器（包含注册和邮件功能）');
     }
 
     if (options.all || options.proxy) {
@@ -172,22 +127,43 @@ class ServiceManager {
    */
   public async StopAll(): Promise<void> {
     Logger.Info('========== 停止服务 ==========');
-    if (this._gatewayServer) await this._gatewayServer.Stop();
-    if (this._gameServer) await this._gameServer.Stop();
-    if (this._emailServer) this._emailServer.Stop();
-    if (this._registServer) await this._registServer.Stop();
-    if (this._proxyServer) this._proxyServer.Stop();
+    
+    const stopPromises: Promise<void>[] = [];
+    
+    if (this._gameServer) {
+      Logger.Info('[ServiceManager] 停止游戏服务器...');
+      const gameStopPromise = this._gameServer.Stop().catch((err) => {
+        Logger.Error('[ServiceManager] 停止游戏服务器失败', err as Error);
+      });
+      stopPromises.push(gameStopPromise);
+    }
+    
+    if (this._proxyServer) {
+      Logger.Info('[ServiceManager] 停止代理服务器...');
+      const proxyStopPromise = this._proxyServer.Stop().catch((err) => {
+        Logger.Error('[ServiceManager] 停止代理服务器失败', err as Error);
+      });
+      stopPromises.push(proxyStopPromise);
+    }
+    
+    // 等待所有服务停止，最多等待 8 秒
+    await Promise.race([
+      Promise.all(stopPromises),
+      new Promise<void>((resolve) => setTimeout(() => {
+        Logger.Warn('[ServiceManager] 停止服务超时，强制继续');
+        resolve();
+      }, 8000))
+    ]);
+    
+    Logger.Info('[ServiceManager] 所有服务已停止');
   }
 
   /**
    * 获取服务状态
    */
-  public GetStatus(): { gateway: boolean; game: boolean; email: boolean; regist: boolean; proxy: boolean } {
+  public GetStatus(): { game: boolean; proxy: boolean } {
     return {
-      gateway: this._gatewayServer?.IsRunning ?? false,
       game: this._gameServer?.IsRunning ?? false,
-      email: this._emailServer?.IsRunning ?? false,
-      regist: this._registServer?.IsRunning ?? false,
       proxy: this._proxyServer?.IsRunning ?? false,
     };
   }
@@ -212,15 +188,17 @@ serviceManager.Start(options).catch((err: Error) => {
 // 优雅退出处理
 let isShuttingDown = false;
 let shutdownTimeout: NodeJS.Timeout | null = null;
+let forceExitCount = 0;
 
 async function gracefulShutdown(signal: string) {
   if (isShuttingDown) {
-    Logger.Warn('正在关闭中，请稍候... (再次按 Ctrl+C 强制退出)');
+    forceExitCount++;
     
-    // 如果再次收到信号，强制退出
-    if (shutdownTimeout) {
+    if (forceExitCount >= 2) {
       Logger.Warn('强制退出');
       process.exit(1);
+    } else {
+      Logger.Warn('正在关闭中，请稍候... (再次按 Ctrl+C 强制退出)');
     }
     return;
   }
@@ -240,14 +218,23 @@ async function gracefulShutdown(signal: string) {
     
     if (shutdownTimeout) {
       clearTimeout(shutdownTimeout);
+      shutdownTimeout = null;
     }
     
+    // 强制清理所有定时器和句柄
+    Logger.Info('清理所有资源...');
+    
+    // 给一点时间让日志输出完成
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 立即退出，不等待任何异步操作
     process.exit(0);
   } catch (err) {
     Logger.Error('关闭过程中出错', err as Error);
     
     if (shutdownTimeout) {
       clearTimeout(shutdownTimeout);
+      shutdownTimeout = null;
     }
     
     process.exit(1);
@@ -276,6 +263,11 @@ if (process.platform === 'win32') {
     rl.on('SIGINT', () => {
       // Windows 下 readline 的 SIGINT 事件
       process.emit('SIGINT' as any);
+    });
+    
+    // 防止 readline 阻止进程退出
+    rl.on('close', () => {
+      // 不做任何事，让进程正常退出
     });
   }
 }

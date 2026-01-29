@@ -175,19 +175,51 @@ export class WebServer {
   /**
    * 停止服务器
    */
-  public Stop(): void {
+  public async Stop(): Promise<void> {
     if (!this._running) return;
+
+    Logger.Info('[WebServer] 正在停止...');
 
     // 关闭所有 WebSocket 连接
     for (const client of this._clients) {
-      client.close();
+      try {
+        client.close();
+      } catch (err) {
+        // 忽略关闭错误
+      }
     }
     this._clients.clear();
 
-    this._wsServer?.close();
-    this._httpServer.close(() => {
-      this._running = false;
-      Logger.Info('[WebServer] 已停止');
+    // 关闭 WebSocket 服务器
+    if (this._wsServer) {
+      await new Promise<void>((resolve) => {
+        this._wsServer!.close(() => {
+          Logger.Info('[WebServer] WebSocket 服务器已关闭');
+          resolve();
+        });
+        
+        // 设置超时，防止卡住
+        setTimeout(() => {
+          Logger.Warn('[WebServer] 关闭 WebSocket 服务器超时，强制继续');
+          resolve();
+        }, 3000);
+      });
+    }
+
+    // 关闭 HTTP 服务器
+    await new Promise<void>((resolve) => {
+      this._httpServer.close(() => {
+        this._running = false;
+        Logger.Info('[WebServer] HTTP 服务器已关闭');
+        resolve();
+      });
+      
+      // 设置超时，防止卡住
+      setTimeout(() => {
+        Logger.Warn('[WebServer] 关闭 HTTP 服务器超时，强制继续');
+        this._running = false;
+        resolve();
+      }, 3000);
     });
   }
 

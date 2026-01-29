@@ -1,6 +1,6 @@
-# KOSE Server - 赛尔号怀旧服服务端
+# KOSE Server - 某童年游戏的怀旧服服务端TS实现版
 
-> 基于 TypeScript 的赛尔号私服服务端，采用微服务架构，支持独立部署和扩展
+> 基于 TypeScript 的某童年游戏的怀旧服服务端赛尔号私服服务端，采用统一架构，所有功能集成在 GameServer 中
 
 ## 🏗️ 架构特点
 
@@ -11,8 +11,8 @@
 - ✅ **Manager 持有 Data 对象** - 直接操作，无需 await
 - ✅ **延迟批量保存** - 性能优化，减少数据库压力
 - ✅ **静态方法便捷访问** - `PlayerData.GetPlayerByUid(uid)`
-- ✅ **与参考架构 100% 一致** - 代码风格完全相同
-
+- ✅ **统一服务器架构** - 所有功能集成在 GameServer 中
+- ✅ **多响应支持** - 一个请求可返回多个响应（主响应 + 额外推送）
 
 ---
 
@@ -33,7 +33,7 @@
 
 ## 项目概述
 
-KOSE Server 是一个基于 TypeScript 开发的赛尔号私服服务端，采用现代化的微服务架构设计。项目从 Lua 版本迁移而来，保留了核心游戏逻辑，同时引入了更好的代码组织和可维护性。
+KOSE Server 是一个基于 TypeScript 开发的某童年游戏的怀旧服服务端赛尔号私服服务端，采用统一架构设计。
 
 **技术栈**:
 
@@ -44,10 +44,11 @@ KOSE Server 是一个基于 TypeScript 开发的赛尔号私服服务端，采�
 
 **架构特点**:
 
-- 微服务架构，服务独立部署
+- 统一服务器架构，所有功能集成在 GameServer
 - 统一配置管理
 - 自动化协议处理
 - 类型安全的代码
+- 支持多响应（一个请求返回多个响应包）
 
 ---
 
@@ -55,13 +56,10 @@ KOSE Server 是一个基于 TypeScript 开发的赛尔号私服服务端，采�
 
 ### 核心系统
 
-#### 1. 微服务架构
+#### 1. 统一服务架构
 
-- ✅ Gateway 网关服务（统一入口，请求路由）
-- ✅ GameServer 游戏服务（核心游戏逻辑）
-- ✅ RegistServer 注册服务（账号注册）
-- ✅ EmailServer 邮件服务（预留接口）
-- ✅ ProxyServer 代理服务（调试抓包）
+- ✅ GameServer 游戏服务（包含登录、注册、游戏逻辑，监听 9999 端口）
+- ✅ ProxyServer 代理服务（调试抓包，监听 9999 端口，**不能与 GameServer 同时运行**）
 
 #### 2. 账号系统
 
@@ -379,25 +377,26 @@ npm run db:migrate
 
 #### 4. 启动服务
 
-**方式一：启动所有服务**
+**方式一：启动游戏服务**
 
 ```bash
 npm start
+# 或
+npm run start:game
 ```
 
-**方式二：启动特定服务**
+**方式二：启动调试代理（不能与游戏服务同时运行）**
 
 ```bash
-npm run start:gateway   # 只启动 Gateway
-npm run start:game      # 只启动 GameServer
-npm run start:regist    # 只启动 RegistServer
-npm run start:proxy     # 只启动 ProxyServer
+npm run start:proxy
 ```
 
 **方式三：开发模式（自动重启）**
 
 ```bash
-npm run dev
+npm run dev          # 启动 GameServer
+npm run dev:game     # 启动 GameServer
+npm run dev:proxy    # 启动 ProxyServer（调试用）
 ```
 
 ### 生产环境
@@ -419,50 +418,67 @@ npm run build:services
 ```bash
 cd release/services
 
-# 启动各个服务
-./gateway-server.exe
+# 启动游戏服务
 ./game-server.exe
-./regist-server.exe
+
+# 或使用启动脚本
+start-game.bat        # Windows
+./start-game.sh       # Linux/Mac
 ```
 
-### 服务启动顺序
+### 服务架构
 
 ```
-1. Gateway 启动
-   ├─ 监听客户端端口（9999 登录，27777 游戏）
-   └─ 监听 RPC 端口（50000）
+GameServer (端口 9999)
+  ├─ 登录系统
+  ├─ 注册系统
+  ├─ 游戏逻辑
+  └─ 数据库管理
 
-2. 后端服务启动
-   ├─ RegistServer 连接到 Gateway:50000
-   ├─ GameServer 连接到 Gateway:50000
-   └─ EmailServer 连接到 Gateway:50000
-
-3. 客户端连接
-   └─ 连接到 Gateway（9999/27777）
+ProxyServer (端口 9999，调试用)
+  ├─ 协议抓包
+  ├─ 数据包分析
+  ├─ Web GUI (端口 9000)
+  └─ 不能与 GameServer 同时运行
 ```
 
 ### 客户端连接流程
 
 ```
 客户端
-  ↓ 连接 Gateway:9999（登录）
-Gateway
-  ↓ 路由到 RegistServer
-RegistServer
-  ↓ 处理注册/登录
-  ↓ 返回响应
-Gateway
-  ↓ 转发响应
-客户端
-  ↓ 登录成功，连接 Gateway:27777（游戏）
-Gateway
-  ↓ 路由到 GameServer
+  ↓ 连接 9999 端口
 GameServer
-  ↓ 处理游戏逻辑
-  ↓ 返回响应
-Gateway
-  ↓ 转发响应
+  ├─ 处理登录请求
+  ├─ 处理注册请求
+  └─ 处理游戏逻辑
+```
+
+### 调试模式
+
+```
 客户端
+  ↓ 连接 9999 端口
+ProxyServer
+  ├─ 抓包分析
+  ├─ Web GUI 查看 (localhost:9000)
+  └─ 转发到内部 GameServer
+```
+
+↓ 处理注册/登录
+↓ 返回响应
+Gateway
+↓ 转发响应
+客户端
+↓ 登录成功，连接 Gateway:27777（游戏）
+Gateway
+↓ 路由到 GameServer
+GameServer
+↓ 处理游戏逻辑
+↓ 返回响应
+Gateway
+↓ 转发响应
+客户端
+
 ```
 
 ---
@@ -1249,15 +1265,6 @@ npm start
 ### 6. 测试连接
 
 使用客户端连接到 `localhost:9999`（登录）或 `localhost:27777`（游戏）
-
----
-
-## 相关文档
-
-- [架构文档](docs/architecture.md) - 详细的架构设计
-- [开发指南](CLAUDE.md) - AI 助手开发规范
-- [快速开始](QUICK_START.md) - 快速上手指南
-- [实施计划](docs/implementation-plan.md) - 功能实施计划
 
 ---
 

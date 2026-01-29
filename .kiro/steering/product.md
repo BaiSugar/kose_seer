@@ -14,17 +14,17 @@ Provide a fully functional game server that handles:
 
 ## Architecture Style
 
-Microservices architecture with independent, deployable services:
-- **Gateway**: Client connection entry point and request routing
-- **GameServer**: Core game logic and state management
-- **RegistServer**: Account registration and authentication
-- **EmailServer**: Email verification (reserved interface)
-- **ProxyServer**: Protocol debugging and packet inspection
+Unified server architecture:
+- **GameServer**: All-in-one server handling game logic, registration, and client connections (port 9999)
+- **ProxyServer**: Protocol debugging and packet inspection (optional)
+
+All services (registration, email, game logic) are integrated into GameServer for simplified deployment.
 
 ## Key Design Philosophy
 
-The project follows  - a high-performance data access pattern with:
+The project follows a high-performance data access pattern with:
 - In-memory caching of game data
 - Delayed batch saving to reduce database pressure
 - Direct Data object manipulation (ORM-style)
 - Manager-Data pattern for business logic organization
+- One request can return multiple responses (主响应 + 额外推送)

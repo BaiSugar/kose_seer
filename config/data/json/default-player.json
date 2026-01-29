@@ -29,21 +29,20 @@
     "maxArenaWins": 0
   },
   "nono": {
-    "hasNono": 1,
+    "hasNono": 0,
     "superNono": 0,
     "nonoState": 0,
     "nonoColor": 16777215,
-    "nonoNick": "NONO",
-    "nonoFlag": 1,
-    "nonoPower": 10000,
-    "nonoMate": 10000,
+    "nonoNick": "",
+    "nonoFlag": 0,
+    "nonoPower": 0,
+    "nonoMate": 0,
     "nonoIq": 0,
     "nonoAi": 0,
+    "nonoBirth": 0,
+    "nonoChargeTime": 0,
+    "nonoSuperEnergy": 0,
     "nonoSuperLevel": 0,
-    "nonoBio": 0,
-    "nonoChargeTime": 500,
-    "nonoExpire": 0,
-    "nonoChip": 0,
-    "nonoGrow": 0
+    "nonoSuperStage": 0
   }
 }

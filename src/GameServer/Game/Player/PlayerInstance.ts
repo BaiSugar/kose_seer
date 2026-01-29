@@ -106,6 +106,12 @@ export class PlayerInstance {
    */
   public async OnLogin(): Promise<void> {
     Logger.Info(`[Player ${this.Uid}] 玩家登录: ${this.Data.nick}`);
+    
+    // 注意：不在这里调用NoNoManager.OnLogin()
+    // 原因：
+    // 1. 如果玩家有NoNo，客户端会根据登录响应中的hasNono字段主动请求NoNo信息或召唤
+    // 2. 如果玩家没有NoNo，不需要任何处理
+    // 3. 服务器不应该主动推送NoNo信息
   }
 
   /**
@@ -142,6 +148,7 @@ export class PlayerInstance {
     await this.MailManager.Initialize();
     await this.FriendManager.Initialize();
     await this.TaskManager.Initialize();
+    await this.NoNoManager.Initialize();
     
     this.Initialized = true;
   }

@@ -11,24 +11,24 @@ export class PacketNoNoFollowOrHoom extends BaseProto {
 
   constructor(
     userId: number,
-    flag: number,
+    superStage: number,
     state: number,
     isFollow: boolean,
     nick?: string,
     color?: number,
-    chargeTime?: number
+    power?: number
   ) {
     super(CommandID.NONO_FOLLOW_OR_HOOM);
     const proto = new NoNoFollowOrHoomRspProto();
     proto.userId = userId;
-    proto.flag = flag;
+    proto.superStage = superStage;
     proto.state = state;
     proto.isFollow = isFollow;
     
-    if (isFollow && nick !== undefined && color !== undefined && chargeTime !== undefined) {
+    if (isFollow && nick !== undefined && color !== undefined && power !== undefined) {
       proto.nick = nick;
       proto.color = color;
-      proto.chargeTime = chargeTime;
+      proto.power = power;
     }
     
     this._data = proto.serialize();

@@ -8,10 +8,7 @@ const path = require('path');
 
 // 服务配置
 const services = [
-  { name: 'gateway', entry: 'dist/gateway-entry.js', output: 'gateway-server' },
   { name: 'game', entry: 'dist/game-entry.js', output: 'game-server' },
-  { name: 'regist', entry: 'dist/regist-entry.js', output: 'regist-server' },
-  { name: 'email', entry: 'dist/email-entry.js', output: 'email-server' },
   { name: 'proxy', entry: 'dist/proxy-entry.js', output: 'proxy-server' },
 ];
 
@@ -106,9 +103,7 @@ console.log('✓ 配置文件复制完成\n');
 console.log('复制启动脚本...');
 const batFiles = [
   'start-all.bat',
-  'start-gateway.bat',
   'start-game.bat',
-  'start-regist.bat',
   'start-proxy.bat',
   'stop-all.bat'
 ];
@@ -155,31 +150,20 @@ const readme = `# KOSE Server - 独立服务
 
 ## 服务列表
 
-- \`gateway-server${extension}\` - 网关服务（监听9999和27777端口）
-- \`game-server${extension}\` - 游戏服务（RPC端口50002）
-- \`regist-server${extension}\` - 注册服务（RPC端口50001）
-- \`email-server${extension}\` - 邮件服务（RPC端口50003）
-- \`proxy-server${extension}\` - 代理服务（调试用，监听9000端口）
+- \`game-server${extension}\` - 游戏服务（包含登录、注册功能，监听9999端口）
+- \`proxy-server${extension}\` - 代理服务（调试用，监听9999端口，**不能与 GameServer 同时运行**）
 
 ## 快速启动
 
-### 方式一：一键启动所有服务（推荐）
+### 生产环境（推荐）
 
-${isWindows ? '双击运行 `start-all.bat`' : '运行 `./start-all.sh`'}，会自动按顺序启动所有必需的服务。
+${isWindows ? '双击运行 `start-game.bat`' : '运行 `./start-game.sh`'} 启动游戏服务。
 
-### 方式二：单独启动服务
+### 调试模式
 
-${isWindows ? `
-- \`start-gateway.bat\` - 启动网关服务
-- \`start-game.bat\` - 启动游戏服务
-- \`start-regist.bat\` - 启动注册服务
-- \`start-proxy.bat\` - 启动代理服务（调试用）
-` : `
-- \`./gateway-server\` - 启动网关服务
-- \`./game-server\` - 启动游戏服务
-- \`./regist-server\` - 启动注册服务
-- \`./proxy-server\` - 启动代理服务（调试用）
-`}
+${isWindows ? '双击运行 `start-proxy.bat`' : '运行 `./start-proxy.sh`'} 启动代理服务进行协议调试。
+
+**注意：ProxyServer 和 GameServer 不能同时运行！**
 
 ### 停止服务
 
@@ -187,26 +171,27 @@ ${isWindows ? '双击运行 `stop-all.bat`' : '运行 `./stop-all.sh`'} 停止�
 
 ## 启动方式
 
-### 完整部署（推荐）
+### 生产部署
 
-**方式一：使用一键启动脚本**
-
-\`\`\`bash
-${isWindows ? 'start-all.bat' : './start-all.sh'}
-\`\`\`
-
-**方式二：手动启动**
-
-启动所有必需的服务：
+启动游戏服务：
 
 \`\`\`bash
-# 1. 启动后端服务
-${isWindows ? 'start regist-server.exe' : './regist-server &'}
 ${isWindows ? 'start game-server.exe' : './game-server &'}
-
-# 2. 启动网关
-${isWindows ? 'start gateway-server.exe' : './gateway-server &'}
 \`\`\`
+
+### 调试模式
+
+**重要：使用 ProxyServer 前必须先停止 GameServer！**
+
+1. 停止 GameServer（如果正在运行）
+2. 启动 ProxyServer：
+
+\`\`\`bash
+${isWindows ? 'start proxy-server.exe' : './proxy-server &'}
+\`\`\`
+
+3. 访问 http://localhost:9000 查看 Web GUI
+4. 客户端连接到 9999 端口（ProxyServer 会转发到 GameServer）
 
 ### 停止服务
 
@@ -214,40 +199,52 @@ ${isWindows ? 'start gateway-server.exe' : './gateway-server &'}
 ${isWindows ? 'stop-all.bat' : './stop-all.sh'}
 \`\`\`
 
-### 独立部署
-
-可以将服务部署到不同的机器：
-
-**机器1 - 网关服务器**
-\`\`\`bash
-${isWindows ? 'gateway-server.exe' : './gateway-server'}
-\`\`\`
-
-**机器2 - 游戏服务器**
-\`\`\`bash
-${isWindows ? 'game-server.exe' : './game-server'}
-\`\`\`
-
-**机器3 - 注册服务器**
-\`\`\`bash
-${isWindows ? 'regist-server.exe' : './regist-server'}
-\`\`\`
-
 ## 配置
 
 编辑 \`config/server.json\` 修改服务配置：
 
-- \`services.gateway\` - 网关配置
-- \`services.game\` - 游戏服务配置
-- \`services.regist\` - 注册服务配置
+- \`services.game\` - 游戏服务配置（端口、数据库等）
+- \`services.proxy\` - 代理服务配置（调试用）
+- \`services.regist\` - 注册功能配置（enabled 开关）
+- \`services.email\` - 邮件功能配置（enabled 开关）
 - \`database\` - 数据库配置
+
+## 架构说明
+
+本服务器采用统一架构：
+
+- **GameServer**: 包含所有游戏功能（登录、注册、游戏逻辑），监听 9999 端口
+- **ProxyServer**: 可选的调试工具，用于协议分析，监听 9999 端口
+
+**重要提示：**
+- ProxyServer 和 GameServer 都监听 9999 端口，因此不能同时运行
+- 生产环境只需要运行 GameServer
+- ProxyServer 仅用于开发调试，用于抓包分析协议
+
+## 使用场景
+
+### 场景一：正常游戏运行
+\`\`\`
+客户端 (9999) → GameServer
+\`\`\`
+
+只启动 GameServer，客户端直接连接。
+
+### 场景二：协议调试
+\`\`\`
+客户端 (9999) → ProxyServer (9000 Web GUI) → GameServer (内部)
+\`\`\`
+
+启动 ProxyServer（不启动 GameServer），ProxyServer 会自动启动内部 GameServer 并转发流量。
 
 ## 注意事项
 
 1. 确保 \`config/\` 目录与可执行文件在同一目录
 2. 确保 \`data/\` 目录存在（用于数据库）
 3. 日志文件会保存在 \`logs/\` 目录
-4. 如果独立部署，需要修改配置文件中的host和port
+4. 客户端连接端口为 9999
+5. **ProxyServer 和 GameServer 不能同时启动**
+6. ProxyServer 的 Web GUI 访问地址：http://localhost:9000
 `;
 
 fs.writeFileSync(path.join(servicesDir, 'README.md'), readme);
@@ -257,4 +254,3 @@ console.log('========== 打包完成 ==========');
 console.log(`输出目录: ${servicesDir}`);
 console.log(`平台: ${process.platform}`);
 console.log(`目标: ${target}`);
-

@@ -1,11 +1,10 @@
 import { PacketBuilder } from '../../../shared/protocol/PacketBuilder';
-import { LoginPacket } from '../../Server/Packet/Send/LoginPacket';
+import { PacketMainLogin, PacketGameLogin, PacketCreateRole } from '../../Server/Packet/Send/Login';
 import { AccountRepository, SessionRepository, PlayerRepository } from '../../../DataBase';
 import { Logger } from '../../../shared/utils';
 import { IClientSession } from '../../Server/Packet/IHandler';
 import { PlayerManager } from '../Player/PlayerManager';
 import { MainLoginRspProto, CreateRoleRspProto } from '../../../shared/proto';
-import { PetInfoProto } from '../../../shared/proto/common/PetInfoProto';
 
 /**
  * 登录结果码 (与客户端 ParseLoginSocketError.as 保持一致)
@@ -48,7 +47,7 @@ export interface IPlayerData {
  */
 export class LoginManager {
   private _packetBuilder: PacketBuilder;
-  private _loginPacket: LoginPacket;
+  private _packetGameLogin: PacketGameLogin;
   private _accountRepo: AccountRepository;
   private _sessionRepo: SessionRepository;
   private _playerRepo: PlayerRepository;
@@ -56,7 +55,7 @@ export class LoginManager {
 
   constructor(packetBuilder: PacketBuilder) {
     this._packetBuilder = packetBuilder;
-    this._loginPacket = new LoginPacket(packetBuilder);
+    this._packetGameLogin = new PacketGameLogin(packetBuilder);
     this._accountRepo = new AccountRepository();
     this._sessionRepo = new SessionRepository();
     this._playerRepo = new PlayerRepository();
@@ -229,7 +228,7 @@ export class LoginManager {
       const player = await this._playerRepo.FindByUserId(userID);
       if (!player) {
         Logger.Warn(`[LoginManager] 玩家不存在: ${userID}`);
-        const proto = this._loginPacket.BuildGameLoginProto({ userID, nick: '', coins: 0, energy: 0, vipLevel: 0, vipValue: 0, clothCount: 0, clothes: [], mapID: 0, posX: 0, posY: 0 } as any, sessionKey);
+        const proto = this._packetGameLogin.BuildProto({ userID, nick: '', coins: 0, energy: 0, vipLevel: 0, vipValue: 0, clothCount: 0, clothes: [], mapID: 0, posX: 0, posY: 0 } as any, sessionKey);
         this.sendProto(session, userID, proto.setResult(LoginResult.SYSTEM_ERROR));
         return;
       }
@@ -239,9 +238,11 @@ export class LoginManager {
 
       // 随机登录地图（除新账号外）
       // 新账号判断：mapID == 515 表示在新手地图，保持不变
-      // 老玩家：随机传送到 1-9 地图
+      // 老玩家：随机传送到 1-9 地图（排除mapID=2）
       if (player.mapID !== 515) {
-        const randomMapId = Math.floor(Math.random() * 9) + 1; // 1-9随机
+        // 可选地图：1, 3, 4, 5, 6, 7, 8, 9（排除2）
+        const availableMaps = [1, 4, 5, 6, 7, 8, 9];
+        const randomMapId = availableMaps[Math.floor(Math.random() * availableMaps.length)];
         player.mapID = randomMapId;
         await this._playerRepo.UpdatePlayerMap(userID, randomMapId);
         Logger.Info(`[LoginManager] 老玩家随机登录地图: userID=${userID}, mapID=${randomMapId}`);
@@ -255,7 +256,7 @@ export class LoginManager {
       Logger.Info(`[LoginManager] 游戏登录成功: userID=${userID}, nick=${player.nick}`);
       
       // 构建登录响应
-      const proto = this._loginPacket.BuildGameLoginProto(player, sessionKey);
+      const proto = this._packetGameLogin.BuildProto(player, sessionKey);
       
       Logger.Debug(`[LoginManager] 发送登录响应: loginCnt=${proto.loginCnt}, timeLimit=${proto.timeLimit}, mapId=${proto.mapId}, curStage=${proto.curStage}, maxStage=${proto.maxStage}, curFreshStage=${proto.curFreshStage}, maxFreshStage=${proto.maxFreshStage}`);
       Logger.Debug(`[LoginManager] regTime=${proto.regTime} (${new Date(proto.regTime * 1000).toISOString()}), userId=${proto.userId}, nick=${proto.nickname}`);
@@ -290,10 +291,13 @@ export class LoginManager {
       // 发送响应
       await playerInstance.SendPacket(proto);
 
+      // 登录后处理：调用各Manager的OnLogin方法
+      await playerInstance.OnLogin();
+
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       Logger.Error(`[LoginManager] 游戏登录失败: ${userID}`, error);
-      const proto = this._loginPacket.BuildGameLoginProto({ userID, nick: '', coins: 0, energy: 0, vipLevel: 0, vipValue: 0, clothCount: 0, clothes: [], mapID: 0, posX: 0, posY: 0 } as any, undefined);
+      const proto = this._packetGameLogin.BuildProto({ userID, nick: '', coins: 0, energy: 0, vipLevel: 0, vipValue: 0, clothCount: 0, clothes: [], mapID: 0, posX: 0, posY: 0 } as any, undefined);
       this.sendProto(session, userID, proto.setResult(LoginResult.SYSTEM_ERROR));
     }
   }

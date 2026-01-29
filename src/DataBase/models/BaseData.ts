@@ -29,6 +29,9 @@ export abstract class BaseData {
   /** 需要深度 Proxy 包装的数组字段列表 */
   private _arrayFields: Set<string>;
 
+  /** 缓存已包装的数组 Proxy，避免重复创建 */
+  private _wrappedArrays: Map<string, any> = new Map();
+
   /**
    * 构造函数
    * @param uid 用户ID
@@ -44,6 +47,7 @@ export abstract class BaseData {
       '_pendingSave',
       '_noSaveFields',
       '_arrayFields',
+      '_wrappedArrays',
       ...noSaveFields
     ]);
 
@@ -56,13 +60,15 @@ export abstract class BaseData {
   protected createProxy<T extends BaseData>(target: T): T {
     return new Proxy(target, {
       set: (obj, property: string, value) => {
-        // 如果是数组字段，为数组创建深度 Proxy
+        // 如果是数组字段，为数组创建深度 Proxy 并缓存
         if (this._arrayFields.has(property) && Array.isArray(value)) {
-          value = this.wrapArrayWithProxy(value);
+          const wrappedArray = this.wrapArrayWithProxy(value);
+          this._wrappedArrays.set(property, wrappedArray);
+          (obj as any)[property] = wrappedArray;
+        } else {
+          // 设置新值
+          (obj as any)[property] = value;
         }
-
-        // 设置新值
-        (obj as any)[property] = value;
 
         // 如果不在黑名单中，触发保存
         if (!this._noSaveFields.has(property)) {
@@ -74,9 +80,18 @@ export abstract class BaseData {
       get: (obj, property: string) => {
         const value = (obj as any)[property];
         
-        // 如果是数组字段，确保它被 Proxy 包装
+        // 如果是数组字段，返回缓存的 Proxy 包装数组
         if (this._arrayFields.has(property) && Array.isArray(value)) {
-          return this.wrapArrayWithProxy(value);
+          // 如果已经缓存，直接返回
+          if (this._wrappedArrays.has(property)) {
+            return this._wrappedArrays.get(property);
+          }
+          
+          // 否则创建新的 Proxy 包装并缓存
+          const wrappedArray = this.wrapArrayWithProxy(value);
+          this._wrappedArrays.set(property, wrappedArray);
+          (obj as any)[property] = wrappedArray;
+          return wrappedArray;
         }
         
         return value;

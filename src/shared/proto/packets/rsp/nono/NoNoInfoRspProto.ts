@@ -5,27 +5,45 @@ import { CommandID } from '../../../../protocol/CommandID';
 /**
  * [CMD: 9003 NONO_INFO] NoNo 信息响应
  * 
- * NoNo 是赛尔号的特色宠物系统
- * 协议结构参考 luvit/handlers/nono_handlers.lua
+ * 基于官方服务器抓包数据
+ * 
+ * 字段列表（按官方顺序）：
+ * - userID (4)
+ * - flag (4)
+ * - state (4)
+ * - nick (16)
+ * - superNono (4)
+ * - color (4)
+ * - power (4)
+ * - mate (4)
+ * - iq (4)
+ * - ai (2) ← 注意：2字节！
+ * - birth (4)
+ * - chargeTime (4)
+ * - func (20 bytes) ← 160位功能列表
+ * - superEnergy (4)
+ * - superLevel (4)
+ * - superStage (4)
+ * 
+ * 总长度：94字节
  */
 export class NoNoInfoRspProto extends BaseProto {
-  userId: number = 0;           // 用户ID
-  nonoKey: number = 0;          // NoNo Key (占位)
-  flag: number = 1;             // NoNo 标志
-  state: number = 0;            // NoNo 状态
-  nick: string = '';            // NoNo 昵称 (16字节)
-  color: number = 0xFFFFFF;     // NoNo 颜色
-  power: number = 10000;        // 体力
-  mate: number = 10000;         // 心情
-  iq: number = 0;               // 智商
-  ai: number = 0;               // AI
-  superLevel: number = 0;       // 超能等级
-  bio: number = 0;              // 生物值
-  birth: number = 0;            // 出生时间（秒级时间戳）
-  chargeTime: number = 0;       // 充电时间
-  expire: number = 0;           // 过期时间
-  chip: number = 0;             // 芯片
-  grow: number = 0;             // 成长值
+  userID: number = 0;
+  flag: number = 1;
+  state: number = 1;
+  nick: string = 'NONO';
+  superNono: number = 0;
+  color: number = 0xFFFFFF;
+  power: number = 10000;
+  mate: number = 10000;
+  iq: number = 0;
+  ai: number = 0;
+  birth: number = 0;
+  chargeTime: number = 500;
+  func: boolean[] = new Array(160).fill(true);  // 160位功能列表，默认全部开启
+  superEnergy: number = 0;
+  superLevel: number = 0;
+  superStage: number = 0;
 
   constructor() {
     super(CommandID.NONO_INFO);
@@ -34,141 +52,49 @@ export class NoNoInfoRspProto extends BaseProto {
   serialize(): Buffer {
     const writer = new BufferWriter(256);
     
-    // result (4 bytes)
-    writer.WriteUInt32(this.result);
+    // 按官方顺序写入字段
+    writer.WriteUInt32(this.userID);                // userID (4)
+    writer.WriteUInt32(this.flag);                  // flag (4)
+    writer.WriteUInt32(this.state);                 // state (4)
+    writer.WriteBytes(this.buildString(this.nick, 16)); // nick (16)
+    writer.WriteUInt32(this.superNono);             // superNono (4)
+    writer.WriteUInt32(this.color);                 // color (4)
+    writer.WriteUInt32(this.power);                 // power (4)
+    writer.WriteUInt32(this.mate);                  // mate (4)
+    writer.WriteUInt32(this.iq);                    // iq (4)
+    writer.WriteUInt16(this.ai);                    // ai (2) ← 注意：2字节！
+    writer.WriteUInt32(this.birth);                 // birth (4)
+    writer.WriteUInt32(this.chargeTime);            // chargeTime (4)
     
-    // userId (4 bytes)
-    writer.WriteUInt32(this.userId);
+    // func (20 bytes = 160 bits)
+    // 将160个布尔值打包成20字节
+    const funcBytes = Buffer.alloc(20);
+    for (let i = 0; i < 160; i++) {
+      if (this.func[i]) {
+        const byteIndex = Math.floor(i / 8);
+        const bitIndex = i % 8;
+        funcBytes[byteIndex] |= (1 << bitIndex);
+      }
+    }
+    writer.WriteBytes(funcBytes);                   // func (20)
     
-    // nonoKey (4 bytes)
-    writer.WriteUInt32(this.nonoKey);
+    writer.WriteUInt32(this.superEnergy);           // superEnergy (4)
+    writer.WriteUInt32(this.superLevel);            // superLevel (4)
+    writer.WriteUInt32(this.superStage);            // superStage (4)
     
-    // flag (4 bytes)
-    writer.WriteUInt32(this.flag);
+    const buffer = writer.ToBuffer();
     
-    // state (4 bytes)
-    writer.WriteUInt32(this.state);
+    // 详细日志
+    console.log(`[NoNoInfoRspProto] 序列化完成（官方格式）: 总长度=${buffer.length}字节`);
+    console.log(`  userID=${this.userID}, flag=${this.flag}, state=${this.state}`);
+    console.log(`  nick="${this.nick}", superNono=${this.superNono}, color=0x${this.color.toString(16)}`);
+    console.log(`  power=${this.power}, mate=${this.mate}, iq=${this.iq}, ai=${this.ai}`);
+    console.log(`  birth=${this.birth}, chargeTime=${this.chargeTime}`);
+    console.log(`  superEnergy=${this.superEnergy}, superLevel=${this.superLevel}, superStage=${this.superStage}`);
+    console.log(`  func: ${this.func.filter(f => f).length}/160 功能开启`);
+    console.log(`  前64字节: ${buffer.subarray(0, Math.min(64, buffer.length)).toString('hex')}`);
     
-    // nick (16 bytes)
-    writer.WriteBytes(this.buildString(this.nick, 16));
-    
-    // color (4 bytes)
-    writer.WriteUInt32(this.color);
-    
-    // power (4 bytes)
-    writer.WriteUInt32(this.power);
-    
-    // mate (4 bytes)
-    writer.WriteUInt32(this.mate);
-    
-    // iq (4 bytes)
-    writer.WriteUInt32(this.iq);
-    
-    // ai (4 bytes)
-    writer.WriteUInt32(this.ai);
-    
-    // superLevel (4 bytes)
-    writer.WriteUInt32(this.superLevel);
-    
-    // bio (4 bytes)
-    writer.WriteUInt32(this.bio);
-    
-    // birth (4 bytes) - 秒级时间戳
-    writer.WriteUInt32(this.birth);
-    
-    // chargeTime (4 bytes)
-    writer.WriteUInt32(this.chargeTime);
-    
-    // expire (4 bytes)
-    writer.WriteUInt32(this.expire);
-    
-    // chip (4 bytes)
-    writer.WriteUInt32(this.chip);
-    
-    // grow (4 bytes)
-    writer.WriteUInt32(this.grow);
-    
-    return writer.ToBuffer();
-  }
-
-  // 链式调用辅助方法
-  setUserId(value: number): this {
-    this.userId = value;
-    return this;
-  }
-
-  setFlag(value: number): this {
-    this.flag = value;
-    return this;
-  }
-
-  setState(value: number): this {
-    this.state = value;
-    return this;
-  }
-
-  setNick(value: string): this {
-    this.nick = value;
-    return this;
-  }
-
-  setColor(value: number): this {
-    this.color = value;
-    return this;
-  }
-
-  setPower(value: number): this {
-    this.power = value;
-    return this;
-  }
-
-  setMate(value: number): this {
-    this.mate = value;
-    return this;
-  }
-
-  setIq(value: number): this {
-    this.iq = value;
-    return this;
-  }
-
-  setAi(value: number): this {
-    this.ai = value;
-    return this;
-  }
-
-  setSuperLevel(value: number): this {
-    this.superLevel = value;
-    return this;
-  }
-
-  setBio(value: number): this {
-    this.bio = value;
-    return this;
-  }
-
-  setBirth(value: number): this {
-    this.birth = value;
-    return this;
-  }
-
-  setChargeTime(value: number): this {
-    this.chargeTime = value;
-    return this;
-  }
-
-  setExpire(value: number): this {
-    this.expire = value;
-    return this;
-  }
-
-  setChip(value: number): this {
-    this.chip = value;
-    return this;
-  }
-
-  setGrow(value: number): this {
-    this.grow = value;
-    return this;
+    return buffer;
   }
 }
+

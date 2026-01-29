@@ -355,7 +355,7 @@ export interface IPlayerInfo {
   expireTm: number;         // 过期时间
   fuseTimes: number;        // 融合次数
 
-  // ============ NONO信息 ============
+  // ============ NONO信息（对齐官方字段）============
   hasNono: boolean;         // 是否有NONO
   superNono: boolean;       // 是否超级NONO
   nonoState: number;        // NONO状态位图 (32位)
@@ -365,14 +365,13 @@ export interface IPlayerInfo {
   nonoPower: number;        // NONO体力
   nonoMate: number;         // NONO心情
   nonoIq: number;           // NONO智商
-  nonoAi: number;           // NONO AI
-  nonoSuperLevel: number;   // NONO超能等级
-  nonoBio: number;          // NONO生物值
+  nonoAi: number;           // NONO AI (2字节)
   nonoBirth: number;        // NONO出生时间
   nonoChargeTime: number;   // NONO充电时间
-  nonoExpire: number;       // NONO过期时间
-  nonoChip: number;         // NONO芯片
-  nonoGrow: number;         // NONO成长值
+  // func字段（160位）在数据库中不存储，默认全部开启
+  nonoSuperEnergy: number;  // NONO超能能量
+  nonoSuperLevel: number;   // NONO超能等级
+  nonoSuperStage: number;   // NONO超能阶段
 
   // ============ 战队信息 ============
   teamInfo: ITeamInfo;      // 战队信息
@@ -642,13 +641,11 @@ export function createDefaultPlayerInfo(userID: number, nick: string): IPlayerIn
     nonoMate: 10000,
     nonoIq: 0,
     nonoAi: 0,
-    nonoSuperLevel: 0,
-    nonoBio: 0,
     nonoBirth: Math.floor(Date.now() / 1000),
-    nonoChargeTime: 0,
-    nonoExpire: 0,
-    nonoChip: 0,
-    nonoGrow: 0,
+    nonoChargeTime: 500,
+    nonoSuperEnergy: 0,
+    nonoSuperLevel: 0,
+    nonoSuperStage: 0,
     teamInfo: createDefaultTeamInfo(),
     teamPKInfo: createDefaultTeamPKInfo(),
     badge: 0,

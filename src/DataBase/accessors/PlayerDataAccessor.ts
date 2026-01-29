@@ -86,17 +86,20 @@ export class PlayerDataAccessor {
       
       // 更新 NoNo 相关数据
       await this._playerRepo.UpdateNoNoData(data.userID, {
+        flag: data.hasNono ? data.nonoFlag : 0,  // 通过 flag 更新 has_nono
         nick: data.nonoNick,
         color: data.nonoColor,
         power: data.nonoPower,
         mate: data.nonoMate,
         iq: data.nonoIq,
         ai: data.nonoAi,
+        superNono: data.superNono,
         superLevel: data.nonoSuperLevel,
+        superEnergy: data.nonoSuperEnergy,
+        superStage: data.nonoSuperStage,
+        birth: data.nonoBirth,
         chargeTime: data.nonoChargeTime,
-        expire: data.nonoExpire,
-        chip: data.nonoChip,
-        grow: data.nonoGrow
+        state: data.nonoState
       });
       
       Logger.Debug(`[PlayerDataAccessor] PlayerData 已保存: uid=${data.userID}`);

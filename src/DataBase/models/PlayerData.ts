@@ -14,6 +14,8 @@ import { Logger } from '../../shared/utils/Logger';
  * - 只读字段：userID, regTime
  * - 临时字段：pets, clothes, taskList（从其他表加载）
  * - 内部状态：_saveTimer, _pendingSave
+ * 
+ * 注意：hasNono, superNono 等NoNo字段已从黑名单移除，允许自动保存
  */
 const NO_SAVE_FIELDS = new Set([
   'userID',           // 主键，不可修改
@@ -126,7 +128,7 @@ export class PlayerData implements IPlayerInfo {
   expireTm: number;
   fuseTimes: number;
 
-  // ============ NONO信息 ============
+  // ============ NONO信息（对齐官方字段）============
   hasNono: boolean;
   superNono: boolean;
   nonoState: number;
@@ -137,13 +139,12 @@ export class PlayerData implements IPlayerInfo {
   nonoMate: number;
   nonoIq: number;
   nonoAi: number;
-  nonoSuperLevel: number;
-  nonoBio: number;
   nonoBirth: number;
   nonoChargeTime: number;
-  nonoExpire: number;
-  nonoChip: number;
-  nonoGrow: number;
+  // func字段（160位）在数据库中不存储，默认全部开启
+  nonoSuperEnergy: number;
+  nonoSuperLevel: number;
+  nonoSuperStage: number;
 
   // ============ 战队信息 ============
   teamInfo: any;
@@ -256,7 +257,7 @@ export class PlayerData implements IPlayerInfo {
     this.expireTm = data.expireTm;
     this.fuseTimes = data.fuseTimes;
 
-    // NONO信息
+    // NONO信息（对齐官方字段）
     this.hasNono = data.hasNono;
     this.superNono = data.superNono;
     this.nonoState = data.nonoState;
@@ -267,13 +268,11 @@ export class PlayerData implements IPlayerInfo {
     this.nonoMate = data.nonoMate;
     this.nonoIq = data.nonoIq;
     this.nonoAi = data.nonoAi;
-    this.nonoSuperLevel = data.nonoSuperLevel;
-    this.nonoBio = data.nonoBio;
     this.nonoBirth = data.nonoBirth;
     this.nonoChargeTime = data.nonoChargeTime;
-    this.nonoExpire = data.nonoExpire;
-    this.nonoChip = data.nonoChip;
-    this.nonoGrow = data.nonoGrow;
+    this.nonoSuperEnergy = data.nonoSuperEnergy || 0;
+    this.nonoSuperLevel = data.nonoSuperLevel || 0;
+    this.nonoSuperStage = data.nonoSuperStage || 0;
 
     // 战队信息
     this.teamInfo = data.teamInfo;
@@ -305,11 +304,15 @@ export class PlayerData implements IPlayerInfo {
   private createProxy(): PlayerData {
     return new Proxy(this, {
       set: (target, property: string, value) => {
+        // 调试日志
+        Logger.Debug(`[PlayerData] Proxy set: ${property} = ${value}, 黑名单=${NO_SAVE_FIELDS.has(property)}`);
+        
         // 设置新值
         (target as any)[property] = value;
 
         // 如果不在黑名单中，触发保存
         if (!NO_SAVE_FIELDS.has(property)) {
+          Logger.Debug(`[PlayerData] 触发自动保存: ${property}`);
           this.scheduleSave();
         }
 
@@ -341,11 +344,29 @@ export class PlayerData implements IPlayerInfo {
    */
   public async save(): Promise<void> {
     try {
+      // 清理定时器
+      if (this._saveTimer) {
+        clearTimeout(this._saveTimer);
+        this._saveTimer = null;
+      }
+      this._pendingSave = false;
+      
       await DatabaseHelper.Instance.SavePlayerData(this);
       Logger.Debug(`[PlayerData] 自动保存成功: uid=${this.userID}`);
     } catch (error) {
       Logger.Error(`[PlayerData] 自动保存失败: uid=${this.userID}`, error as Error);
     }
+  }
+
+  /**
+   * 清理定时器（用于关闭时清理资源）
+   */
+  public cleanup(): void {
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+    this._pendingSave = false;
   }
 
   /**

@@ -1,1 +1,0 @@
-export { RegistServer } from './RegistServer';

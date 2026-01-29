@@ -14,23 +14,14 @@ The repository contains multiple sub-projects:
 ```
 src/
 ├── index.ts              # Main entry (starts all services)
-├── gateway-entry.ts      # Gateway standalone entry
 ├── game-entry.ts         # GameServer standalone entry
-├── regist-entry.ts       # RegistServer standalone entry
-├── email-entry.ts        # EmailServer standalone entry
 └── proxy-entry.ts        # ProxyServer standalone entry
 ```
 
 ### Service Modules
 ```
 src/
-├── Gateway/              # Network gateway service
-│   ├── GatewayServer.ts
-│   ├── Router.ts         # Request routing
-│   ├── ServiceRegistry.ts
-│   └── SessionManager.ts
-│
-├── GameServer/           # Core game logic
+├── GameServer/           # Unified game server (includes registration and email)
 │   ├── GameServer.ts
 │   ├── Game/             # Business logic layer
 │   │   ├── Battle/       # Combat system
@@ -39,14 +30,13 @@ src/
 │   │   ├── Item/         # Inventory and items
 │   │   ├── Task/         # Quest system
 │   │   ├── Player/       # Player instance
+│   │   ├── Login/        # Login and registration
 │   │   └── System/       # System tasks (auto-save)
 │   └── Server/
 │       └── Packet/       # Protocol handlers
 │           ├── Recv/     # Request handlers
 │           └── Send/     # Response packets
 │
-├── RegistServer/         # Registration service
-├── EmailServer/          # Email service
 └── ProxyServer/          # Debug proxy service
 ```
 
@@ -76,8 +66,7 @@ src/shared/
 │       ├── req/          # Request protocol classes
 │       └── rsp/          # Response protocol classes
 ├── models/               # Shared interfaces
-├── utils/                # Utility functions
-└── gateway/              # Gateway client for backend services
+└── utils/                # Utility functions
 ```
 
 ### Configuration

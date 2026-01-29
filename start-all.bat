@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title KOSE Server - 启动所有服务
+title KOSE Server - 启动游戏服务
 
 echo ========================================
 echo   KOSE Server - 赛尔号怀旧服服务端
@@ -25,36 +25,23 @@ if not exist "logs" (
     mkdir logs
 )
 
-echo [1/4] 启动注册服务...
-start "RegistServer" regist-server.exe
-timeout /t 2 /nobreak >nul
-
-echo [2/4] 启动游戏服务...
+echo [启动] 游戏服务...
 start "GameServer" game-server.exe
 timeout /t 2 /nobreak >nul
 
-echo [3/4] 启动邮件服务...
-start "EmailServer" email-server.exe
-timeout /t 2 /nobreak >nul
-
-echo [4/4] 启动网关服务...
-start "Gateway" gateway-server.exe
-timeout /t 2 /nobreak >nul
-
 echo.
 echo ========================================
-echo   所有服务已启动！
+echo   游戏服务已启动！
 echo ========================================
 echo.
-echo 服务列表:
-echo   - Gateway      (端口: 9999/27777)
-echo   - GameServer   (端口: 50002)
-echo   - RegistServer (端口: 50001)
-echo   - EmailServer  (端口: 50003)
+echo 服务信息:
+echo   - GameServer (端口: 9999)
+echo   - 包含功能: 登录、注册、游戏逻辑
 echo.
-echo 客户端连接地址:
-echo   登录: localhost:9999
-echo   游戏: localhost:27777
+echo 客户端连接地址: localhost:9999
+echo.
+echo 注意: 如需调试协议，请使用 start-proxy.bat
+echo       (ProxyServer 和 GameServer 不能同时运行)
 echo.
 echo 按任意键关闭此窗口...
 pause >nul

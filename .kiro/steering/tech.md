@@ -33,8 +33,6 @@
 ```bash
 npm run dev                 # Start all services with auto-restart
 npm run dev:game            # Start only GameServer
-npm run dev:gateway         # Start only Gateway
-npm run dev:regist          # Start only RegistServer
 npm run dev:proxy           # Start only ProxyServer
 ```
 
@@ -55,8 +53,6 @@ npm run build:services      # Build independent service executables
 ```bash
 npm start                   # Start all services (production)
 npm run start:game          # Start GameServer only
-npm run start:gateway       # Start Gateway only
-npm run start:regist        # Start RegistServer only
 ```
 
 ### Release Packaging

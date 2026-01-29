@@ -1,25 +1,15 @@
 {
   "services": {
-    "gateway": {
+    "game": {
       "enabled": true,
       "port": 9999,
-      "rpcPort": 50010,
       "host": "0.0.0.0"
     },
     "regist": {
-      "enabled": true,
-      "rpcPort": 50011,
-      "host": "localhost"
-    },
-    "game": {
-      "enabled": true,
-      "rpcPort": 50012,
-      "host": "localhost"
+      "enabled": true
     },
     "email": {
-      "enabled": true,
-      "rpcPort": 50013,
-      "host": "localhost"
+      "enabled": true
     },
     "proxy": {
       "enabled": false,

@@ -51,13 +51,11 @@ interface IPlayerRow {
   nono_mate: number;
   nono_iq: number;
   nono_ai: number;
-  nono_super_level: number;
-  nono_bio: number;
   nono_birth: number;
   nono_charge_time: number;
-  nono_expire: number;
-  nono_chip: number;
-  nono_grow: number;
+  nono_super_energy: number;
+  nono_super_level: number;
+  nono_super_stage: number;
   badge: number;
   cur_title: number;
   team_id: number;
@@ -120,10 +118,10 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
         mon_king_win, cur_stage, max_stage, max_arena_wins,
         has_nono, super_nono, nono_state, nono_color, nono_nick,
         nono_flag, nono_power, nono_mate, nono_iq, nono_ai,
-        nono_super_level, nono_bio, nono_birth, nono_charge_time,
-        nono_expire, nono_chip, nono_grow,
+        nono_birth, nono_charge_time,
+        nono_super_energy, nono_super_level, nono_super_stage,
         badge, cur_title, team_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId, nick, now, 0, 0, 0, color, 0,  // vip=0(非VIP), viped=0(从未是VIP)
         defaultPlayer.energy, defaultPlayer.coins, defaultPlayer.fightBadge, defaultPlayer.allocatableExp,
@@ -138,9 +136,9 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
         defaultNoNo.nonoColor, defaultNoNo.nonoNick,
         defaultNoNo.nonoFlag, defaultNoNo.nonoPower, defaultNoNo.nonoMate,
         defaultNoNo.nonoIq, defaultNoNo.nonoAi,
-        defaultNoNo.nonoSuperLevel, defaultNoNo.nonoBio, now,
-        defaultNoNo.nonoChargeTime, defaultNoNo.nonoExpire, defaultNoNo.nonoChip, defaultNoNo.nonoGrow,
-        0, 0, 0
+        defaultNoNo.nonoBirth || now, defaultNoNo.nonoChargeTime,
+        defaultNoNo.nonoSuperEnergy, defaultNoNo.nonoSuperLevel, defaultNoNo.nonoSuperStage,
+        0, 0, 0  // badge, cur_title, team_id
       ]
     );
 
@@ -452,34 +450,23 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
   }
 
   /**
-   * 更新 NoNo 过期时间
+   * 更新 NoNo 超能能量
    */
-  public async UpdateNoNoExpire(userId: number, expire: number): Promise<boolean> {
+  public async UpdateNoNoSuperEnergy(userId: number, energy: number): Promise<boolean> {
     const result = await this._db.Execute(
-      'UPDATE players SET nono_expire = ? WHERE user_id = ?',
-      [expire, userId]
+      'UPDATE players SET nono_super_energy = ? WHERE user_id = ?',
+      [energy, userId]
     );
     return result.affectedRows > 0;
   }
 
   /**
-   * 更新 NoNo 芯片
+   * 更新 NoNo 超能阶段
    */
-  public async UpdateNoNoChip(userId: number, chip: number): Promise<boolean> {
+  public async UpdateNoNoSuperStage(userId: number, stage: number): Promise<boolean> {
     const result = await this._db.Execute(
-      'UPDATE players SET nono_chip = ? WHERE user_id = ?',
-      [chip, userId]
-    );
-    return result.affectedRows > 0;
-  }
-
-  /**
-   * 更新 NoNo 成长值
-   */
-  public async UpdateNoNoGrow(userId: number, grow: number): Promise<boolean> {
-    const result = await this._db.Execute(
-      'UPDATE players SET nono_grow = ? WHERE user_id = ?',
-      [grow, userId]
+      'UPDATE players SET nono_super_stage = ? WHERE user_id = ?',
+      [stage, userId]
     );
     return result.affectedRows > 0;
   }
@@ -498,10 +485,10 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
   /**
    * 开启超级 NoNo
    */
-  public async EnableSuperNoNo(userId: number, level: number, expire: number): Promise<boolean> {
+  public async EnableSuperNoNo(userId: number, level: number): Promise<boolean> {
     const result = await this._db.Execute(
-      'UPDATE players SET super_nono = 1, nono_super_level = ?, nono_expire = ? WHERE user_id = ?',
-      [level, expire, userId]
+      'UPDATE players SET super_nono = 1, nono_super_level = ? WHERE user_id = ?',
+      [level, userId]
     );
     return result.affectedRows > 0;
   }
@@ -517,11 +504,13 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
     mate: number;
     iq: number;
     ai: number;
+    superNono: boolean;
     superLevel: number;
+    superEnergy: number;
+    superStage: number;
+    birth: number;
     chargeTime: number;
-    expire: number;
-    chip: number;
-    grow: number;
+    state: number;
   }>): Promise<boolean> {
     const updates: string[] = [];
     const values: any[] = [];
@@ -554,25 +543,33 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
       updates.push('nono_ai = ?');
       values.push(data.ai);
     }
+    if (data.superNono !== undefined) {
+      updates.push('super_nono = ?');
+      values.push(data.superNono ? 1 : 0);
+    }
     if (data.superLevel !== undefined) {
       updates.push('nono_super_level = ?');
       values.push(data.superLevel);
+    }
+    if (data.superEnergy !== undefined) {
+      updates.push('nono_super_energy = ?');
+      values.push(data.superEnergy);
+    }
+    if (data.superStage !== undefined) {
+      updates.push('nono_super_stage = ?');
+      values.push(data.superStage);
+    }
+    if (data.birth !== undefined) {
+      updates.push('nono_birth = ?');
+      values.push(data.birth);
     }
     if (data.chargeTime !== undefined) {
       updates.push('nono_charge_time = ?');
       values.push(data.chargeTime);
     }
-    if (data.expire !== undefined) {
-      updates.push('nono_expire = ?');
-      values.push(data.expire);
-    }
-    if (data.chip !== undefined) {
-      updates.push('nono_chip = ?');
-      values.push(data.chip);
-    }
-    if (data.grow !== undefined) {
-      updates.push('nono_grow = ?');
-      values.push(data.grow);
+    if (data.state !== undefined) {
+      updates.push('nono_state = ?');
+      values.push(data.state);
     }
 
     if (updates.length === 0) return false;
@@ -633,13 +630,11 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
     player.nonoMate = row.nono_mate;
     player.nonoIq = row.nono_iq;
     player.nonoAi = row.nono_ai;
-    player.nonoSuperLevel = row.nono_super_level;
-    player.nonoBio = row.nono_bio;
     player.nonoBirth = row.nono_birth;
     player.nonoChargeTime = row.nono_charge_time;
-    player.nonoExpire = row.nono_expire;
-    player.nonoChip = row.nono_chip;
-    player.nonoGrow = row.nono_grow;
+    player.nonoSuperEnergy = row.nono_super_energy;
+    player.nonoSuperLevel = row.nono_super_level;
+    player.nonoSuperStage = row.nono_super_stage;
     player.badge = row.badge;
     player.curTitle = row.cur_title;
     player.teamInfo.id = row.team_id;

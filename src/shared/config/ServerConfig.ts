@@ -7,26 +7,16 @@ import { ConfigKeys, ConfigPaths } from './ConfigDefinitions';
  */
 export interface IServerConfig {
   services: {
-    gateway: {
+    game: {
       enabled: boolean;
       port: number;
-      rpcPort: number;
       host: string;
     };
     regist: {
       enabled: boolean;
-      rpcPort: number;
-      host: string;
-    };
-    game: {
-      enabled: boolean;
-      rpcPort: number;
-      host: string;
     };
     email: {
       enabled: boolean;
-      rpcPort: number;
-      host: string;
     };
     proxy: {
       enabled: boolean;
@@ -107,7 +97,6 @@ export class ServerConfig {
       return this.GetDefaultConfig();
     }
     
-    Logger.Info(`[ServerConfig] 配置加载成功: Gateway端口=${config.services.gateway.port}`);
     return config;
   }
 
@@ -117,26 +106,16 @@ export class ServerConfig {
   private GetDefaultConfig(): IServerConfig {
     return {
       services: {
-        gateway: {
+        game: {
           enabled: true,
           port: 9999,
-          rpcPort: 50000,
           host: '0.0.0.0'
         },
         regist: {
-          enabled: true,
-          rpcPort: 50001,
-          host: 'localhost'
-        },
-        game: {
-          enabled: true,
-          rpcPort: 50002,
-          host: 'localhost'
+          enabled: true
         },
         email: {
-          enabled: true,
-          rpcPort: 50003,
-          host: 'localhost'
+          enabled: true
         },
         proxy: {
           enabled: false,
@@ -184,13 +163,6 @@ export class ServerConfig {
    */
   public get Config(): IServerConfig {
     return this._config;
-  }
-
-  /**
-   * 获取Gateway配置
-   */
-  public get Gateway() {
-    return this._config.services.gateway;
   }
 
   /**

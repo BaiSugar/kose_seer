@@ -6,47 +6,47 @@ import { NoNoInfoRspProto } from '../../../../../shared/proto/packets/rsp/nono/N
  * NoNo 信息响应包
  * CMD 9003
  * 
+ * 基于官方服务器抓包数据
  */
 export class PacketNoNoInfo extends BaseProto {
   private _data: Buffer;
 
   constructor(
-    userId: number,
+    userID: number,
     flag: number,
     state: number,
     nick: string,
+    superNono: number,
     color: number,
     power: number,
     mate: number,
     iq: number,
     ai: number,
-    superLevel: number,
-    bio: number,
     birth: number,
     chargeTime: number,
-    expire: number,
-    chip: number,
-    grow: number
+    superEnergy: number,
+    superLevel: number,
+    superStage: number
   ) {
     super(CommandID.NONO_INFO);
     
     const proto = new NoNoInfoRspProto();
-    proto.userId = userId;
+    proto.userID = userID;
     proto.flag = flag;
     proto.state = state;
     proto.nick = nick;
+    proto.superNono = superNono;
     proto.color = color;
     proto.power = power;
     proto.mate = mate;
     proto.iq = iq;
     proto.ai = ai;
-    proto.superLevel = superLevel;
-    proto.bio = bio;
     proto.birth = birth;
     proto.chargeTime = chargeTime;
-    proto.expire = expire;
-    proto.chip = chip;
-    proto.grow = grow;
+    proto.func = new Array(160).fill(true);  // 所有功能默认开启
+    proto.superEnergy = superEnergy;
+    proto.superLevel = superLevel;
+    proto.superStage = superStage;
     
     this._data = proto.serialize();
   }
@@ -55,3 +55,4 @@ export class PacketNoNoInfo extends BaseProto {
     return this._data;
   }
 }
+

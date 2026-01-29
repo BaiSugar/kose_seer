@@ -17,6 +17,7 @@ import { Migration010CreateTasksTables } from './scripts/010_create_tasks_tables
 import { Migration011CreateMails } from './scripts/006_create_mails';
 import { Migration012FixAllTables } from './scripts/012_fix_all_tables';
 import { Migration013AddAllocatableExp } from './scripts/013_add_allocatable_exp';
+import { Migration008AlignNoNoFieldsWithOfficial } from './scripts/008_align_nono_fields_with_official';
 
 /**
  * 所有迁移脚本（按版本号排序）
@@ -33,6 +34,7 @@ const AllMigrations: IMigration[] = [
   new Migration011CreateMails(),
   new Migration012FixAllTables(),
   new Migration013AddAllocatableExp(),
+  new Migration008AlignNoNoFieldsWithOfficial(),
 ];
 
 export class MigrationRunner {

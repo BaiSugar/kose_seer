@@ -7,6 +7,7 @@ import { PetModuleMetadata } from './pet.meta';
 import { SystemModuleMetadata } from './system.meta';
 import { ItemModuleMetadata } from './item.meta';
 import { SocialMetadata } from './social.meta';
+import { NoNoModuleMetadata } from './nono.meta';
 
 // 导出类型和接口
 export * from './CommandMetaRegistry';
@@ -23,6 +24,7 @@ CmdMeta.RegisterBatch(PetModuleMetadata);
 CmdMeta.RegisterBatch(SystemModuleMetadata);
 CmdMeta.RegisterBatch(ItemModuleMetadata);
 CmdMeta.RegisterBatch(SocialMetadata);
+CmdMeta.RegisterBatch(NoNoModuleMetadata);
 
 // 可以继续添加更多模块的元数据
 // CmdMeta.RegisterBatch(BattleMetadata);

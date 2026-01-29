@@ -30,10 +30,10 @@ export class PeopleWalkHandler implements IHandler {
     // 构建响应
     const rsp = new PeopleWalkRspProto(req.walkType, player.Uid, req.x, req.y, req.amfData);
     
-    // 发送给当前玩家（必须，否则 Gateway 会超时）
+    // 发送给当前玩家（主响应，必须先发送）
     await player.SendPacket(rsp);
     
-    // 主动推送地图野怪列表（玩家移动时更新）
+    // 主动推送地图野怪列表（额外响应）
     const mapId = player.Data.mapID;
     if (mapId > 0) {
       const ogres = MapSpawnManager.Instance.GetMapOgres(player.Uid, mapId);
@@ -49,9 +49,5 @@ export class PeopleWalkHandler implements IHandler {
     
     // TODO: 广播移动消息到同地图其他玩家
     // 在 Gateway 模式下，广播需要通过其他机制实现
-    // const mapId = OnlineTracker.Instance.GetPlayerMap(player.Uid);
-    // if (mapId > 0) {
-    //   await OnlineTracker.Instance.BroadcastToMap(mapId, rsp);
-    // }
   }
 }

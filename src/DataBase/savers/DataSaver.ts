@@ -106,6 +106,11 @@ export class DataSaver {
         const data = cache.Get(type, uid);
         if (data) {
           await this.Save(type, data);
+          
+          // 清理定时器（如果有 cleanup 方法）
+          if (typeof (data as any).cleanup === 'function') {
+            (data as any).cleanup();
+          }
         }
       }
     }
@@ -124,6 +129,11 @@ export class DataSaver {
       const data = cache.Get(type, uid);
       if (data) {
         await this.Save(type, data);
+        
+        // 清理定时器（如果有 cleanup 方法）
+        if (typeof (data as any).cleanup === 'function') {
+          (data as any).cleanup();
+        }
       }
     }
 

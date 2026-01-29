@@ -106,34 +106,6 @@ export const SocialMetadata: ICommandMeta[] = [
     ]
   },
 
-  // ============ NONO系统 ============
-  {
-    cmdID: CommandID.NONO_INFO,
-    name: 'NONO_INFO',
-    desc: '获取NONO信息',
-    request: [
-      { name: 'userID', type: 'uint32', desc: '用户ID' }
-    ],
-    response: [
-      { name: 'userID', type: 'uint32', desc: '用户ID' },
-      { name: 'flag', type: 'uint32', desc: 'NONO标志位(32位)' },
-      { name: 'state', type: 'uint32', desc: 'NONO状态位(32位)' },
-      { name: 'nick', type: 'string', length: 16, desc: 'NONO昵称' },
-      { name: 'superNono', type: 'uint32', desc: '是否超级NONO' },
-      { name: 'color', type: 'uint32', desc: 'NONO颜色' },
-      { name: 'power', type: 'uint32', desc: '体力值(实际值*1000)' },
-      { name: 'mate', type: 'uint32', desc: '亲密度(实际值*1000)' },
-      { name: 'iq', type: 'uint32', desc: '智商' },
-      { name: 'ai', type: 'uint16', desc: 'AI等级' },
-      { name: 'birth', type: 'uint32', desc: '出生时间(秒)' },
-      { name: 'chargeTime', type: 'uint32', desc: '充值时间' },
-      { name: 'func', type: 'bitarray', length: 20, desc: '功能位图(20字节,每字节8位=160个布尔值)' },
-      { name: 'superEnergy', type: 'uint32', desc: '超能量' },
-      { name: 'superLevel', type: 'uint32', desc: '超级等级' },
-      { name: 'superStage', type: 'uint32', desc: '超级阶段' }
-    ]
-  },
-
   // ============ 兑换系统 ============
   {
     cmdID: CommandID.GET_EXCHANGE_INFO,

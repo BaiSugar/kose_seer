@@ -5,16 +5,24 @@ import { CommandID } from '../../../../protocol/CommandID';
 /**
  * [CMD: 9019 NONO_FOLLOW_OR_HOOM] NoNo 跟随或回家响应
  * 
- * action=1 (跟随): 返回完整 NoNo 信息 (36 bytes)
- * action=0 (回家): 返回简单信息 (12 bytes)
+ * 客户端解析（FollowCmdListener.as）：
+ * - userId (4)
+ * - superStage (4) - flag字段，客户端读取为superStage
+ * - state (4) - boolean，跟随状态
+ * - 如果跟随：
+ *   - nick (16)
+ *   - color (4)
+ *   - power (4) - 体力值（需要*1000）
+ * 
+ * 注意：客户端不读取 result 字段！直接从 userId 开始读取
  */
 export class NoNoFollowOrHoomRspProto extends BaseProto {
   userId: number = 0;
-  flag: number = 0;
-  state: number = 0;
-  nick: string = '';        // 仅跟随时返回
-  color: number = 0;        // 仅跟随时返回
-  chargeTime: number = 0;   // 仅跟随时返回
+  superStage: number = 0;  // flag字段，客户端读取为superStage
+  state: number = 0;       // 跟随状态（0=回家, 1=跟随）
+  nick: string = '';       // 仅跟随时返回
+  color: number = 0;       // 仅跟随时返回
+  power: number = 0;       // 仅跟随时返回（体力值）
   isFollow: boolean = false; // 是否跟随
 
   constructor() {
@@ -23,22 +31,22 @@ export class NoNoFollowOrHoomRspProto extends BaseProto {
 
   serialize(): Buffer {
     if (this.isFollow) {
-      // 跟随: 36 bytes
+      // 跟随: userId(4) + superStage(4) + state(4) + nick(16) + color(4) + power(4) = 36 bytes
+      // 注意：客户端不读取 result 字段，直接从 userId 开始读取
       const writer = new BufferWriter(64);
-      writer.WriteUInt32(this.result);
       writer.WriteUInt32(this.userId);
-      writer.WriteUInt32(this.flag);
+      writer.WriteUInt32(this.superStage);
       writer.WriteUInt32(this.state);
       writer.WriteBytes(this.buildString(this.nick, 16));
       writer.WriteUInt32(this.color);
-      writer.WriteUInt32(this.chargeTime);
+      writer.WriteUInt32(this.power);
       return writer.ToBuffer();
     } else {
-      // 回家: 12 bytes
+      // 回家: userId(4) + superStage(4) + state(4) = 12 bytes
+      // 注意：客户端不读取 result 字段，直接从 userId 开始读取
       const writer = new BufferWriter(32);
-      writer.WriteUInt32(this.result);
       writer.WriteUInt32(this.userId);
-      writer.WriteUInt32(this.flag);
+      writer.WriteUInt32(this.superStage);
       writer.WriteUInt32(this.state);
       return writer.ToBuffer();
     }
@@ -50,8 +58,8 @@ export class NoNoFollowOrHoomRspProto extends BaseProto {
     return this;
   }
 
-  setFlag(value: number): this {
-    this.flag = value;
+  setSuperStage(value: number): this {
+    this.superStage = value;
     return this;
   }
 
@@ -70,8 +78,8 @@ export class NoNoFollowOrHoomRspProto extends BaseProto {
     return this;
   }
 
-  setChargeTime(value: number): this {
-    this.chargeTime = value;
+  setPower(value: number): this {
+    this.power = value;
     return this;
   }
 

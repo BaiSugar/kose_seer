@@ -6,4 +6,5 @@ export * from './PacketNoNoExeList';
 export * from './PacketGetDiamond';
 export * from './PacketNoNoGetChip';
 export * from './PacketNoNoIsInfo';
-
+export * from './PacketOpenSuperNono';
+export * from './PacketNoNoOpen';

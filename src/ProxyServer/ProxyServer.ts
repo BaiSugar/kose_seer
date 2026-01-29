@@ -454,15 +454,31 @@ export class ProxyServer {
   /**
    * 停止服务器
    */
-  public Stop(): void {
+  public async Stop(): Promise<void> {
     if (!this._running) return;
 
-    this._server.close(() => {
-      this._running = false;
-      Logger.Info('[ProxyServer] 已停止');
+    Logger.Info('[ProxyServer] 正在停止服务器...');
+
+    // 先停止 WebServer
+    await this._webServer.Stop();
+
+    // 关闭网络服务（使用Promise等待）
+    await new Promise<void>((resolve) => {
+      this._server.close(() => {
+        this._running = false;
+        Logger.Info('[ProxyServer] 网络服务已关闭');
+        resolve();
+      });
+      
+      // 设置超时，防止卡住
+      setTimeout(() => {
+        Logger.Warn('[ProxyServer] 关闭网络服务超时，强制继续');
+        this._running = false;
+        resolve();
+      }, 5000);
     });
 
-    this._webServer.Stop();
+    Logger.Info('[ProxyServer] 已停止');
   }
 
   /**

@@ -39,11 +39,15 @@ export function PlayerInfoToLoginProto(player: IPlayerInfo, sessionKey?: string)
   proto.loginCnt = player.loginCnt || 0;
   proto.inviter = player.inviter || 0;
   proto.newInviteeCnt = 0;
-  proto.vipLevel = player.vipLevel;
-  proto.vipValue = player.vipValue;
-  proto.vipStage = player.vipStage || (player.vipLevel > 0 ? Math.min(player.vipLevel, 5) : 1);
-  proto.autoCharge = 0;
-  proto.vipEndTime = player.vipEndTime || 0;
+  // VIP字段：TypeScript端存储在players表，Lua端存储在nono对象
+  // 但发送时值是一样的
+  proto.vipLevel = player.vipLevel || 0;
+  proto.vipValue = player.vipValue || 0;
+  proto.vipStage = player.vipStage || 0;
+  proto.autoCharge = 0; // TypeScript端没有此字段，使用默认值0
+  // vipEndTime: 如果是超能NoNo且未设置，使用0x7FFFFFFF
+  const isSuper = player.superNono || false;
+  proto.vipEndTime = player.vipEndTime || (isSuper ? 0x7FFFFFFF : 0);
   proto.freshManBonus = 0;
   
   // nonoChipList (80 bytes) - all false for now
@@ -55,8 +59,8 @@ export function PlayerInfoToLoginProto(player: IPlayerInfo, sessionKey?: string)
   proto.teacherID = player.teacherID || 0;
   proto.studentID = player.studentID || 0;
   proto.graduationCount = player.graduationCount || 0;
-  proto.maxPuniLv = 0;
-  proto.petMaxLev = player.petMaxLev || 0;
+  proto.maxPuniLv = 100; // Lua端默认值100
+  proto.petMaxLev = player.petMaxLev || 100; // Lua端默认值100
   proto.petAllNum = player.petAllNum || 0;
   proto.monKingWin = player.monKingWin || 0;
   proto.curStage = player.curStage || 0;
@@ -78,10 +82,15 @@ export function PlayerInfoToLoginProto(player: IPlayerInfo, sessionKey?: string)
   proto.fuseTimes = 0;
   proto.hasNono = player.hasNono || false;
   proto.superNono = player.superNono || false;
-  proto.nonoState = player.nonoState || 0;
+  // 重要：Lua端发送 nono.flag (值1)，TypeScript端也发送 nonoFlag
+  // 如果没有NoNo，Lua端发送 0xFFFFFFFF
+  proto.nonoState = player.hasNono ? (player.nonoFlag || 0) : 0xFFFFFFFF;
   proto.nonoColor = player.nonoColor || 0;
-  proto.nonoNick = player.nonoNick || '';
+  proto.nonoNick = player.nonoNick || 'NoNo'; // 和Lua端默认值一致
   proto.badge = player.badge || 0;
+  
+  // 调试日志：输出NoNo相关字段
+  console.log(`[PlayerConverter] NoNo数据: hasNono=${proto.hasNono}, nonoFlag=${player.nonoFlag}, nonoState(发送nonoFlag)=${proto.nonoState} (0b${proto.nonoState.toString(2).padStart(8, '0')}), nonoNick="${proto.nonoNick}", nonoColor=0x${proto.nonoColor.toString(16)}`);
   
   return proto;
 }

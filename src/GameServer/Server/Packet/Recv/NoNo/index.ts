@@ -21,4 +21,4 @@ export * from './NoNoAddEnergyMateHandler';
 export * from './GetDiamondHandler';
 export * from './NoNoAddExpHandler';
 export * from './NoNoIsInfoHandler';
-
+export * from './OpenSuperNonoHandler';

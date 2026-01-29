@@ -8,7 +8,7 @@
 import { ServerConfig } from '../shared/config/ServerConfig';
 
 const dbConfig = ServerConfig.Instance.Database;
-const gamePort = ServerConfig.Instance.Game.rpcPort;
+const gamePort = ServerConfig.Instance.Game.port;
 ```
 
 ### Game Data Configuration

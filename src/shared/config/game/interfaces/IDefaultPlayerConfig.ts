@@ -48,10 +48,9 @@ export interface IDefaultNonoData {
   nonoMate: number;
   nonoIq: number;
   nonoAi: number;
-  nonoSuperLevel: number;
-  nonoBio: number;
+  nonoBirth: number;
   nonoChargeTime: number;
-  nonoExpire: number;
-  nonoChip: number;
-  nonoGrow: number;
+  nonoSuperEnergy: number;
+  nonoSuperLevel: number;
+  nonoSuperStage: number;
 }
