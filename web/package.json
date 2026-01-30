@@ -1,0 +1,31 @@
+{
+  "name": "kose-manager-web",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+     "@codemirror/lang-json": "^6.0.2",
+    "@element-plus/icons-vue": "^2.3.1",
+    "axios": "^1.6.0",
+    "element-plus": "^2.5.0",
+    "md5": "^2.3.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/md5": "^2.3.6",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0",
+    "vue-tsc": "^2.0.0"
+  }
+}

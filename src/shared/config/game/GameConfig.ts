@@ -182,6 +182,25 @@ export class GameConfig {
   }
 
   /**
+   * 获取任务配置
+   */
+  public static GetTaskConfig(): any | null {
+    return ConfigRegistry.Instance.Get<any>(ConfigKeys.TASK_CONFIG);
+  }
+
+  /**
+   * 获取指定任务的配置
+   * @param taskId 任务ID
+   */
+  public static GetTaskById(taskId: number): any | null {
+    const config = this.GetTaskConfig();
+    if (!config || !config.tasks) {
+      return null;
+    }
+    return config.tasks[taskId.toString()] || null;
+  }
+
+  /**
    * 重新加载地图怪物配置
    */
   public static async ReloadMapOgres(): Promise<boolean> {

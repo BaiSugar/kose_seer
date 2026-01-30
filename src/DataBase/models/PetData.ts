@@ -81,20 +81,26 @@ export class PetData extends BaseData {
   /**
    * 添加精灵
    */
-  public AddPet(pet: IPetInfo): void {
+  public async AddPet(pet: IPetInfo): Promise<void> {
     this.PetList.push(pet);
     // 自动触发保存（通过 Proxy）
+    
+    // 更新玩家统计信息
+    await this.UpdatePlayerStats();
   }
 
   /**
    * 移除精灵
    */
-  public RemovePet(petId: number): boolean {
+  public async RemovePet(petId: number): Promise<boolean> {
     const index = this.PetList.findIndex(p => p.petId === petId);
     if (index === -1) return false;
     
     this.PetList.splice(index, 1);
     // 自动触发保存（通过 Proxy）
+    
+    // 更新玩家统计信息
+    await this.UpdatePlayerStats();
     return true;
   }
 
@@ -115,13 +121,44 @@ export class PetData extends BaseData {
   /**
    * 移除精灵（按catchTime）
    */
-  public RemovePetByCatchTime(catchTime: number): boolean {
+  public async RemovePetByCatchTime(catchTime: number): Promise<boolean> {
     const index = this.PetList.findIndex(p => p.catchTime === catchTime);
     if (index === -1) return false;
     
     this.PetList.splice(index, 1);
     // 自动触发保存（通过 Proxy）
+    
+    // 更新玩家统计信息
+    await this.UpdatePlayerStats();
     return true;
+  }
+
+  /**
+   * 更新玩家统计信息（精灵数量和最高等级）
+   */
+  private async UpdatePlayerStats(): Promise<void> {
+    try {
+      const playerData = await DatabaseHelper.Instance.GetInstance_PlayerData(this.Uid);
+      if (!playerData) {
+        Logger.Warn(`[PetData] UpdatePlayerStats: PlayerData not found for uid=${this.Uid}`);
+        return;
+      }
+
+      // 更新精灵总数
+      playerData.petAllNum = this.PetList.length;
+
+      // 更新最高精灵等级
+      if (this.PetList.length > 0) {
+        playerData.petMaxLev = Math.max(...this.PetList.map(p => p.level));
+      } else {
+        playerData.petMaxLev = 0;
+      }
+
+      // PlayerData 会自动保存（通过 Proxy）
+      Logger.Debug(`[PetData] UpdatePlayerStats: uid=${this.Uid}, petAllNum=${playerData.petAllNum}, petMaxLev=${playerData.petMaxLev}`);
+    } catch (error) {
+      Logger.Error(`[PetData] UpdatePlayerStats failed: uid=${this.Uid}`, error as Error);
+    }
   }
 
   /**

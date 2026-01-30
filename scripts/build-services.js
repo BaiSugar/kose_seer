@@ -9,6 +9,7 @@ const path = require('path');
 // 服务配置
 const services = [
   { name: 'game', entry: 'dist/game-entry.js', output: 'game-server' },
+  { name: 'gm', entry: 'dist/gm-entry.js', output: 'gm-server' },
   { name: 'proxy', entry: 'dist/proxy-entry.js', output: 'proxy-server' },
 ];
 
@@ -104,6 +105,7 @@ console.log('复制启动脚本...');
 const batFiles = [
   'start-all.bat',
   'start-game.bat',
+  'start-gm.bat',
   'start-proxy.bat',
   'stop-all.bat'
 ];
@@ -151,13 +153,18 @@ const readme = `# KOSE Server - 独立服务
 ## 服务列表
 
 - \`game-server${extension}\` - 游戏服务（包含登录、注册功能，监听9999端口）
+- \`gm-server${extension}\` - GM管理服务（Web管理界面，监听3002端口）
 - \`proxy-server${extension}\` - 代理服务（调试用，监听9999端口，**不能与 GameServer 同时运行**）
 
 ## 快速启动
 
 ### 生产环境（推荐）
 
-${isWindows ? '双击运行 `start-game.bat`' : '运行 `./start-game.sh`'} 启动游戏服务。
+${isWindows ? '双击运行 `start-all.bat`' : '运行 `./start-all.sh`'} 启动所有服务（游戏+GM）。
+
+或者分别启动：
+- ${isWindows ? '双击 `start-game.bat`' : '运行 `./start-game.sh`'} - 启动游戏服务
+- ${isWindows ? '双击 `start-gm.bat`' : '运行 `./start-gm.sh`'} - 启动GM管理服务
 
 ### 调试模式
 
@@ -177,6 +184,34 @@ ${isWindows ? '双击运行 `stop-all.bat`' : '运行 `./stop-all.sh`'} 停止�
 
 \`\`\`bash
 ${isWindows ? 'start game-server.exe' : './game-server &'}
+\`\`\`
+
+启动GM管理服务：
+
+\`\`\`bash
+${isWindows ? 'start gm-server.exe' : './gm-server &'}
+\`\`\`
+
+### GM管理界面
+
+启动 GM Server 后，访问：http://localhost:3002
+
+**本地模式 vs 远程模式：**
+- 本地模式（\`localMode: true\`）：无需登录，直接访问所有功能
+- 远程模式（\`localMode: false\`）：需要使用游戏账号登录，并且账号需要在白名单中
+
+配置方式：编辑 \`config/server.json\`：
+\`\`\`json
+{
+  "services": {
+    "gm": {
+      "enabled": true,
+      "port": 3002,
+      "host": "0.0.0.0",
+      "localMode": true
+    }
+  }
+}
 \`\`\`
 
 ### 调试模式
@@ -204,6 +239,7 @@ ${isWindows ? 'stop-all.bat' : './stop-all.sh'}
 编辑 \`config/server.json\` 修改服务配置：
 
 - \`services.game\` - 游戏服务配置（端口、数据库等）
+- \`services.gm\` - GM管理服务配置（端口、本地模式开关）
 - \`services.proxy\` - 代理服务配置（调试用）
 - \`services.regist\` - 注册功能配置（enabled 开关）
 - \`services.email\` - 邮件功能配置（enabled 开关）
@@ -211,14 +247,16 @@ ${isWindows ? 'stop-all.bat' : './stop-all.sh'}
 
 ## 架构说明
 
-本服务器采用统一架构：
+本服务器采用微服务架构：
 
 - **GameServer**: 包含所有游戏功能（登录、注册、游戏逻辑），监听 9999 端口
+- **GMServer**: Web管理界面，用于管理玩家、配置、服务器等，监听 3002 端口
 - **ProxyServer**: 可选的调试工具，用于协议分析，监听 9999 端口
 
 **重要提示：**
 - ProxyServer 和 GameServer 都监听 9999 端口，因此不能同时运行
-- 生产环境只需要运行 GameServer
+- GMServer 可以独立运行，也可以和 GameServer 一起运行
+- 生产环境推荐同时运行 GameServer + GMServer
 - ProxyServer 仅用于开发调试，用于抓包分析协议
 
 ## 使用场景
@@ -226,9 +264,10 @@ ${isWindows ? 'stop-all.bat' : './stop-all.sh'}
 ### 场景一：正常游戏运行
 \`\`\`
 客户端 (9999) → GameServer
+管理员 (3002) → GMServer → 数据库
 \`\`\`
 
-只启动 GameServer，客户端直接连接。
+启动 GameServer 和 GMServer，客户端连接游戏，管理员通过 Web 界面管理。
 
 ### 场景二：协议调试
 \`\`\`
@@ -243,8 +282,10 @@ ${isWindows ? 'stop-all.bat' : './stop-all.sh'}
 2. 确保 \`data/\` 目录存在（用于数据库）
 3. 日志文件会保存在 \`logs/\` 目录
 4. 客户端连接端口为 9999
-5. **ProxyServer 和 GameServer 不能同时启动**
-6. ProxyServer 的 Web GUI 访问地址：http://localhost:9000
+5. GM管理界面端口为 3002
+6. **ProxyServer 和 GameServer 不能同时启动**
+7. ProxyServer 的 Web GUI 访问地址：http://localhost:9000
+8. GMServer 的管理界面访问地址：http://localhost:3002
 `;
 
 fs.writeFileSync(path.join(servicesDir, 'README.md'), readme);

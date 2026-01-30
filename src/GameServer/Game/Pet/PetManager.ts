@@ -106,7 +106,7 @@ export class PetManager extends BaseManager {
    * 处理释放精灵
    */
   public async HandlePetRelease(catchTime: number): Promise<void> {
-    const success = this.PetData.RemovePetByCatchTime(catchTime);
+    const success = await this.PetData.RemovePetByCatchTime(catchTime);
     
     if (success) {
       await DatabaseHelper.Instance.SavePetData(this.PetData);
@@ -398,7 +398,7 @@ export class PetManager extends BaseManager {
       Logger.Debug(`[PetManager] PetData 对象 Uid: ${this.PetData.Uid}`);
       Logger.Debug(`[PetManager] PetData 对象引用: ${typeof this.PetData}`);
       
-      this.PetData.AddPet(newPet);
+      await this.PetData.AddPet(newPet);
       
       Logger.Debug(`[PetManager] 添加后 PetList 长度: ${this.PetData.PetList.length}`);
       Logger.Debug(`[PetManager] PetList 内容: ${JSON.stringify(this.PetData.PetList.map(p => ({ petId: p.petId, catchTime: p.catchTime })))}`);
@@ -653,11 +653,16 @@ export class PetManager extends BaseManager {
         return;
       }
 
-      Logger.Info(`[PetManager] 精灵进化前: UserID=${this.UserID}, PetId=${pet.petId}, Level=${pet.level}`);
+      Logger.Info(`[PetManager] 精灵进化前: UserID=${this.UserID}, PetId=${pet.petId}, Level=${pet.level}, OldCatchTime=${pet.catchTime}`);
 
       // 4. 执行进化
       const oldPetId = pet.petId;
+      const oldCatchTime = pet.catchTime;
       pet.petId = evolvesTo;
+      
+      // 更新 catchTime 为当前时间（进化时间）
+      pet.catchTime = Math.floor(Date.now() / 1000);
+      Logger.Info(`[PetManager] 更新 catchTime: OldCatchTime=${oldCatchTime}, NewCatchTime=${pet.catchTime}`);
 
       // 5. 重新计算属性（进化后种族值可能改变）
       this.recalculateStats(pet);

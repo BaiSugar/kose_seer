@@ -98,7 +98,7 @@
           "slot": 0,
           "petId": 10,
           "shiny": 0,
-          "weight": 50,
+          "weight": 52,
           "refreshConfig": {
             "enabled": true,
             "refreshInterval": 300,

@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title KOSE Server - 启动游戏服务
+title KOSE Server - 启动所有服务
 
 echo ========================================
 echo   KOSE Server - 赛尔号怀旧服服务端
@@ -29,16 +29,24 @@ echo [启动] 游戏服务...
 start "GameServer" game-server.exe
 timeout /t 2 /nobreak >nul
 
+echo [启动] GM管理服务...
+start "GMServer" gm-server.exe
+timeout /t 2 /nobreak >nul
+
 echo.
 echo ========================================
-echo   游戏服务已启动！
+echo   所有服务已启动！
 echo ========================================
 echo.
 echo 服务信息:
 echo   - GameServer (端口: 9999)
-echo   - 包含功能: 登录、注册、游戏逻辑
+echo     包含功能: 登录、注册、游戏逻辑
+echo.
+echo   - GMServer (端口: 3002)
+echo     管理界面: http://localhost:3002
 echo.
 echo 客户端连接地址: localhost:9999
+echo GM管理界面地址: http://localhost:3002
 echo.
 echo 注意: 如需调试协议，请使用 start-proxy.bat
 echo       (ProxyServer 和 GameServer 不能同时运行)

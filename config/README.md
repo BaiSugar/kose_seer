@@ -54,6 +54,14 @@ config/
 - `rpcPort`: RPC端口
 - `host`: 监听地址
 
+**gm** - GM管理服务
+- `enabled`: 是否启用
+- `port`: HTTP服务端口
+- `host`: 监听地址
+- `localMode`: 本地模式开关
+  - `true`: 本地模式，无需登录认证，所有功能直接可用
+  - `false`: 远程模式，需要使用游戏账号登录，并且需要在白名单中才能使用功能
+
 **proxy** - 代理服务（调试用）
 - `enabled`: 是否启用
 - `listenPort`: 代理监听端口

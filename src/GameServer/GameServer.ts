@@ -8,6 +8,7 @@ import { PolicyHandler } from './Server/PolicyHandler';
 import { LoginManager } from './Game/Login';
 import { RegisterManager } from './Game/Register';
 import { ServerManager } from './Game/Server';
+import { PlayerManager } from './Game/Player/PlayerManager';
 // Note: ItemManager, MapManager, PetManager are now created per-player in PlayerInstance
 import { IHandler } from './Server/Packet/IHandler';
 import { DatabaseManager } from '../DataBase';
@@ -109,7 +110,12 @@ export class GameServer {
         Logger.Error(`Socket错误: ${session.Address}`, err);
       });
 
-      socket.on('close', () => {
+      socket.on('close', async () => {
+        // 如果玩家已登录，需要清理玩家实例
+        if (session.UserID > 0) {
+          Logger.Info(`[GameServer] 玩家断开连接: UserID=${session.UserID}, Address=${session.Address}`);
+          await PlayerManager.GetInstance().RemovePlayer(session.UserID);
+        }
         this._sessionManager.RemoveSession(session.Address);
       });
     });

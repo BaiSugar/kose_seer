@@ -8,5 +8,7 @@ export * from './004_create_pets';
 export * from './005_create_email_codes';
 export * from './006_create_items';
 export * from './007_add_nono_fields';
+export * from './009_create_gm_whitelist';
+export * from './010_create_gm_sessions';
 export * from './013_add_allocatable_exp';
 export * from './014_add_mess_win_and_cur_title';

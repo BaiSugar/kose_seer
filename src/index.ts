@@ -1,7 +1,10 @@
 import { GameServer } from './GameServer';
 import { ProxyServer } from './ProxyServer';
+import { GMServer } from './GMServer/GMServer';
 import { Logger } from './shared/utils';
 import { Config } from './shared/config';
+import { ConfigRegistry } from './shared/config/ConfigRegistry';
+import { GetGameConfigRegistrations } from './shared/config/ConfigDefinitions';
 
 // 初始化日志系统
 Logger.Initialize(Config.Logging.level);
@@ -11,6 +14,7 @@ Logger.Initialize(Config.Logging.level);
  */
 interface StartupOptions {
   game: boolean;
+  gm: boolean;
   proxy: boolean;
   all: boolean;
   help: boolean;
@@ -20,6 +24,7 @@ function parseArgs(): StartupOptions {
   const args = process.argv.slice(2);
   const options: StartupOptions = {
     game: false,
+    gm: false,
     proxy: false,
     all: false,
     help: false,
@@ -30,6 +35,10 @@ function parseArgs(): StartupOptions {
       case '--game':
       case '-g':
         options.game = true;
+        break;
+      case '--gm':
+      case '-m':
+        options.gm = true;
         break;
       case '--proxy':
       case '-p':
@@ -47,7 +56,7 @@ function parseArgs(): StartupOptions {
   }
 
   // 如果没有指定任何服务，默认启动所有
-  if (!options.game && !options.proxy && !options.all && !options.help) {
+  if (!options.game && !options.gm && !options.proxy && !options.all && !options.help) {
     options.all = true;
   }
 
@@ -66,12 +75,15 @@ KOSE Server - 赛尔号怀旧服服务端
 
 选项:
   --game,    -g   启动游戏服务器（包含注册和邮件功能）
+  --gm,      -m   启动 GM 管理服务器
   --proxy,   -p   启动代理服务器
   --all,     -a   启动所有服务器 (默认)
   --help,    -h   显示帮助信息
 
 示例:
   ${exeName} --game                     启动游戏服务器
+  ${exeName} --gm                       只启动 GM 服务器
+  ${exeName} --game --gm                启动游戏和 GM 服务器
   ${exeName} --proxy                    只启动代理服务器
   ${exeName} --all                      启动所有服务器
   ${exeName}                            启动所有服务器 (默认)
@@ -84,6 +96,7 @@ KOSE Server - 赛尔号怀旧服服务端
  */
 class ServiceManager {
   private _gameServer: GameServer | null = null;
+  private _gmServer: GMServer | null = null;
   private _proxyServer: ProxyServer | null = null;
 
   constructor() {
@@ -95,31 +108,68 @@ class ServiceManager {
    */
   public async Start(options: StartupOptions): Promise<void> {
     const services: string[] = [];
+    const skipped: string[] = [];
 
+    // 启动游戏服务器
     if (options.all || options.game) {
-      // 只在启动GameServer时加载战斗效果系统和游戏配置
-      await import('./GameServer/Game/Battle/effects');
-      Logger.Info('[Startup] 战斗效果系统已加载');
-      
-      // 加载游戏配置
-      const { SkillConfig, SkillEffectConfig } = await import('./shared/config');
-      SkillConfig.Load();
-      SkillEffectConfig.Load();
-      
-      this._gameServer = new GameServer();
-      await this._gameServer.Start();
-      services.push('游戏服务器（包含注册和邮件功能）');
+      if (Config.Game.enabled) {
+        // 只在启动GameServer时加载战斗效果系统和游戏配置
+        await import('./GameServer/Game/Battle/effects');
+        Logger.Info('[Startup] 战斗效果系统已加载');
+        
+        // 注册并加载游戏配置
+        ConfigRegistry.Instance.RegisterBatch(GetGameConfigRegistrations());
+        await ConfigRegistry.Instance.Initialize();
+        Logger.Info('[Startup] 游戏配置已加载');
+        
+        this._gameServer = new GameServer();
+        await this._gameServer.Start();
+        services.push('游戏服务器（包含注册和邮件功能）');
+      } else {
+        skipped.push('游戏服务器（配置中已禁用）');
+      }
     }
 
+    // 启动 GM 服务器
+    if (options.all || options.gm) {
+      if (Config.GM.enabled) {
+        // 如果游戏服务器未启动，需要先加载配置
+        if (!this._gameServer) {
+          ConfigRegistry.Instance.RegisterBatch(GetGameConfigRegistrations());
+          await ConfigRegistry.Instance.Initialize();
+          Logger.Info('[Startup] 游戏配置已加载（GM Server）');
+        }
+        
+        this._gmServer = new GMServer();
+        this._gmServer.start();
+        services.push('GM 管理服务器');
+      } else {
+        skipped.push('GM 管理服务器（配置中已禁用）');
+      }
+    }
+
+    // 启动代理服务器
     if (options.all || options.proxy) {
-      this._proxyServer = new ProxyServer();
-      this._proxyServer.Start();
-      services.push('代理服务器');
+      if (Config.Proxy.enabled) {
+        this._proxyServer = new ProxyServer();
+        this._proxyServer.Start();
+        services.push('代理服务器');
+      } else {
+        skipped.push('代理服务器（配置中已禁用）');
+      }
     }
 
+    Logger.Info(`========================================`);
     if (services.length > 0) {
-      Logger.Info(`已启动服务: ${services.join(', ')}`);
+      Logger.Info(`✓ 已启动服务: ${services.join(', ')}`);
     }
+    if (skipped.length > 0) {
+      Logger.Info(`✗ 跳过服务: ${skipped.join(', ')}`);
+    }
+    if (services.length === 0 && skipped.length === 0) {
+      Logger.Warn('没有启动任何服务，请检查配置文件或命令行参数');
+    }
+    Logger.Info(`========================================`);
   }
 
   /**
@@ -136,6 +186,15 @@ class ServiceManager {
         Logger.Error('[ServiceManager] 停止游戏服务器失败', err as Error);
       });
       stopPromises.push(gameStopPromise);
+    }
+    
+    if (this._gmServer) {
+      Logger.Info('[ServiceManager] 停止 GM 服务器...');
+      // GM Server 目前没有 Stop 方法，可以后续添加
+      // const gmStopPromise = this._gmServer.stop().catch((err) => {
+      //   Logger.Error('[ServiceManager] 停止 GM 服务器失败', err as Error);
+      // });
+      // stopPromises.push(gmStopPromise);
     }
     
     if (this._proxyServer) {
@@ -161,9 +220,10 @@ class ServiceManager {
   /**
    * 获取服务状态
    */
-  public GetStatus(): { game: boolean; proxy: boolean } {
+  public GetStatus(): { game: boolean; gm: boolean; proxy: boolean } {
     return {
       game: this._gameServer?.IsRunning ?? false,
+      gm: this._gmServer !== null,
       proxy: this._proxyServer?.IsRunning ?? false,
     };
   }

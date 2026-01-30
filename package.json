@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",
     "dev:game": "ts-node-dev --respawn src/index.ts -- --game",
+    "dev:gm": "ts-node-dev --respawn src/gm-entry.ts",
     "dev:proxy": "ts-node-dev --respawn src/index.ts -- --proxy",
     "db:migrate": "ts-node src/db-init.ts migrate",
     "db:rollback": "ts-node src/db-init.ts rollback",
@@ -15,6 +16,7 @@
     "build:services": "npm run build && node scripts/build-services.js",
     "start": "node dist/index.js",
     "start:game": "node dist/index.js --game",
+    "start:gm": "node dist/gm-entry.js",
     "start:proxy": "node dist/index.js --proxy",
     "release:win": "node scripts/build.js win",
     "release:linux": "node scripts/build.js linux",
@@ -39,6 +41,8 @@
   "license": "MIT",
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
     "@types/node": "^20.19.30",
     "@types/nodemailer": "^7.0.5",
     "@types/ws": "^8.18.1",
@@ -50,7 +54,10 @@
   },
   "dependencies": {
     "amf-js": "^1.0.0",
+    "axios": "^1.13.4",
     "better-sqlite3": "^9.2.0",
+    "cors": "^2.8.6",
+    "express": "^4.22.1",
     "fast-xml-parser": "^4.5.3",
     "mysql2": "^3.6.0",
     "nodemailer": "^7.0.12",

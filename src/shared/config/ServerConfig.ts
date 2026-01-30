@@ -18,6 +18,12 @@ export interface IServerConfig {
     email: {
       enabled: boolean;
     };
+    gm: {
+      enabled: boolean;
+      port: number;
+      host: string;
+      localMode?: boolean;
+    };
     proxy: {
       enabled: boolean;
       listenPort: number;
@@ -117,6 +123,12 @@ export class ServerConfig {
         email: {
           enabled: true
         },
+        gm: {
+          enabled: true,
+          port: 3002,
+          host: '0.0.0.0',
+          localMode: true
+        },
         proxy: {
           enabled: false,
           listenPort: 9000,
@@ -184,6 +196,13 @@ export class ServerConfig {
    */
   public get Email() {
     return this._config.services.email;
+  }
+
+  /**
+   * 获取GMServer配置
+   */
+  public get GM() {
+    return this._config.services.gm;
   }
 
   /**

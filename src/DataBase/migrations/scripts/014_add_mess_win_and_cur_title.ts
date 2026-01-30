@@ -18,10 +18,11 @@ export class Migration014AddMessWinAndCurTitle implements IMigration {
   }
 
   upSQLite(): string[] {
-    // SQLite 不支持 ADD COLUMN IF NOT EXISTS
-    // 由于 mess_win 可能已存在，我们返回空数组跳过此迁移
-    // 如果字段不存在，需要手动添加或删除数据库重新迁移
-    return [];
+    // SQLite 不支持 ADD COLUMN IF NOT EXISTS，但支持 ADD COLUMN
+    // 如果字段已存在会报错，但不影响数据库
+    return [
+      `ALTER TABLE players ADD COLUMN mess_win INTEGER NOT NULL DEFAULT 0`
+    ];
   }
 
   downMySQL(): string[] {

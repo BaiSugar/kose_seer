@@ -1,0 +1,447 @@
+<!--task: 任务节点
+	id(任务标识),
+	name(任务名),
+	parent(父级任务，用于判断当前任务是否可以接，格式：任务ID|任务ID，如：4|5),
+	isMat(父级任务匹配类型，0为单配，1为全配),
+	type(任务类型，0为常规任务，1为日常任务),
+	isDir(是否为直接完成任务，直接跳过所有步骤，直接完成任务,0为不是，1为是),
+	doc(文档说明),
+	alert(提示说明),
+	especial(是否需要特殊的提示框接任务)
+	condition(任务是否有接的限制条件)
+-->
+<!--pro:步骤节点
+	name(步骤名),
+	parent(父级步骤，用于判断当前步骤是否可完成，格式：步骤|步骤，如：4|5。如果为空时，isMat=0为可以直接完成当前步骤，isMat=1为要求前面所以步骤完成才能完成当前步骤),
+	isMat(父级步骤匹配类型，0为单配，1为全配),
+	doc(文档说明),
+	alert(提示说明)
+	isEnd(是否是最后一个步骤，如果是1直接完成。)
+	<taskDes>关于NPC对任务的描述。以$$结尾区别段落
+	<proDes>接了任务以后NPC对任务过程中的描述
+-->
+<tasks>
+	<task ID="2" name="新手任务" parent="" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="新手任务新手任务" alert="">
+	</task>
+	<task ID="3" name="新手任务" parent="" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="新手任务新手任务" alert="">
+	</task>
+	<task ID="4" name="新手任务" parent="" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="新手任务新手任务" alert="">
+		<des> <![CDATA[传说中的新手任务]]> </des>
+	</task>
+	
+	<task ID="85" name="NEW新手训练营" parent="" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="新手训练营" alert="">
+		<des> <![CDATA[新的新手任务]]> </des>
+	</task>
+	<task ID="86" name="NEW新手训练营" parent="" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="新手训练营" alert="">
+		<des> <![CDATA[新的新手任务]]> </des>
+	</task>
+	<task ID="87" name="NEW新手训练营" parent="" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="新手训练营" alert="">
+		<des> <![CDATA[新的新手任务]]> </des>
+	</task>
+	<task ID="88" name="NEW新手训练营" parent="" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="新手训练营" alert="">
+		<des> <![CDATA[新的新手任务]]> </des>
+	</task>
+	
+	<task ID="94" name="初识星球能源" parent="4" isMat="0" type="0" isDir="0" doc="" alert="" isEnd="0">
+		<taskDes> 
+			<![CDATA[嗨！每个星球基本都会有一些富含能量的矿石哟，我们小赛尔可以用特定的工具去收集！#1采来的矿石，可以在0xff0000动力室0xffffff进行兑换到赛尔号通用的货币，那叫“赛尔豆”！@茜茜你能告诉我具体的收集方法么？$$]]>
+			<![CDATA[#8这个0xff0000挖矿钻头0xffffff就送给你吧，你可以用它来钻取星球上的一些坚硬矿石哦！@好也！我有挖矿钻头咯！@额？这个东西……我还是一会来拿吧！]]>
+		</taskDes>
+		<proDes> 
+		</proDes>
+		<pro name="领钻头" parent="" isMat="0" doc="" alert="" />
+		<pro name="领气体收集器" parent="" isMat="1" doc="" alert="" />
+		<pro name="挖矿" parent="" isMat="1" doc="" alert="" />
+		<pro name="采气" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<!--task ID="45" name="领取NoNo" parent="94" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="" >
+		<taskDes> <![CDATA[嗨，小赛尔，对飞船和周围的环境基本都熟悉了吗？接下来去迎接你的小伙伴NoNo吧，它的超强能力可以帮你化解所有的困扰哦！@继续$$]]>
+			 <![CDATA[NoNo诞生在赛尔号的0xff0000发明室0xffffff里，是每个赛尔最亲密的伙伴、最可靠的搭档哦，现在就去发明室迎接它吗？@确定]]>
+			 </taskDes>
+		<proDes> <![CDATA[NoNo是赛尔的重要帮手，不要轻易放弃哦，继续努力吧！]]> </proDes>
+		<pro name="领取NoNo" parent="" isMat="0" doc="" alert="" />
+		<pro name="能量芯片  打开NoNo的储存空间看看" parent="" isMat="0" doc="" alert="" />
+		<pro name="智慧芯片  打开NoNo的储存空间看看" parent="" isMat="0" doc="" alert="" />
+		<pro name="跟随模式芯片 去发明室的芯片手册看看如何合成" parent="" isMat="0" doc="" alert="" 
+			/>
+		<pro name="返回茜茜交任务" parent="" isMat="1" doc="" alert="" />
+	</task-->
+	<!--运营任务-->
+	<task ID="19" name="先锋队招募" parent="96" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="" >
+		<taskDes> 
+			<![CDATA[看来你已经熟悉了赛尔号上的日常工作，想不想接受下一个挑战？@继续$$]]> 
+			<![CDATA[赛尔先锋队SPT是我们赛尔号上的一个特殊组织，每一个有决心完成赛尔号太空任务的船员都有机会加入进先锋队中。@继续$$]]>
+			<![CDATA[想加入先锋队的话你需要完成一个考验，打败在卡洛斯肆虐的蘑菇怪。@继续$$]]> 
+			<![CDATA[蘑菇怪自从被艾里逊的液态氮冻伤后就在0xff0000克洛斯星深处0xffffff发狂到处破坏，先锋队需要像你这样的精英赛尔去那里收复它。@继续$$]]>
+			<![CDATA[要对付它必须要先使用0xff0000火焰喷射器0xffffff使他安静下来，火焰喷射器可以在实验室里通过氢氧燃烧实验获得。@继续$$]]>
+			<![CDATA[蘑菇怪就在0xff0000克洛斯星深处0xffffff，在它做出更大的破坏前快点去打败它把。@确定]]>
+		</taskDes>
+		<proDes> <![CDATA[还没有办完吗？加入SPT先锋队可是很光荣的哦!@确定]]> </proDes>
+		<pro name="获得火焰喷射器" parent="" isMat="0" doc="" alert="" />
+		<pro name="打败蘑菇怪" parent="" isMat="0" doc="" alert="" />
+		<pro name="返回茜茜交任务" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="25" name="新船员的考验" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">
+	</task>
+	<task ID="28" name="遗迹中的精灵信号" parent="4" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="" alert="" >
+		<taskDes> <![CDATA[精灵探测仪信号指出在0xff0000赫尔卡星0xffffff发现了新精灵，但是不知道为什么，信号极其异常！那里究竟发生了什么?赛尔勇士们，你愿意接受这个艰巨的任务吗？@确定]]>
+			 </taskDes>
+		<proDes> <![CDATA[快去0xff0000赫尔卡星0xffffff查看下神秘信号的事情吧，那里可能会有新精灵出现哦！@确定]]>
+			 </proDes>
+		<pro name="透明神秘精灵出没的地方" parent="" isMat="" doc="" alert="" />
+		<pro name="巨型机械人" parent="" isMat="1" doc="" alert="" />
+		<pro name="拼装完成" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="29" name="健忘的大发明家" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="" >
+		<taskDes> <![CDATA[π=3.14156……你找我吗？哦不对，好像是我找你？<br>    我发现我越来越健忘了，就连“精灵胶囊仪器”的启动密码是多少我都忘记了！@继续$$]]>
+			 <![CDATA[还好我聪明把密码备份了，那些密码分别就藏在场景中的四张磁卡内，聪慧过人的#nick，你有信心帮我找到吗？这可是很有难度的哦！@确定]]>
+			 </taskDes>
+		<proDes> <![CDATA[这次是我找你还是你找我？不对啊，我好像记得你帮我去找密码磁卡了……@确定]]> </proDes>
+		<pro name="发明室的磁卡" parent="" isMat="" doc="" alert="" />
+		<pro name="教官办公室的磁卡" parent="" isMat="" doc="" alert="" />
+		<pro name="瞭望舱的磁卡" parent="" isMat="" doc="" alert="" />
+		<pro name="动力室的磁卡" parent="" isMat="" doc="" alert="" />
+		<pro name="启动密码" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="30" name="发明家的小测试" parent="" isMat="0" type="0" isDir="1" doc="" isEnd="0"
+		alert="" >
+		<pro name="答对问题" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="37" name="帕诺星系星球测绘" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="" >
+		<taskDes> <![CDATA[小赛尔，外星球的勘察是赛尔号的重大使命，是每一位小赛尔的职责，我相信你们可以独立得完成帕诺星系的测绘工作了。你决定现在就开始帕诺星系的测绘吗？@确定]]>
+			 </taskDes>
+		<proDes> <![CDATA[星球测绘是非常繁琐复杂的工程，要细心一点，不要遗漏。@确定]]> </proDes>
+		<pro name="克洛斯星" parent="" isMat="0" doc="" alert="" />
+		<pro name="火山星" parent="0" isMat="0" doc="" alert="" />
+		<pro name="海洋星" parent="0" isMat="0" doc="" alert="" />
+		<pro name="云宵星" parent="0" isMat="0" doc="" alert="" />
+		<pro name="赫尔卡星" parent="0" isMat="0" doc="" alert="" />
+		<pro name="塞西利亚星" parent="0" isMat="0" doc="" alert="" />
+		<pro name="双子阿尔法星" parent="0" isMat="0" doc="" alert="" />
+		<pro name="双子贝塔星" parent="0" isMat="0" doc="" alert="" />
+		<pro name="斯诺星" parent="0" isMat="0" doc="" alert="" />
+		<pro name="露希欧星" parent="0" isMat="0" doc="" alert="" />
+		<pro name="点击船长交任务" parent="0" isMat="1" doc="" alert="" />
+	</task>
+	<!-- 常规任务 -->
+	<task ID="7" name="防寒套装制作" parent="4" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="塞西莉亚星常在任务前传" alert="" >
+		<taskDes> <![CDATA[登陆塞西利亚所需的防寒服，茜茜已经设计完成啦。现在需要大家用自己的努力来证明，你已具备足够的智慧和勇气可以去塞西利亚探险。@确定]]>
+			 </taskDes>
+		<proDes> <![CDATA[快去找一些防寒服的原材料吧，这样我们才能够抵御塞西利亚的寒冷。@确定]]> </proDes>
+		<pro name="植物纤维是很好的保暖材料，在克洛斯草原深处可以获得" parent="" isMat="0" doc="" 
+			alert="" />
+		<pro name="炎晶聚集了火山的热能，存在于火山星深处，需要水系精灵的帮助" parent="" isMat="0" doc="" 
+			alert="" />
+		<pro name="把材料交给茜茜可以合成防寒材料" parent="" isMat="1" doc="" alert="" />
+		<!--<pro name="通过物质转换仪，可以把防寒材料打造为最终套装" parent="" isMat="1" doc="" alert="" />-->
+	</task>
+	<task ID="8" name="西塔的珍贵回忆" parent="4" isMat="0" type="0" isDir="0" isEnd="0"
+		doc="塞西莉亚星常在任务" alert="" >
+		<pro name="玄冰兽抢走晶体" parent="" isMat="0" doc="" alert="" />
+		<pro name="解除阿克西亚狂暴状态，得到玄冰兽信任，可得到一块" parent="0" isMat="0" doc="" 
+			alert="" />
+		<pro name="塞西利亚星球,转头转出1块" parent="" isMat="0" doc="" alert="" />
+		<pro name="迷宫,第1块" parent="" isMat="0" doc="" alert="" />
+		<pro name="迷宫,第2块" parent="" isMat="0" doc="" alert="" />
+		<pro name="寒冰溶洞,光线通过三棱镜后出现1个" parent="" isMat="0" doc="" alert="" />
+		<pro name="拼晶体" parent="" isMat="1" doc="" alert="" />
+		<pro name="看漫画,得到晶体道具" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="9" name="进入神秘通道" parent="" isMat="0" type="0" isDir="1" isEnd="0"
+		doc="赫尔卡星拆弹" alert="" >
+		<pro name="拆弹" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="10" name="神秘通道拼图" parent="" isMat="0" type="0" isDir="1" isEnd="0"
+		doc="神秘拼图" alert="" >
+		<pro name="拼图" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="11" name="捕捉到果冻鸭" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="" >
+		<pro name="0" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="12" name="精灵广场拿石头" parent="" isMat="0" type="0" isDir="1" isEnd="0"
+		doc="精灵广场拿石头" alert="" >
+		<pro name="石头放对位置" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="13" name="救咚咚" parent="" isMat="0" type="0" isDir="1" isEnd="0"
+		doc="塞西利亚救咚咚" alert="" >
+		<pro name="0" parent="" isMat="0" doc="拉出咚咚的鞋子" alert="" />
+		<pro name="1" parent="" isMat="0" doc="拉出咚咚" alert="" />
+		<pro name="2" parent="" isMat="0" doc="救出咚咚" alert="" />
+		<pro name="3" parent="" isMat="0" doc="找到帽子" alert="" />
+	</task>
+	<task ID="14" name="救叮叮" parent="" isMat="0" type="0" isDir="1" isEnd="0"
+		doc="云霄星救丁丁" alert="" >
+		<pro name="0" parent="" isMat="0" doc="调整大炮打开外部屏障" alert="" />
+		<pro name="1" parent="" isMat="1" doc="吹开云层切断电源" alert="" />
+	</task>
+	<task ID="121" name="雷神极限修行之里奥斯" parent="" isMat="0" type="0"
+		isDir="0" doc="" isEnd="0" alert="">
+		<pro name="提交任务" parent="" isMat="0" doc="" alert="" />
+	</task>
+	
+	<task ID="122" name="雷神极限修行之提亚斯" parent="121" isMat="0" type="0"
+		isDir="0" doc="" isEnd="0" alert="">
+		<pro name="战胜提亚斯" parent="" isMat="0" doc="" alert="" />
+		<pro name="战胜boss2" parent="" isMat="0" doc="" alert="" />
+		<pro name="战胜boss3" parent="" isMat="0" doc="" alert="" />
+		<pro name="战胜假雷伊" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="123" name="繁殖任务" parent="" isMat="0" type="0" isDir="1" doc="" isEnd="0"
+		alert="">
+		<pro name="提交任务" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="201" name="教官考核" parent="" isMat="0" type="0" isDir="" doc="" isEnd="0"
+		alert="" >
+		<pro name="克洛斯垃圾" parent="" isMat="0" doc="" alert="" />
+		<pro name="火山星垃圾" parent="" isMat="0" doc="" alert="" />
+		<pro name="海洋星垃圾" parent="" isMat="0" doc="" alert="" />
+		<pro name="云宵星垃圾" parent="" isMat="0" doc="" alert="" />
+		<pro name="赫尔卡垃圾" parent="" isMat="0" doc="" alert="" />
+		<pro name="战胜卫兵" parent="" isMat="0" doc="" alert="" />
+		<pro name="到教官处交任务" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="133" name="寻找迷失的心" parent="" isMat="0" type="0" isDir="0"
+		doc="" isEnd="0" alert="">
+		<pro name="找赛尔" parent="" isMat="0" doc="" alert="" />
+		<pro name="弹奏音乐" parent="" isMat="0" doc="" alert="" />
+		<pro name="回忆布鲁和格林的故事" parent="" isMat="0" doc="" alert="" />
+		<pro name="提交任务" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<!-- 每日任务 -->
+	<task ID="401" name="每日任务之毛毛" parent="4" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="云霄星地面层" alert="" >
+		<pro name="熔浆泡泡破裂的声音" parent="" isMat="0" doc="火山星" alert="" />
+		<pro name="赫尔卡星最美的海边" parent="" isMat="0" doc="赫尔卡星3" alert="" />
+		<!--<pro name="2" parent="" isMat="0" doc="云霄星3" alert="" />-->
+		<pro name="小心凶猛鲨鱼出没" parent="" isMat="0" doc="海洋3" alert="" />
+		<!--<pro name="4" parent="" isMat="0" doc="赫尔卡飞船" alert="" />-->
+	</task>
+	<task ID="402" name="每日任务之小火猴武学梦想" parent="4" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="火山星" alert="" >
+		<pro name="0" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="403" name="布布种子每日任务" parent="4" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="克洛斯星沼泽" alert="" >
+		<pro name="0" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="404" name="每日任务之伊优环保任务" parent="4" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="海洋星海底" alert="" >
+		<pro name="清除废料液体" parent="" isMat="0" doc="" alert="" />
+		<pro name="清除废料罐" parent="" isMat="0" doc="" alert="" />
+		<pro name="前面都完成" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="405" name="每日任务之比比鼠的发电能源" parent="4" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="动力室" alert="" >
+		<pro name="玩成发电小游戏" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="406" name="每日任务之爱捉迷藏的幽浮" parent="4" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="云二" alert="" >
+		<pro name="小游戏过关" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="407" name="利牙鱼的口腔护理" parent="4" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="海二" alert="" >
+		<pro name="小游戏过关" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="461" name="领NoNo" parent="" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="领NoNo" alert="" >
+		<pro name="" parent="" isMat="" doc="" alert="" />
+	</task>
+	<task ID="462" name="每日任务之领取扭蛋牌" parent="4" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="多功能平台" alert="" >
+		<pro name="扭蛋牌领取" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="481" name="每日任务之赛尔打工" parent="" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="双子星" alert="" >
+		<pro name="赛尔打工" parent="" isMat="0" doc="" alert="" />
+	</task>
+	
+	<task ID="79" name="寻访哈莫雷特的族人" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">
+		<taskDes> 
+			<![CDATA[哈莫雷特……它的一切一切都让我惊叹！哦！对了！差点忘记说了！我发现一个类似于哈莫雷特的精灵电波就在不远处，你确定要带着哈莫雷特去寻访同族的精灵吗？@继续$$]]> 
+			<![CDATA[如果数据没有错误，那个龙族精灵应该就居住在0xff0000塔克星0xffffff上！塔克星是我们目前所发现卡兰星系中存在的第二颗星球，那里可能危机四伏，你一定要加倍小心啊！@确定]]>
+		</taskDes>
+		<proDes> 
+			<![CDATA[快带着哈莫雷特去塔克星上看看吧，如果数据没有错误，那里应该生存着和哈莫同种族的精灵哦！哦对了，那里可能很危险，你一定要小心！！！！@确定]]>
+		</proDes>
+		<pro name="哈莫雷特" parent="" isMat="0" doc="" alert="" />
+		<pro name="精灵探测仪" parent="" isMat="1" doc="" alert="" />
+		<pro name="哈莫雷特被恶龙压在下面" parent="" isMat="1" doc="" alert="" />
+	</task>
+
+	<task ID="81" name="守候宿命的追随者" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">
+		<taskDes> 
+			<![CDATA[我要和你说什么来着……别吵！让我好好想一下……哦！哦！哦对了！你前面是来问我关于0xff0000尼古尔星0xffffff上出现精灵踪迹的事情吗？我正想派你去那里调查一下，你意下如何？@继续$$]]> 
+			<![CDATA[在精灵档案中也记载着一个关于它的故事……不过我们无从验证！不说啦……不说啦，我要继续开始研究精灵了！你快去那调查下吧！@确定]]>
+		</taskDes>
+		<proDes> 
+			<![CDATA[如果我没记错，你应该去0xff0000尼古尔星0xffffff上查探新精灵的事情了吧？咦？难道又是我记错了？应该没吧……@确定]]>
+		</proDes>
+		<pro name="快点击尼古尔星右边的花蕊" parent="" isMat="0" doc="" alert="" />
+		<pro name="快点它进行精灵对战吧！" parent="" isMat="1" doc="" alert="" />
+		<pro name="它似乎有话要说!快问问它吧！" parent="" isMat="1" doc="" alert="" />
+		<pro name="它似乎有话要说!快问问它吧！" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="83" name="光暗之谜" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">		
+		<pro name="勇气测试" parent="" isMat="0" doc="" alert="" />
+		<pro name="智慧测试" parent="" isMat="1" doc="" alert="" />
+		<pro name="完成测试结束" parent="" isMat="1" doc="" alert="" />		
+	</task>		
+	<task ID="84" name="星球改造计划" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">
+		<taskDes> 
+			<![CDATA[好大的风沙啊！#nick，你来的正好！塔克星沙漠化十分严重，再这样继续下去我怕……@继续$$]]> 
+			<![CDATA[如果你真的愿意着手治理沙漠化问题，我这里倒是有一颗克洛斯巨木种子，它可以迅速改变土壤环境，但是我怕等不及了!@继续$$]]> 
+			<![CDATA[我想有个人能帮忙！去发明室找肖恩博士，他应该有办法帮我们解决这个问题。@确定]]>
+		</taskDes>
+		<proDes> 
+			<![CDATA[#nick，肖恩博士应该能造出让植物快速成长的道具！缓解星球的沙化刻不容缓！@确定]]>
+		</proDes>
+		<pro name="埋入种子并使用光合增幅器" parent="" isMat="0" doc="" alert="" />
+		<pro name="询问爱丽丝下一步的方案！" parent="" isMat="1" doc="" alert="" />
+		<pro name="与爱丽丝对话！" parent="" isMat="1" doc="" alert="" />
+		<pro name="与爱丽丝对话！" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="89" name="试炼之塔的磨练" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="" especial="1">	
+		<proDes> 
+			<![CDATA[嗯？你好像还没有完成我下达的任务啊！试炼之塔10层的考验，这是对你和你精灵伙伴的磨练！好好努力吧！@确定]]>
+		</proDes>			
+		<pro name="寻找试炼之塔的入口" parent="" isMat="0" doc="" alert="" />
+		<pro name="完成十层挑战" parent="" isMat="1" doc="" alert="" />	
+		<pro name="完成试炼" parent="" isMat="1" doc="" alert="" />			
+	</task>		
+	<task ID="90" name="克洛斯星的皮皮" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">
+		<taskDes> 
+		</taskDes>
+		<proDes> 
+		</proDes>
+		<pro name="皮皮" parent="" isMat="0" doc="" alert="" />
+		<pro name="皮皮！" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="463" name="斯诺星的米鲁" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">
+		<taskDes> 
+		</taskDes>
+		<proDes> 
+		</proDes>
+	</task>
+	<task ID="91" name="月光下的约定" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">
+		<taskDes> 
+		</taskDes>
+		<proDes> 
+		</proDes>
+		<pro name="赛尔装备上高压水枪" parent="" isMat="0" doc="" alert="" />
+		<pro name="水系精灵的图标" parent="" isMat="1" doc="" alert="" />
+		<pro name="躺在地上的布鲁" parent="" isMat="1" doc="" alert="" />
+		<pro name="地上的陨石坑" parent="" isMat="1" doc="" alert="" />
+	</task>
+	<task ID="92" name="站长归来" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="1"
+		alert="">
+		<taskDes> 
+		</taskDes>
+		<proDes> 
+			<![CDATA[茜茜那里可能会需要你的帮助，我会召集星际船员委员会召开一次紧急会议，随后就会去和你会合。@确定]]>
+		</proDes>
+		<pro name="选择LYMAN" parent="" isMat="0" doc="" alert="" />
+		<pro name="选择消恩" parent="" isMat="0" doc="" alert="" />
+		<pro name="和LYMAN完成谈话" parent="0" isMat="0" doc="" alert="" />
+		<pro name="与肖恩交谈完成" parent="1" isMat="0" doc="" alert="" />
+		<pro name="安装并启动能量屏障发生器" parent="2" isMat="0" doc="" alert="" />
+		<pro name="带上NoNo和肖恩博士对话" parent="3" isMat="0" doc="" alert="" />
+		<pro name="启动控制台" parent="" isMat="0" doc="" alert="" />
+		<pro name="与站长交谈" parent="6" isMat="0" doc="" alert="" />
+		<pro name="与船长交谈" parent="7" isMat="0" doc="" alert="" />
+	</task>
+	<task ID="93" name="云霄星的新来客" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="" especial="1">	
+		<proDes> 
+			<![CDATA[帕诺星系第七颗行星，整个星球物质的质量非常低，引力较小，80%为气体状的星球。@确定]]>
+		</proDes>			
+		<pro name="保护提亚斯" parent="" isMat="0" doc="" alert="" />		
+		<pro name="精灵发动进攻" parent="" isMat="0" doc="" alert="" />	
+		<pro name="精灵开始和好" parent="" isMat="0" doc="" alert="" />	
+		<pro name="去毛毛那里交任务" parent="" isMat="0" doc="" alert="" />							
+	</task>		
+	<task ID="96" name="伙伴" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">				
+		<pro name="接取任务" parent="" isMat="0" doc="" alert="" />					
+		<pro name="领取NONO" parent="" isMat="0" doc="" alert="" />		
+		<pro name="送NONO芯片" parent="" isMat="0" doc="" alert="" />	
+		<pro name="加载好芯片去见SHAWN" parent="" isMat="0" doc="" alert="" />							
+	</task>			
+	<task ID="95" name="宇宙中的黑色旋涡" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0" alert="">
+		<taskDes> 
+			<![CDATA[糟糕！不知道为什么宇宙中突然出现了一道黑色旋涡！强大的吸力使赛尔号无法继续前行！这……这简直有点不可思议！！！@船长！我能为赛尔号做什么吗？$$]]>
+			<![CDATA[为了查明产生黑色旋涡的缘由！我现在决定委派你和先遣队们一同进入旋涡深处！你愿意吗？要知道此次任务相当危险！我希望你能够想清楚！@为了赛尔号！我义无反顾！@等我想好了再来答复您吧！]]>
+		</taskDes>	
+		<proDes> 
+			<![CDATA[查明黑色旋涡的缘由分秒必争！你必须抓紧时间！如果赛尔号持续被吸附在黑洞里，我们的能源随时都会耗尽……到时候，后果不堪设想！@我这就行动！]]>
+		</proDes>			
+		<pro name="瞭望舱找叽唔哇啦" parent="" isMat="0" doc="" alert="" />		
+		<pro name="头部射击葡萄" parent="" isMat="0" doc="" alert="" />	
+		<pro name="回到实验室找博士" parent="" isMat="0" doc="" alert="" />	
+		<pro name="带着葡萄找线索" parent="" isMat="0" doc="" alert="" />							
+		<pro name="拉姆世界丛林找线索" parent="" isMat="0" doc="" alert="" />							
+		<pro name="伪装摩尔" parent="" isMat="0" doc="" alert="" />							
+		<pro name="点击骑士" parent="" isMat="0" doc="" alert="" />							
+		<pro name="交任务" parent="" isMat="0" doc="" alert="" />							
+	</task>	
+	<task ID="97" name="我是音乐小麦霸" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0"
+		alert="">				
+		<pro name="瞭望舱找叽唔哇啦" parent="" isMat="0" doc="" alert="" />		
+		<pro name="头部射击葡萄" parent="" isMat="0" doc="" alert="" />	
+		<pro name="回到实验室找博士" parent="" isMat="0" doc="" alert="" />	
+		<pro name="带着葡萄找线索" parent="" isMat="0" doc="" alert="" />							
+		<pro name="拉姆世界丛林找线索" parent="" isMat="0" doc="" alert="" />							
+		<pro name="月亮出来" parent="" isMat="0" doc="" alert="" />													
+	</task>				
+	<task ID="98" name="尼布守卫战" parent="" isMat="0" type="0" isDir="0" doc="" isEnd="0" alert="">
+		<taskDes> 
+			<![CDATA[那就像是精灵地狱一样！#2佐格抓了很多很多的尼布，他把我们关在一个狭小的空间里！啊！我的尾巴好疼……@你要不要紧啊？？$$]]>
+			<![CDATA[我和拉博是受到一个神秘人的帮忙，我们才侥幸逃脱的！他还告诉我们要来赛尔号……哎呀！糟糕！我的身体里好像植入过跟踪芯片！他们会不会跟过来？@可怜的尼布！我会守卫你的！@别担心！你先好好休息吧！]]>
+		</taskDes>	
+		<proDes> 
+			<![CDATA[我身体里可能植入过跟踪芯片！我怕海盗们随时会出现……@别怕！你的身边有我们！]]>
+		</proDes>	
+		<pro name="实验室到走廊二" parent="" isMat="0" doc="" alert=""/>
+		<pro name="走廊二到走廊一" parent="" isMat="0" doc="" alert=""/>
+		<pro name="走廊一到动力室" parent="" isMat="0" doc="" alert=""/>
+		<pro name="与艾里逊对战" parent="" isMat="0" doc="" alert="" />
+		<pro name="赶走艾里逊" parent="" isMat="0" doc="" alert="" />
+		<pro name="交任务" parent="" isMat="0" doc="" alert=""/>					
+	</task>
+	<task ID="300" name="领普尼真身" parent="" isMat="0" type="0" isDir="0"
+		doc="" isEnd="0" alert="">
+		<pro name="完成任务" parent="" isMat="0" doc="" alert="" />
+	</task>
+	<!--
+		客户端自定任务ID，服务端并不存在，主要是用于显示在任务列表中统一触发
+		设定好especial字段。接受任务由自定义的函数执行，不经过任务的统一流程
+	-->
+	<task ID="50001" name="赛尔召集令" parent="" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="双子星" alert="" especial="1">
+	</task>
+	<task ID="50002" name="教官任务" parent="" isMat="0" type="1" isDir="0" isEnd="0"
+		doc="双子星" alert="" especial="1">
+	</task>
+</tasks>

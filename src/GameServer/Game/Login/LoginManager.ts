@@ -4,6 +4,7 @@ import { AccountRepository, SessionRepository, PlayerRepository } from '../../..
 import { Logger } from '../../../shared/utils';
 import { IClientSession } from '../../Server/Packet/IHandler';
 import { PlayerManager } from '../Player/PlayerManager';
+import { OnlineTracker } from '../Player/OnlineTracker';
 import { MainLoginRspProto, CreateRoleRspProto } from '../../../shared/proto';
 
 /**
@@ -252,6 +253,10 @@ export class LoginManager {
 
       // 创建Player实例
       const playerInstance = await this._playerManager.CreatePlayer(session, userID, player.nick);
+
+      // 更新在线追踪系统的地图信息
+      OnlineTracker.Instance.UpdatePlayerMap(userID, player.mapID, 0);
+      Logger.Info(`[LoginManager] 更新在线追踪地图: userID=${userID}, mapID=${player.mapID}`);
 
       Logger.Info(`[LoginManager] 游戏登录成功: userID=${userID}, nick=${player.nick}`);
       

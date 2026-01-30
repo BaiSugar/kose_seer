@@ -121,6 +121,8 @@ export class ConfigRegistry {
     }
 
     try {
+      Logger.Info(`[ConfigRegistry] 开始重新加载配置: ${key} (路径: ${path})`);
+      
       // 清除ConfigLoader缓存
       ConfigLoader.Instance.Reload(path);
 
@@ -136,14 +138,14 @@ export class ConfigRegistry {
 
       if (config) {
         this._configs.set(key, config);
-        Logger.Info(`[ConfigRegistry] 重新加载配置成功: ${key}`);
+        Logger.Info(`[ConfigRegistry] ✓ 重新加载配置成功: ${key} (类型: ${type})`);
         return true;
       } else {
-        Logger.Error(`[ConfigRegistry] 重新加载配置失败: ${key}`);
+        Logger.Error(`[ConfigRegistry] ✗ 重新加载配置失败: ${key} (配置为空)`);
         return false;
       }
     } catch (error) {
-      Logger.Error(`[ConfigRegistry] 重新加载配置异常: ${key}`, error as Error);
+      Logger.Error(`[ConfigRegistry] ✗ 重新加载配置异常: ${key}`, error as Error);
       return false;
     }
   }
@@ -186,5 +188,23 @@ export class ConfigRegistry {
       loaded: this._configs.size,
       initialized: this._initialized,
     };
+  }
+
+  /**
+   * 重载指定配置（别名方法，用于GM Server）
+   */
+  public async ReloadConfig(key: string): Promise<boolean> {
+    return await this.Reload(key);
+  }
+
+  /**
+   * 获取所有配置（用于GM Server）
+   */
+  public GetAllConfigs(): Record<string, any> {
+    const result: Record<string, any> = {};
+    for (const [key, value] of this._configs.entries()) {
+      result[key] = value;
+    }
+    return result;
   }
 }

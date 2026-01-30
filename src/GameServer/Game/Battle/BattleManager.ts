@@ -442,9 +442,23 @@ export class BattleManager extends BaseManager {
 
       if (success) {
         const enemyId = this._currentBattle.enemy.id;
+        
+        // 1. 发送捕捉成功协议
         await this.Player.SendPacket(new PacketCatchMonster(catchResult.catchTime, enemyId));
         
-        // 战斗结束后移除野怪并推送更新
+        // 2. 发送战斗结束协议（reason=6表示捕捉成功）
+        const playerData = this.Player.Data;
+        await this.Player.SendPacket(new PacketFightOver(
+          6,  // reason=6: 捕捉成功
+          this.UserID,  // 玩家胜利
+          playerData.twoTimes || 0,
+          playerData.threeTimes || 0,
+          playerData.autoFightTimes || 0,
+          playerData.energyTimes || 0,
+          playerData.learnTimes || 0
+        ));
+        
+        // 3. 战斗结束后移除野怪并推送更新
         if (this._currentBattleSlot >= 0) {
           MapSpawnManager.Instance.OnBattleEnd(this.UserID, this._currentBattleSlot);
           Logger.Info(`[BattleManager] 捕获成功，移除野怪: userId=${this.UserID}, slot=${this._currentBattleSlot}`);
@@ -458,7 +472,7 @@ export class BattleManager extends BaseManager {
           }
         }
         
-        // 战斗结束
+        // 4. 清理战斗实例
         this._currentBattle = null;
         this._currentBattleSlot = -1;
         this._currentBattleMapId = -1;
@@ -472,12 +486,69 @@ export class BattleManager extends BaseManager {
         await this.Player.SendPacket(new PacketEmpty(CommandID.CATCH_MONSTER).setResult(5003));
       }
     } else {
-      // 捕获失败
-      await this.Player.SendPacket(new PacketEmpty(CommandID.CATCH_MONSTER).setResult(5002));
+      // 捕获判定失败（摇晃失败或前置检查失败）- 发送 catchTime=0 的包，播放失败动画
+      await this.Player.SendPacket(new PacketCatchMonster(0, this._currentBattle.enemy.id));
       Logger.Info(
         `[BattleManager] 捕获失败: UserID=${this.UserID}, ` +
         `捕获率=${catchResult.catchRate.toFixed(2)}%, 摇晃次数=${catchResult.shakeCount}`
       );
+      
+      // 捕捉失败后，只有敌人反击（玩家使用道具不攻击）
+      // 构建一个只有敌人攻击的回合结果
+      const enemyAttackResult = this._turnService.ExecuteEnemyTurn(this._currentBattle);
+      
+      // 构建攻击结果
+      // firstAttack: 玩家使用道具，没有攻击（skillID=0, damage=0）
+      // 将玩家状态转换为状态数组
+      const playerStatusArray = new Array(20).fill(0);
+      if (this._currentBattle.player.status !== undefined) {
+        playerStatusArray[this._currentBattle.player.status] = 1;
+      }
+      
+      const firstAttack = BattleConverter.ToAttackValue(
+        {
+          userId: this.UserID,
+          skillId: 0,
+          atkTimes: 0,
+          damage: 0,
+          gainHp: 0,
+          attackerRemainHp: this._currentBattle.player.hp,
+          attackerMaxHp: this._currentBattle.player.maxHp,
+          missed: false,
+          blocked: false,
+          isCrit: false,
+          attackerStatus: playerStatusArray,
+          attackerBattleLv: this._currentBattle.player.battleLv || []
+        },
+        this.UserID,
+        this._currentBattle.player.hp,
+        this._currentBattle.player.maxHp,
+        this._currentBattle.player.status,
+        this._currentBattle.player.battleLv,
+        this._currentBattle.player.type
+      );
+
+      // secondAttack: 敌人的反击
+      const secondAttack = BattleConverter.ToAttackValue(
+        enemyAttackResult,
+        0,
+        this._currentBattle.enemy.hp,
+        this._currentBattle.enemy.maxHp,
+        this._currentBattle.enemy.status,
+        this._currentBattle.enemy.battleLv,
+        this._currentBattle.enemy.type
+      );
+
+      // 发送 NOTE_USE_SKILL (2505) - 让客户端知道敌人反击了
+      await this.Player.SendPacket(new PacketNoteUseSkill(firstAttack, secondAttack));
+
+      // 如果战斗结束（玩家被敌人打败），发送 FIGHT_OVER
+      if (this._currentBattle.player.hp <= 0) {
+        this._currentBattle.isOver = true;
+        await this.HandleFightOver(0, 0); // 敌人胜利
+      }
+      
+      Logger.Info(`[BattleManager] 捕获失败后敌人反击: 玩家HP=${this._currentBattle.player.hp}, 敌人HP=${this._currentBattle.enemy.hp}`);
     }
   }
 

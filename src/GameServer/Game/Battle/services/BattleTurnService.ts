@@ -1,9 +1,10 @@
 import { Logger } from '../../../../shared/utils';
-import { IBattleInfo, ITurnResult } from '../../../../shared/models/BattleModel';
+import { IBattleInfo, ITurnResult, IAttackResult } from '../../../../shared/models/BattleModel';
 import { ISkillConfig } from '../../../../shared/models/SkillModel';
 import { BattleTurnExecutor } from '../BattleTurnExecutor';
 import { BattleCaptureSystem, PokeBallType } from '../BattleCaptureSystem';
 import { BattleEscapeSystem } from '../BattleEscapeSystem';
+import { BattleCore } from '../BattleCore';
 import { GameConfig } from '../../../../shared/config/game/GameConfig';
 
 /**
@@ -71,6 +72,141 @@ export class BattleTurnService {
 
     // 使用 BattleTurnExecutor 执行回合
     return BattleTurnExecutor.ExecuteTurn(battle, playerSkillId, skillConfigs);
+  }
+
+  /**
+   * 执行敌人回合（玩家使用道具/捕捉失败后，只有敌人攻击）
+   * 用于捕捉失败、使用道具等场景
+   */
+  public ExecuteEnemyTurn(battle: IBattleInfo): IAttackResult {
+    Logger.Info(`[BattleTurnService] 敌人回合: 玩家使用道具，敌人反击`);
+
+    // 增加回合数
+    battle.turn++;
+
+    // 获取技能配置
+    const skillConfigs = new Map<number, ISkillConfig>();
+    
+    // 加载敌人技能
+    for (const skillId of battle.enemy.skills) {
+      const skillMove = GameConfig.GetSkillById(skillId);
+      if (skillMove) {
+        const skillConfig: ISkillConfig = {
+          id: skillMove.ID,
+          name: skillMove.Name,
+          category: skillMove.Category,
+          type: skillMove.Type,
+          power: skillMove.Power,
+          maxPP: skillMove.MaxPP,
+          accuracy: skillMove.Accuracy,
+          critRate: skillMove.CritRate || 1,
+          priority: skillMove.Priority || 0,
+          mustHit: skillMove.MustHit === 1
+        };
+        skillConfigs.set(skillId, skillConfig);
+      }
+    }
+
+    // AI选择技能
+    const enemySkillId = BattleCore.AISelectSkill(
+      battle.enemy,
+      battle.player,
+      battle.enemy.skills,
+      skillConfigs
+    );
+    const enemySkill = skillConfigs.get(enemySkillId);
+
+    if (!enemySkill) {
+      Logger.Warn(`[BattleTurnService] 敌人技能未找到: ${enemySkillId}`);
+      const enemyStatusArray = new Array(20).fill(0);
+      if (battle.enemy.status !== undefined) {
+        enemyStatusArray[battle.enemy.status] = 1;
+      }
+      return {
+        userId: 0,
+        skillId: 0,
+        atkTimes: 0,
+        damage: 0,
+        gainHp: 0,
+        attackerRemainHp: battle.enemy.hp,
+        attackerMaxHp: battle.enemy.maxHp,
+        missed: false,
+        blocked: false,
+        isCrit: false,
+        attackerStatus: enemyStatusArray,
+        attackerBattleLv: battle.enemy.battleLv || []
+      };
+    }
+
+    Logger.Debug(`[BattleTurnService] 敌人使用技能: ${enemySkill.name} (ID=${enemySkill.id})`);
+
+    // 检查敌人是否可以行动
+    const enemyCanAct = BattleCore.CanAct(battle.enemy);
+    if (!enemyCanAct) {
+      Logger.Info(`[BattleTurnService] 敌人无法行动（异常状态）`);
+      const enemyStatusArray = new Array(20).fill(0);
+      if (battle.enemy.status !== undefined) {
+        enemyStatusArray[battle.enemy.status] = 1;
+      }
+      return {
+        userId: 0,
+        skillId: enemySkillId,
+        atkTimes: 0,
+        damage: 0,
+        gainHp: 0,
+        attackerRemainHp: battle.enemy.hp,
+        attackerMaxHp: battle.enemy.maxHp,
+        missed: false,
+        blocked: false,
+        isCrit: false,
+        attackerStatus: enemyStatusArray,
+        attackerBattleLv: battle.enemy.battleLv || []
+      };
+    }
+
+    // 命中判定
+    const hit = BattleCore.CheckHit(battle.enemy, battle.player, enemySkill);
+    
+    // 暴击判定（敌人总是后手，所以 isFirst=false）
+    const isCrit = hit && BattleCore.CheckCrit(battle.enemy, battle.player, enemySkill, false);
+
+    // 计算伤害
+    const damageResult = BattleCore.CalculateDamage(
+      battle.enemy,
+      battle.player,
+      enemySkill,
+      isCrit
+    );
+
+    // 应用伤害
+    const actualDamage = hit ? damageResult.damage : 0;
+    battle.player.hp = Math.max(0, battle.player.hp - actualDamage);
+
+    Logger.Info(
+      `[BattleTurnService] 敌人攻击结果: 技能=${enemySkill.name}, 伤害=${actualDamage}, ` +
+      `暴击=${isCrit}, 命中=${hit}, 玩家剩余HP=${battle.player.hp}`
+    );
+
+    // 构建完整的IAttackResult
+    const enemyStatusArray = new Array(20).fill(0);
+    if (battle.enemy.status !== undefined) {
+      enemyStatusArray[battle.enemy.status] = 1;
+    }
+    
+    return {
+      userId: 0,
+      skillId: enemySkillId,
+      atkTimes: 1,
+      damage: actualDamage,
+      gainHp: 0,
+      attackerRemainHp: battle.enemy.hp,
+      attackerMaxHp: battle.enemy.maxHp,
+      missed: !hit,
+      blocked: false,
+      isCrit: isCrit,
+      attackerStatus: enemyStatusArray,
+      attackerBattleLv: battle.enemy.battleLv || []
+    };
   }
 
   /**

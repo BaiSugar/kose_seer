@@ -1,30 +1,21 @@
 {
   "services": {
-    "gateway": {
-      "enabled": true,
-      "loginPort": 9999,
-      "gamePort": 27777,
-      "rpcPort": 50000,
-      "host": "0.0.0.0",
-      "comment": "网关服务 - 客户端连接入口"
-    },
-    "regist": {
-      "enabled": true,
-      "rpcPort": 50001,
-      "host": "localhost",
-      "comment": "注册服务 - 处理账号注册"
-    },
     "game": {
       "enabled": true,
-      "rpcPort": 50002,
-      "host": "localhost",
-      "comment": "游戏服务 - 处理游戏逻辑"
+      "port": 9999,
+      "host": "0.0.0.0"
+    },
+    "regist": {
+      "enabled": true
     },
     "email": {
+      "enabled": true
+    },
+    "gm": {
       "enabled": true,
-      "rpcPort": 50003,
-      "host": "localhost",
-      "comment": "邮件服务 - 处理游戏内邮件（预留）"
+      "port": 3002,
+      "host": "0.0.0.0",
+      "localMode": true
     },
     "proxy": {
       "enabled": false,
@@ -38,42 +29,31 @@
       "gameServer": {
         "host": "115.238.192.7",
         "port": 27777
-      },
-      "comment": "代理服务 - 用于调试和抓包分析"
+      }
     }
   },
   "database": {
     "type": "sqlite",
     "path": "data/seer.db",
-    "host": "localhost",
-    "port": 3306,
-    "username": "root",
-    "password": "",
-    "database": "seer_db",
     "options": {
       "verbose": false
-    },
-    "comment": "数据库配置 - type: sqlite使用path; mysql使用host/port/username/password/database"
+    }
   },
   "redis": {
     "enabled": false,
     "host": "localhost",
     "port": 6379,
     "password": "",
-    "db": 0,
-    "comment": "Redis配置 - 用于缓存和会话管理（可选，未实现）"
+    "db": 0
   },
   "logging": {
-    "level": "info",
+    "level": "debug",
     "directory": "logs",
-    "maxFiles": 30,
-    "comment": "日志配置 - level可选: debug/info/warn/error"
+    "maxFiles": 30
   },
   "security": {
     "sessionTimeout": 3600,
     "maxLoginAttempts": 5,
-    "lockoutDuration": 300,
-    "comment": "安全配置 - 会话超时、登录尝试限制等"
-  },
-  "_comment": "这是默认配置文件，复制为 server.json 后修改使用"
+    "lockoutDuration": 300
+  }
 }

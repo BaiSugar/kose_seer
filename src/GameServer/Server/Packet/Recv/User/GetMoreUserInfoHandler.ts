@@ -32,10 +32,22 @@ export class GetMoreUserInfoHandler implements IHandler {
         targetPlayerData = await DatabaseHelper.Instance.GetInstanceOrCreateNew_PlayerData(req.userId);
       }
 
+      // 实时更新精灵统计信息（从数据库加载）
+      const petData = await DatabaseHelper.Instance.GetInstanceOrCreateNew_PetData(req.userId);
+      if (petData) {
+        targetPlayerData.petAllNum = petData.PetList.length;
+        if (petData.PetList.length > 0) {
+          targetPlayerData.petMaxLev = Math.max(...petData.PetList.map(p => p.level));
+        } else {
+          targetPlayerData.petMaxLev = 0;
+        }
+        Logger.Debug(`[GetMoreUserInfoHandler] 更新精灵统计: UserId=${req.userId}, petAllNum=${targetPlayerData.petAllNum}, petMaxLev=${targetPlayerData.petMaxLev}`);
+      }
+
       // 发送响应
       await player.SendPacket(new PacketGetMoreUserInfo(targetPlayerData));
       
-      Logger.Info(`[GetMoreUserInfoHandler] 发送用户信息: TargetUserId=${req.userId}, Nick=${targetPlayerData.nick}`);
+      Logger.Info(`[GetMoreUserInfoHandler] 发送用户信息: TargetUserId=${req.userId}, Nick=${targetPlayerData.nick}, Pets=${targetPlayerData.petAllNum}`);
       
     } catch (error) {
       Logger.Error(`[GetMoreUserInfoHandler] 查询用户信息失败: TargetUserId=${req.userId}`, error as Error);
