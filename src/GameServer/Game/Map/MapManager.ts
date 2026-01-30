@@ -18,6 +18,7 @@ import {
   PacketEnterMap,
   PacketLeaveMap,
   PacketMapOgreList,
+  PacketMapBoss,
   PacketChangeNickName,
   PacketChangeColor,
   PacketOnOrOffFlying
@@ -83,6 +84,9 @@ export class MapManager extends BaseManager {
     // 主动推送 MAP_OGRE_LIST (地图野怪列表)
     await this.sendMapOgreList(mapId);
     
+    // 主动推送 MAP_BOSS (地图BOSS列表)
+    await this.sendMapBossList(mapId);
+    
     Logger.Info(`[MapManager] ========== 进入地图完成 ==========`);
   }
 
@@ -124,6 +128,22 @@ export class MapManager extends BaseManager {
     const ogres = MapSpawnManager.Instance.GetMapOgres(this.UserID, mapId);
 
     await this.Player.SendPacket(new PacketMapOgreList(ogres));
+  }
+
+  /**
+   * 推送地图BOSS列表（只在有BOSS时推送）
+   * @param mapId 地图ID
+   */
+  private async sendMapBossList(mapId: number): Promise<void> {
+    const bosses = MapSpawnManager.Instance.GetMapBosses(this.UserID, mapId);
+    
+    // 只在有BOSS时才推送
+    if (bosses.length > 0) {
+      await this.Player.SendPacket(new PacketMapBoss(bosses));
+      Logger.Info(`[MapManager] 推送BOSS列表: mapId=${mapId}, count=${bosses.length}`);
+    } else {
+      Logger.Debug(`[MapManager] 地图无BOSS，跳过推送: mapId=${mapId}`);
+    }
   }
 
   /**
@@ -304,12 +324,13 @@ export class MapManager extends BaseManager {
       
       const activeOgres = ogres.filter(o => o.petId > 0);
       
-      if (activeOgres.length == 0) {
-        Logger.Warn(`[MapManager] ⚠️  没有生成野怪！可能原因：配置不存在、时间条件不满足`);
+      // 只在有野怪时才推送
+      if (activeOgres.length > 0) {
+        await this.Player.SendPacket(new PacketMapOgreList(ogres));
+        Logger.Info(`[MapManager] 推送野怪列表: mapId=${mapId}, count=${activeOgres.length}`);
+      } else {
+        Logger.Debug(`[MapManager] 地图无野怪，跳过推送: mapId=${mapId}`);
       }
-      
-      // 发送响应
-      await this.Player.SendPacket(new PacketMapOgreList(ogres));
       
     } catch (error) {
       Logger.Error(`[MapManager] ❌ 发送野怪列表失败`, error as Error);

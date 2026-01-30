@@ -6,3 +6,5 @@ export * from './PacketPetCure';
 export * from './PacketPetDefault';
 export * from './PacketPetGetExp';
 export * from './PacketPetSetExp';
+export * from './PacketStudySkill';
+export * from './PacketSkillSwitch';

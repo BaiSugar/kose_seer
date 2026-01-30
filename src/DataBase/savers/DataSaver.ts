@@ -37,7 +37,7 @@ export class DataSaver {
       const uid = config.getUid(data);
 
       // 调试日志
-      Logger.Debug(`[DataSaver] 准备保存 ${type}Data: uid=${uid}, row=${JSON.stringify(row)}`);
+      //Logger.Debug(`[DataSaver] 准备保存 ${type}Data: uid=${uid}, row=${JSON.stringify(row)}`);
 
       // 检查 uid 是否有效
       if (!uid || uid === 0) {
@@ -51,7 +51,7 @@ export class DataSaver {
         [uid]
       );
 
-      Logger.Debug(`[DataSaver] 检查结果: ${type}Data, uid=${uid}, exists=${exists.length > 0}`);
+      //Logger.Debug(`[DataSaver] 检查结果: ${type}Data, uid=${uid}, exists=${exists.length > 0}`);
 
       if (exists.length > 0) {
         // 更新
@@ -61,11 +61,11 @@ export class DataSaver {
           values.push(uid);
 
           const sql = `UPDATE ${config.tableName} SET ${setClause} WHERE owner_id = ?`;
-          Logger.Debug(`[DataSaver] 执行 UPDATE: ${sql}`);
-          Logger.Debug(`[DataSaver] 参数: ${JSON.stringify(values.map((v, i) => i === values.length - 1 ? v : (typeof v === 'string' && v.length > 100 ? v.substring(0, 100) + '...' : v)))}`);
+         // Logger.Debug(`[DataSaver] 执行 UPDATE: ${sql}`);
+         // Logger.Debug(`[DataSaver] 参数: ${JSON.stringify(values.map((v, i) => i === values.length - 1 ? v : (typeof v === 'string' && v.length > 100 ? v.substring(0, 100) + '...' : v)))}`);
 
           const result = await DatabaseManager.Instance.Execute(sql, values);
-          Logger.Debug(`[DataSaver] UPDATE 结果: ${JSON.stringify(result)}`);
+          //Logger.Debug(`[DataSaver] UPDATE 结果: ${JSON.stringify(result)}`);
         }
       } else {
         // 插入
@@ -81,7 +81,7 @@ export class DataSaver {
         }
       }
 
-      Logger.Debug(`[DataSaver] ${type}Data 已保存: uid=${uid}`);
+      //Logger.Debug(`[DataSaver] ${type}Data 已保存: uid=${uid}`);
     } catch (error) {
       Logger.Error(`[DataSaver] 保存 ${type}Data 失败`, error as Error);
     }
@@ -96,7 +96,7 @@ export class DataSaver {
     const uids = Array.from(DataSaver.ToSaveUidList);
     DataSaver.ToSaveUidList.clear();
 
-    Logger.Debug(`[DataSaver] 开始保存数据: ${uids.length} 个玩家`);
+   // Logger.Debug(`[DataSaver] 开始保存数据: ${uids.length} 个玩家`);
 
     const dataTypes = DataConfigRegistry.Instance.GetAllTypes();
     const cache = DataCache.Instance;

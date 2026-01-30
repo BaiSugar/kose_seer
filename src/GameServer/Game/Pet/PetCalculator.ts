@@ -196,6 +196,50 @@ export class PetCalculator {
   }
 
   /**
+   * 计算升到指定等级所需的经验
+   * 使用立方公式：level^3 * 成长系数
+   * 
+   * 成长类型：
+   * - 0: 快速成长 (0.8x)
+   * - 1: 中速成长 (1.0x)
+   * - 2: 慢速成长 (1.2x)
+   * - 3: 极慢成长 (1.5x)
+   * 
+   * @param level 目标等级
+   * @param petId 精灵ID（可选，用于获取成长类型）
+   * @returns 升到该等级所需的经验
+   */
+  public static CalculateExpForLevel(level: number, petId?: number): number {
+    let growthMultiplier = 1.0; // 默认中速成长
+    
+    if (petId) {
+      const petConfig = GameConfig.GetPetById(petId);
+      if (petConfig && petConfig.GrowthType !== undefined) {
+        const growthType = petConfig.GrowthType;
+        
+        switch (growthType) {
+          case 0:
+            growthMultiplier = 0.8; // 快速成长
+            break;
+          case 1:
+            growthMultiplier = 1.0; // 中速成长
+            break;
+          case 2:
+            growthMultiplier = 1.2; // 慢速成长
+            break;
+          case 3:
+            growthMultiplier = 1.5; // 极慢成长
+            break;
+          default:
+            growthMultiplier = 1.0; // 默认中速
+        }
+      }
+    }
+    
+    return Math.floor(level * level * level * growthMultiplier);
+  }
+
+  /**
    * 计算精灵的所有属性
    * 
    * @param petId 精灵种类ID

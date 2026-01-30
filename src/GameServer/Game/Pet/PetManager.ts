@@ -1,7 +1,15 @@
 import { BaseManager } from '../Base/BaseManager';
 import { Logger } from '../../../shared/utils';
 import { PlayerInstance } from '../Player/PlayerInstance';
-import { PacketGetPetList, PacketGetPetInfo, PacketPetRelease, PacketPetShow, PacketPetCure, PacketPetDefault } from '../../Server/Packet/Send/Pet';
+import { 
+  PacketGetPetList, 
+  PacketGetPetInfo, 
+  PacketPetRelease, 
+  PacketPetShow, 
+  PacketPetCure, 
+  PacketPetDefault, 
+  PacketStudySkill, 
+  PacketSkillSwitch } from '../../Server/Packet/Send/Pet';
 import { PacketEmpty } from '../../Server/Packet/Send/PacketEmpty';
 import { CommandID } from '../../../shared/protocol/CommandID';
 import { IPetInfo, createDefaultPetInfo } from '../../../shared/models/PetModel';
@@ -16,6 +24,7 @@ import { PacketNoteUpdateSkill } from '../../Server/Packet/Send/Pet/PacketNoteUp
 import { IUpdatePropInfo } from '../../../shared/proto/packets/rsp/pet/NoteUpdatePropRspProto';
 import { IUpdateSkillInfo } from '../../../shared/proto/packets/rsp/pet/NoteUpdateSkillRspProto';
 import { SptSystem } from './SptSystem';
+import { PetCalculator } from './PetCalculator';
 
 /**
  * 精灵管理器
@@ -40,6 +49,28 @@ export class PetManager extends BaseManager {
     this.PetData = await DatabaseHelper.Instance.GetInstanceOrCreateNew_PetData(this.UserID);
     Logger.Debug(`[PetManager] 初始化完�? UserID=${this.UserID}, Pets=${this.PetData.PetList.length}`);
   }
+
+
+  /**
+   * 获取精灵缺失的技能（应该学会但还没学会的）
+   * @param pet 精灵信息
+   * @returns 缺失的技能ID列表
+   */
+  private GetMissingSkills(pet: IPetInfo): number[] {
+    // 获取当前等级应该学会的所有技能
+    const shouldHaveSkills = SptSystem.GetLearnableMovesByLevel(pet.petId, pet.level);
+    
+    // 过滤出还没学会的技能
+    const missingSkills: number[] = [];
+    for (const skill of shouldHaveSkills) {
+      if (!pet.skillArray.includes(skill.id)) {
+        missingSkills.push(skill.id);
+      }
+    }
+    
+    return missingSkills;
+  }
+
 
   /**
    * 处理获取精灵列表
@@ -221,8 +252,8 @@ export class PetManager extends BaseManager {
     if (!pet) return false;
     
     pet.exp += expAmount;
-    const newSkills = this.checkLevelUp(pet);
-    const levelUp = newSkills.length > 0 || pet.level > pet.level; // 简化判断
+    const result = this.checkLevelUp(pet);
+    const levelUp = result.newSkills.length > 0 || result.evolved;
     
     // 自动触发保存（通过深度 Proxy）
     Logger.Info(`[PetManager] 精灵获得经验: PetId=${petId}, Exp=${expAmount}, LevelUp=${levelUp}, NewLevel=${pet.level}`);
@@ -242,7 +273,7 @@ export class PetManager extends BaseManager {
     
     const oldLevel = pet.level;
     pet.exp += expAmount;
-    const newSkills = this.checkLevelUp(pet);
+    const result = this.checkLevelUp(pet);
     const levelUp = pet.level > oldLevel;
     
     // 自动触发保存（通过深度 Proxy）
@@ -253,15 +284,16 @@ export class PetManager extends BaseManager {
 
   /**
    * 检查并处理升级（包括自动进化）
-   * @returns 新学会的技能ID列表
+   * @returns { newSkills: 新学会的技能ID列表, evolved: 是否进化 }
    */
-  private checkLevelUp(pet: IPetInfo): number[] {
+  private checkLevelUp(pet: IPetInfo): { newSkills: number[]; evolved: boolean } {
     const newSkills: number[] = [];
+    let evolved = false;
     
     // pet.exp 是当前等级内的经验
-    while (pet.exp >= this.calculateLvExp(pet.level + 1) && pet.level < 100) {
+    while (pet.exp >= PetCalculator.CalculateExpForLevel(pet.level + 1, pet.petId) && pet.level < 100) {
       // 扣除升级所需经验
-      const requiredExp = this.calculateLvExp(pet.level + 1);
+      const requiredExp = PetCalculator.CalculateExpForLevel(pet.level + 1, pet.petId);
       pet.exp -= requiredExp;
       
       // 升级
@@ -274,10 +306,13 @@ export class PetManager extends BaseManager {
       const evolvesTo = SptSystem.GetEvolvesTo(pet.petId);
       const evolvingLevel = SptSystem.GetEvolvingLevel(pet.petId);
       
+      Logger.Debug(`[PetManager] 检查进化: PetId=${pet.petId}, Level=${pet.level}, EvolvesTo=${evolvesTo}, EvolvingLevel=${evolvingLevel}`);
+      
       if (evolvesTo > 0 && pet.level >= evolvingLevel) {
         const oldPetId = pet.petId;
         pet.petId = evolvesTo;
         this.recalculateStats(pet);
+        evolved = true;
         Logger.Info(`[PetManager] 精灵自动进化: OldPetId=${oldPetId}, NewPetId=${evolvesTo}, Level=${pet.level}`);
       }
       
@@ -289,7 +324,7 @@ export class PetManager extends BaseManager {
       }
     }
     
-    return newSkills;
+    return { newSkills, evolved };
   }
 
   /**
@@ -400,8 +435,8 @@ export class PetManager extends BaseManager {
     proto.nature = pet.nature;
     proto.level = pet.level;
     proto.exp = pet.exp;
-    proto.lvExp = this.calculateLvExp(pet.level);
-    proto.nextLvExp = this.calculateLvExp(pet.level + 1);
+    proto.lvExp = 0; // 当前等级的基础经验（总是0，因为pet.exp存储的是当前等级内的经验）
+    proto.nextLvExp = PetCalculator.CalculateExpForLevel(pet.level + 1, pet.petId); // 升到下一级所需的经验
     
     proto.hp = pet.hp;
     proto.maxHp = pet.maxHp;
@@ -444,9 +479,9 @@ export class PetManager extends BaseManager {
       catchTime: pet.catchTime,
       id: pet.petId,
       level: pet.level,
-      exp: pet.exp,  // pet.exp 已经是当前等级内的经验
-      currentLvExp: this.calculateLvExp(pet.level),  // 当前等级升级所需经验
-      nextLvExp: this.calculateLvExp(pet.level + 1),  // 下一级升级所需经验
+      exp: pet.exp, // 当前等级已获得的经验
+      currentLvExp: 0, // 当前等级的基础经验（总是0）
+      nextLvExp: PetCalculator.CalculateExpForLevel(pet.level + 1, pet.petId), // 升到下一级所需的经验
       maxHp: pet.maxHp,
       attack: pet.atk,
       defence: pet.def,
@@ -468,20 +503,42 @@ export class PetManager extends BaseManager {
    * 发送 NOTE_UPDATE_SKILL 推送（触发技能学习界面）
    * @param pet 精灵信息
    * @param newSkills 新学会的技能ID列表
-   * @param reason 学会原因 (1=战斗, 2=升级, 3=技能机, 4=遗传)
    */
-  private async sendNoteUpdateSkill(pet: IPetInfo, newSkills: number[], reason: number = 2): Promise<void> {
+  private async sendNoteUpdateSkill(pet: IPetInfo, newSkills: number[]): Promise<void> {
     if (newSkills.length === 0) {
       return;
     }
 
-    // 合并已有技能和新学会的技能
-    const allSkills = [...pet.skillArray, ...newSkills];
+    // 区分 activeSkills 和 unactiveSkills
+    const activeSkills: number[] = [];
+    const unactiveSkills: number[] = [];
+
+    // 如果技能槽未满（< 4），新技能是 activeSkills（直接学习）
+    if (pet.skillArray.length < 4) {
+      // 自动添加到技能槽（会触发自动保存）
+      for (const skillId of newSkills) {
+        if (pet.skillArray.length < 4) {
+          pet.skillArray.push(skillId);
+          activeSkills.push(skillId);
+          Logger.Info(`[PetManager] 自动学习技能: PetId=${pet.petId}, SkillId=${skillId}`);
+        } else {
+          // 技能槽已满，剩余技能需要替换
+          unactiveSkills.push(skillId);
+        }
+      }
+      
+      // 触发保存：重新赋值数组以触发 Proxy
+      // 注意：push() 操作会触发 Proxy，但为了保险起见，重新赋值确保保存
+      pet.skillArray = [...pet.skillArray];
+    } else {
+      // 如果技能槽已满（= 4），新技能是 unactiveSkills（需要替换）
+      unactiveSkills.push(...newSkills);
+    }
 
     const updateInfos: IUpdateSkillInfo[] = [{
       catchTime: pet.catchTime,
-      reason: reason,
-      skills: allSkills
+      activeSkills: activeSkills,
+      unactiveSkills: unactiveSkills
     }];
 
     await this.Player.SendPacket(new PacketNoteUpdateSkill(updateInfos));
@@ -521,7 +578,7 @@ export class PetManager extends BaseManager {
       // 3. 验证可分配经验足够
       if (this.Player.Data.allocatableExp < expAmount) {
         Logger.Warn(`[PetManager] 可分配经验不足: UserID=${this.UserID}, Need=${expAmount}, Have=${this.Player.Data.allocatableExp}`);
-        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SET_EXP).setResult(5004));
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SET_EXP).setResult(10016));
         return;
       }
 
@@ -538,32 +595,27 @@ export class PetManager extends BaseManager {
       // 6. 增加精灵经验并检查升级
       const oldLevel = pet.level;
       pet.exp += expAmount;
-      const newSkills = this.checkLevelUp(pet);
+      const result = this.checkLevelUp(pet);
       const newLevel = pet.level;
 
       // 7. 自动触发保存（通过深度 Proxy）
 
       Logger.Info(`[PetManager] 分配经验后: UserID=${this.UserID}, PetId=${pet.petId}, Level=${newLevel}, Exp=${pet.exp}, AllocExp=${this.Player.Data.allocatableExp}`);
 
-      // 8. 推送 NOTE_UPDATE_PROP (2508) 触发经验获得弹窗
+      // 8. 推送 NOTE_UPDATE_PROP (2508) 触发经验获得弹窗（和进化动画）
       await this.sendNoteUpdateProp([pet], 0);
-      Logger.Info(`[PetManager] 推送 NOTE_UPDATE_PROP: PetId=${pet.petId}, OldLevel=${oldLevel}, NewLevel=${newLevel}`);
+      Logger.Info(`[PetManager] 推送 NOTE_UPDATE_PROP: PetId=${pet.petId}, OldLevel=${oldLevel}, NewLevel=${newLevel}, Evolved=${result.evolved}`);
 
       // 9. 如果学会了新技能，推送 NOTE_UPDATE_SKILL (2507)
-      if (newSkills.length > 0) {
-        await this.sendNoteUpdateSkill(pet, newSkills, 2);
-        Logger.Info(`[PetManager] 推送 NOTE_UPDATE_SKILL: PetId=${pet.petId}, NewSkills=[${newSkills.join(', ')}]`);
+      if (result.newSkills.length > 0) {
+        await this.sendNoteUpdateSkill(pet, result.newSkills);
+        Logger.Info(`[PetManager] 推送 NOTE_UPDATE_SKILL: PetId=${pet.petId}, NewSkills=[${result.newSkills.join(', ')}]`);
       }
 
       // 10. 发送成功响应（只返回经验池剩余经验，4字节）
-      // 注意：Lua 端只返回 4 字节，客户端期望这个格式
+      // 注意：根据抓包分析，响应必须在推送之后发送
       await this.Player.SendPacket(new PacketPetSetExp(this.Player.Data.allocatableExp));
-
-      Logger.Info(`[PetManager] 分配经验成功，发送响应: RemainingAllocExp=${this.Player.Data.allocatableExp}`);
-
-      // 11. 推送精灵列表更新（让客户端刷新精灵信息）
-      await this.HandleGetPetList();
-      Logger.Info(`[PetManager] 推送精灵列表更新`);
+      Logger.Info(`[PetManager] 发送 PET_SET_EXP 响应: RemainingAllocExp=${this.Player.Data.allocatableExp}`);
     } catch (error) {
       Logger.Error(`[PetManager] HandlePetSetExp failed`, error as Error);
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SET_EXP).setResult(5000));
@@ -610,21 +662,31 @@ export class PetManager extends BaseManager {
       // 5. 重新计算属性（进化后种族值可能改变）
       this.recalculateStats(pet);
 
-      // 6. 自动触发保存（通过深度 Proxy）
+      // 6. 检查进化后是否学会新技能
+      const newSkills: number[] = [];
+      const learnedMoves = SptSystem.GetNewMovesOnLevelUp(pet.petId, pet.level);
+      for (const move of learnedMoves) {
+        newSkills.push(move.id);
+        Logger.Info(`[PetManager] 进化后学会新技能: PetId=${pet.petId}, Level=${pet.level}, SkillId=${move.id}`);
+      }
 
-      Logger.Info(`[PetManager] 精灵进化成功: UserID=${this.UserID}, OldPetId=${oldPetId}, NewPetId=${evolvesTo}, Level=${pet.level}`);
+      // 7. 自动触发保存（通过深度 Proxy）
 
-      // 7. 发送成功响应
+      Logger.Info(`[PetManager] 精灵进化成功: UserID=${this.UserID}, OldPetId=${oldPetId}, NewPetId=${evolvesTo}, Level=${pet.level}, NewSkills=${newSkills.length}`);
+
+      // 8. 发送成功响应
       await this.Player.SendPacket(new PacketPetEvolution(0));
 
-      // 8. 推送 NOTE_UPDATE_PROP (2508) 触发进化动画和弹窗
+      // 9. 推送 NOTE_UPDATE_PROP (2508) 触发进化动画和弹窗
       // 注意：客户端 EvolvePetPanel 监听此消息来播放进化动画
       await this.sendNoteUpdateProp([pet], 0);
       Logger.Info(`[PetManager] 推送 NOTE_UPDATE_PROP: OldPetId=${oldPetId}, NewPetId=${evolvesTo}`);
 
-      // 9. 推送精灵列表更新（让客户端刷新精灵信息）
-      await this.HandleGetPetList();
-      Logger.Info(`[PetManager] 推送精灵列表更新`);
+      // 10. 如果进化后学会了新技能，推送 NOTE_UPDATE_SKILL (2507)
+      if (newSkills.length > 0) {
+        await this.sendNoteUpdateSkill(pet, newSkills);
+        Logger.Info(`[PetManager] 推送 NOTE_UPDATE_SKILL: PetId=${pet.petId}, NewSkills=[${newSkills.join(', ')}]`);
+      }
     } catch (error) {
       Logger.Error(`[PetManager] HandlePetEvolution failed`, error as Error);
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_EVOLVTION).setResult(5000));
@@ -632,9 +694,116 @@ export class PetManager extends BaseManager {
   }
 
   /**
-   * 计算等级经验（升到下一级所需经验）
+   * 处理精灵学习技能（替换技能）
+   * @param catchTime 精灵捕获时间
+   * @param skillId 要学习的技能ID
+   * @param slotIndex 要替换的技能槽位置 (0-3)
    */
-  private calculateLvExp(level: number): number {
-    return level * 100;
+  public async HandleStudySkill(catchTime: number, skillId: number, slotIndex: number): Promise<void> {
+    try {
+      // 1. 验证精灵存在
+      const pet = this.PetData.GetPetByCatchTime(catchTime);
+      if (!pet) {
+        Logger.Warn(`[PetManager] 精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_STUDY_SKILL).setResult(5001));
+        return;
+      }
+
+      // 2. 验证技能槽位置有效 (0-3)
+      if (slotIndex < 0 || slotIndex > 3) {
+        Logger.Warn(`[PetManager] 技能槽位置无效: UserID=${this.UserID}, SlotIndex=${slotIndex}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_STUDY_SKILL).setResult(5001));
+        return;
+      }
+
+      // 3. 验证技能ID有效
+      if (skillId <= 0) {
+        Logger.Warn(`[PetManager] 技能ID无效: UserID=${this.UserID}, SkillId=${skillId}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_STUDY_SKILL).setResult(5001));
+        return;
+      }
+
+      // 4. 检查精灵是否已经拥有该技能
+      if (pet.skillArray.includes(skillId)) {
+        Logger.Warn(`[PetManager] 精灵已拥有该技能: UserID=${this.UserID}, PetId=${pet.petId}, SkillId=${skillId}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_STUDY_SKILL).setResult(5002));
+        return;
+      }
+
+      // 5. 记录旧技能
+      const oldSkillId = pet.skillArray[slotIndex] || 0;
+
+      // 6. 替换技能
+      pet.skillArray[slotIndex] = skillId;
+      
+      // 7. 触发保存：重新赋值数组以触发 Proxy
+      // 注意：直接修改数组元素不会触发 BaseData 的 Proxy，需要重新赋值整个数组
+      pet.skillArray = [...pet.skillArray];
+
+      Logger.Info(
+        `[PetManager] 精灵学习技能成功: UserID=${this.UserID}, PetId=${pet.petId}, ` +
+        `SlotIndex=${slotIndex}, OldSkill=${oldSkillId}, NewSkill=${skillId}`
+      );
+
+      // 8. 发送成功响应
+      await this.Player.SendPacket(new PacketStudySkill());
+    } catch (error) {
+      Logger.Error(`[PetManager] HandleStudySkill failed`, error as Error);
+      await this.Player.SendPacket(new PacketEmpty(CommandID.PET_STUDY_SKILL).setResult(5000));
+    }
+  }
+
+  /**
+   * 处理精灵技能切换（交换技能槽位置）
+   * @param catchTime 精灵捕获时间
+   * @param slot1 技能槽1 (0-3)
+   * @param slot2 技能槽2 (0-3)
+   */
+  public async HandleSkillSwitch(catchTime: number, slot1: number, slot2: number): Promise<void> {
+    try {
+      // 1. 验证精灵存在
+      const pet = this.PetData.GetPetByCatchTime(catchTime);
+      if (!pet) {
+        Logger.Warn(`[PetManager] 精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SKILL_SWICTH).setResult(5001));
+        return;
+      }
+
+      // 2. 验证技能槽位置有效 (0-3)
+      if (slot1 < 0 || slot1 > 3 || slot2 < 0 || slot2 > 3) {
+        Logger.Warn(`[PetManager] 技能槽位置无效: UserID=${this.UserID}, Slot1=${slot1}, Slot2=${slot2}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SKILL_SWICTH).setResult(5001));
+        return;
+      }
+
+      // 3. 验证两个槽位不同
+      if (slot1 === slot2) {
+        Logger.Warn(`[PetManager] 技能槽位置相同: UserID=${this.UserID}, Slot=${slot1}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SKILL_SWICTH).setResult(5001));
+        return;
+      }
+
+      // 4. 记录旧技能
+      const skill1 = pet.skillArray[slot1] || 0;
+      const skill2 = pet.skillArray[slot2] || 0;
+
+      // 5. 交换技能
+      pet.skillArray[slot1] = skill2;
+      pet.skillArray[slot2] = skill1;
+
+      // 6. 触发保存：重新赋值数组以触发 Proxy
+      pet.skillArray = [...pet.skillArray];
+
+      Logger.Info(
+        `[PetManager] 精灵技能切换成功: UserID=${this.UserID}, PetId=${pet.petId}, ` +
+        `Slot1=${slot1}(${skill1}), Slot2=${slot2}(${skill2})`
+      );
+
+      // 7. 发送成功响应
+      await this.Player.SendPacket(new PacketSkillSwitch(pet.petId));
+    } catch (error) {
+      Logger.Error(`[PetManager] HandleSkillSwitch failed`, error as Error);
+      await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SKILL_SWICTH).setResult(5000));
+    }
   }
 }

@@ -179,47 +179,74 @@ export class MapSpawnManager {
       return [];
     }
 
-    // 过滤可刷新的野怪
+    // 1. 先处理BOSS（BOSS优先占位）
+    const bosses: ISpawnedOgre[] = [];
+    const bossSlots = new Set<number>(); // 记录BOSS占用的槽位
+    
+    for (const ogre of mapConfig.ogres) {
+      if (ogre.isBoss === true && ogre.petId > 0) {
+        const refreshConfig = ogre.refreshConfig;
+        if (refreshConfig.enabled) {
+          // BOSS固定槽位
+          bosses.push({
+            petId: ogre.petId,
+            shiny: ogre.shiny,
+            originalPetId: ogre.petId,
+            slot: ogre.slot,
+            spawnTime: Date.now(),
+            isVisible: true
+          });
+          bossSlots.add(ogre.slot);
+          Logger.Debug(`[MapSpawnManager] BOSS占用槽位: slot=${ogre.slot}, petId=${ogre.petId}`);
+        }
+      }
+    }
+
+    // 2. 过滤可刷新的普通野怪（排除BOSS）
     const availableOgres = mapConfig.ogres.filter((ogre: any) => {
       if (ogre.petId <= 0) return false;
+      if (ogre.isBoss === true) return false; // BOSS不参与普通野怪刷新
       const refreshConfig = ogre.refreshConfig;
       if (!refreshConfig.enabled) return false;
-      // 这里可以添加更多时间检查逻辑
       return true;
     });
 
     if (availableOgres.length === 0) {
       Logger.Debug(`[MapSpawnManager] 地图无可刷新野怪: mapId=${mapId}`);
-      return [];
+      return bosses; // 只返回BOSS
     }
 
-    // 确定刷新数量
+    // 3. 确定普通野怪刷新数量
     let spawnCount = mapConfig.spawnCount;
     if (mapConfig.randomCount) {
       spawnCount = Math.floor(
         Math.random() * (mapConfig.maxCount - mapConfig.minCount + 1) + mapConfig.minCount
       );
     }
-    // 限制最多9个槽位，但允许同一种野怪出现多次
-    spawnCount = Math.min(spawnCount, 9);
     
-    // 如果没有可用野怪，返回空列表
-    if (availableOgres.length === 0) {
-      Logger.Warn(`[MapSpawnManager] 地图无可用野怪: mapId=${mapId}`);
-      return [];
+    // 4. 计算可用槽位（排除BOSS占用的槽位）
+    const allSlots = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+    const availableSlots = allSlots.filter(slot => !bossSlots.has(slot));
+    
+    // 限制刷新数量不超过可用槽位
+    spawnCount = Math.min(spawnCount, availableSlots.length);
+    
+    if (spawnCount === 0) {
+      Logger.Debug(`[MapSpawnManager] 无可用槽位刷新野怪: mapId=${mapId}, BOSS占用=${bossSlots.size}`);
+      return bosses; // 只返回BOSS
     }
 
-    // 随机选择槽位（0-8）
-    const availableSlots = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+    // 5. 随机选择槽位（从可用槽位中选择）
     const selectedSlots: number[] = [];
+    const tempSlots = [...availableSlots];
     
     for (let i = 0; i < spawnCount; i++) {
-      const randomIndex = Math.floor(Math.random() * availableSlots.length);
-      selectedSlots.push(availableSlots[randomIndex]);
-      availableSlots.splice(randomIndex, 1);
+      const randomIndex = Math.floor(Math.random() * tempSlots.length);
+      selectedSlots.push(tempSlots[randomIndex]);
+      tempSlots.splice(randomIndex, 1);
     }
 
-    // 根据权重随机选择野怪（允许同一种野怪出现多次）
+    // 6. 根据权重随机选择野怪（允许同一种野怪出现多次）
     const spawnedOgres: ISpawnedOgre[] = [];
 
     for (let i = 0; i < spawnCount; i++) {
@@ -265,10 +292,12 @@ export class MapSpawnManager {
 
     Logger.Debug(
       `[MapSpawnManager] 生成野怪: mapId=${mapId}, ` +
-      `数量=${spawnCount}, 槽位=${selectedSlots.join(',')}`
+      `BOSS数量=${bosses.length}, 野怪数量=${spawnCount}, ` +
+      `BOSS槽位=${Array.from(bossSlots).join(',')}, 野怪槽位=${selectedSlots.join(',')}`
     );
 
-    return spawnedOgres;
+    // 7. 合并BOSS和普通野怪
+    return [...bosses, ...spawnedOgres];
   }
 
   /**
@@ -285,5 +314,61 @@ export class MapSpawnManager {
   public ClearAllStates(): void {
     this._playerStates.clear();
     Logger.Info(`[MapSpawnManager] 清除所有状态`);
+  }
+
+  /**
+   * 获取地图的BOSS列表
+   * @param userId 玩家ID
+   * @param mapId 地图ID
+   * @returns BOSS信息列表
+   */
+  public GetMapBosses(
+    userId: number,
+    mapId: number
+  ): Array<{ id: number; region: number; hp: number; pos: number }> {
+    const mapConfig = GameConfig.GetMapConfigById(mapId);
+    if (!mapConfig) {
+      return [];
+    }
+
+    const bosses: Array<{ id: number; region: number; hp: number; pos: number }> = [];
+
+    // 过滤出BOSS
+    for (const ogre of mapConfig.ogres) {
+      if (ogre.isBoss && ogre.petId > 0) {
+        // 获取BOSS的配置信息
+        const petConfig = GameConfig.GetPetById(ogre.petId);
+        const maxHp = petConfig ? (petConfig.HP || 100) : 100;
+        
+        bosses.push({
+          id: ogre.petId,
+          region: ogre.slot,
+          hp: maxHp,
+          pos: ogre.slot  // 位置使用槽位索引
+        });
+      }
+    }
+
+    Logger.Debug(`[MapSpawnManager] 获取BOSS列表: userId=${userId}, mapId=${mapId}, count=${bosses.length}`);
+    return bosses;
+  }
+
+  /**
+   * 移除BOSS（战斗结束后）
+   * @param userId 玩家ID
+   * @param region BOSS区域/槽位
+   * @returns 移除的BOSS信息（用于推送）
+   */
+  public RemoveBoss(
+    userId: number,
+    region: number
+  ): { id: number; region: number; hp: number; pos: number } | null {
+    // 返回移除标记（pos=200）
+    return {
+      id: 0,
+      region,
+      hp: 0,
+      pos: 200  // 200表示移除BOSS
+    };
   }
 }

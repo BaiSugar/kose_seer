@@ -305,14 +305,14 @@ export class PlayerData implements IPlayerInfo {
     return new Proxy(this, {
       set: (target, property: string, value) => {
         // 调试日志
-        Logger.Debug(`[PlayerData] Proxy set: ${property} = ${value}, 黑名单=${NO_SAVE_FIELDS.has(property)}`);
+       // Logger.Debug(`[PlayerData] Proxy set: ${property} = ${value}, 黑名单=${NO_SAVE_FIELDS.has(property)}`);
         
         // 设置新值
         (target as any)[property] = value;
 
         // 如果不在黑名单中，触发保存
         if (!NO_SAVE_FIELDS.has(property)) {
-          Logger.Debug(`[PlayerData] 触发自动保存: ${property}`);
+         // Logger.Debug(`[PlayerData] 触发自动保存: ${property}`);
           this.scheduleSave();
         }
 

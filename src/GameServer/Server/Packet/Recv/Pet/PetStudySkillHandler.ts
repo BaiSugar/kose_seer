@@ -5,7 +5,7 @@ import { CommandID } from '../../../../../shared/protocol/CommandID';
 import { PetStudySkillReqProto } from '../../../../../shared/proto/packets/req/pet/PetStudySkillReqProto';
 
 /**
- * [CMD: 2307] 精灵学习技能
+ * [CMD: 2307] 精灵学习技能（替换技能）
  */
 @Opcode(CommandID.PET_STUDY_SKILL, InjectType.NONE)
 export class PetStudySkillHandler implements IHandler {
@@ -14,7 +14,18 @@ export class PetStudySkillHandler implements IHandler {
     if (!player) return;
 
     const req = PetStudySkillReqProto.fromBuffer(body);
-    // TODO: Implement skill learning in PetManager
-    // await player.PetManager.LearnPetSkill(req.petId, req.skillId);
+    
+    // 找到要替换的技能在技能槽中的位置
+    const pet = player.PetManager.PetData.GetPetByCatchTime(req.catchTime);
+    if (!pet) {
+      return;
+    }
+    
+    const slotIndex = pet.skillArray.indexOf(req.dropSkillId);
+    if (slotIndex === -1) {
+      return;
+    }
+    
+    await player.PetManager.HandleStudySkill(req.catchTime, req.studySkillId, slotIndex);
   }
 }

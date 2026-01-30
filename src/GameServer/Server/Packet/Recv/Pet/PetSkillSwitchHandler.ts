@@ -14,7 +14,14 @@ export class PetSkillSwitchHandler implements IHandler {
     if (!player) return;
 
     const req = PetSkillSwitchReqProto.fromBuffer(body);
-    // TODO: Implement skill switching in PetManager
-    // await player.PetManager.SwitchPetSkill(req.petId, req.oldSkillId, req.newSkillId);
+    
+    // 注意：客户端发送的是 petId，但我们需要 catchTime
+    // 需要通过 petId 查找对应的精灵获取 catchTime
+    const pet = player.PetManager.PetData.GetPet(req.petId);
+    if (!pet) {
+      return;
+    }
+    
+    await player.PetManager.HandleSkillSwitch(pet.catchTime, req.slot1, req.slot2);
   }
 }

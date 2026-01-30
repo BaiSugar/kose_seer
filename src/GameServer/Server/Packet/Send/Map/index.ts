@@ -2,6 +2,7 @@ export * from './PacketEnterMap';
 export * from './PacketLeaveMap';
 export * from './PacketListMapPlayer';
 export * from './PacketMapOgreList';
+export * from './PacketMapBoss';
 export * from './PacketGetSimUserInfo';
 export * from './PacketGetMoreUserInfo';
 export * from './PacketChangeNickName';

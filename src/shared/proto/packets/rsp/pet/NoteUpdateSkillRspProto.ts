@@ -11,15 +11,16 @@ import { CommandID } from '../../../../protocol/CommandID';
  * 
  * UpdateSkillInfo 结构：
  * - catchTime: uint32
- * - reason: uint32 (学会原因: 1=战斗, 2=升级, 3=技能机, 4=遗传)
- * - skillCount: uint32 (技能数量)
- * - skills: uint32[] (技能ID列表，包括已有技能和新学会的技能)
+ * - activeSkillCount: uint32 (已激活技能数量，技能槽未满时直接学习)
+ * - unactiveSkillCount: uint32 (未激活技能数量，技能槽已满时需要替换)
+ * - activeSkills: uint32[] (已激活技能ID列表)
+ * - unactiveSkills: uint32[] (未激活技能ID列表)
  */
 
 export interface IUpdateSkillInfo {
   catchTime: number;
-  reason: number;      // 1=战斗, 2=升级, 3=技能机, 4=遗传
-  skills: number[];    // 技能ID列表
+  activeSkills: number[];   // 技能槽未满，直接学习的技能
+  unactiveSkills: number[]; // 技能槽已满，需要替换的技能
 }
 
 export class NoteUpdateSkillRspProto extends BaseProto {
@@ -32,10 +33,10 @@ export class NoteUpdateSkillRspProto extends BaseProto {
   public serialize(): Buffer {
     const petCount = this.pets.length;
     
-    // 计算总大小：4 (count) + sum(4 + 4 + 4 + 4*skillCount)
+    // 计算总大小：4 (count) + sum(4 + 4 + 4 + activeCount*4 + unactiveCount*4)
     let totalSize = 4;
     for (const pet of this.pets) {
-      totalSize += 4 + 4 + 4 + pet.skills.length * 4;
+      totalSize += 4 + 4 + 4 + pet.activeSkills.length * 4 + pet.unactiveSkills.length * 4;
     }
 
     const buffer = Buffer.alloc(totalSize);
@@ -51,16 +52,22 @@ export class NoteUpdateSkillRspProto extends BaseProto {
       buffer.writeUInt32BE(pet.catchTime, offset);
       offset += 4;
 
-      // reason (4 bytes)
-      buffer.writeUInt32BE(pet.reason, offset);
+      // activeSkillCount (4 bytes)
+      buffer.writeUInt32BE(pet.activeSkills.length, offset);
       offset += 4;
 
-      // skillCount (4 bytes)
-      buffer.writeUInt32BE(pet.skills.length, offset);
+      // unactiveSkillCount (4 bytes)
+      buffer.writeUInt32BE(pet.unactiveSkills.length, offset);
       offset += 4;
 
-      // skills array
-      for (const skillId of pet.skills) {
+      // activeSkills array
+      for (const skillId of pet.activeSkills) {
+        buffer.writeUInt32BE(skillId, offset);
+        offset += 4;
+      }
+
+      // unactiveSkills array
+      for (const skillId of pet.unactiveSkills) {
         buffer.writeUInt32BE(skillId, offset);
         offset += 4;
       }
