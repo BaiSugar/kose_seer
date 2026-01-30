@@ -151,8 +151,8 @@ export const SocialMetadata: ICommandMeta[] = [
 
   // ============ 心跳 ============
   {
-    cmdID: CommandID.NIEO_HEART,
-    name: 'NIEO_HEART',
+    cmdID: CommandID.HEART,
+    name: 'HEART',
     desc: '心跳包',
     request: [],
     response: []
