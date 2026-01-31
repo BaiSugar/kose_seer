@@ -2,6 +2,109 @@
 
 > 基于 TypeScript 的某童年游戏的怀旧服服务端赛尔号私服服务端，采用统一架构，所有功能集成在 GameServer 中
 
+## 🎮 Web 管理后台
+
+本项目提供了功能强大的 Web 管理后台，支持实时管理游戏服务器和玩家数据。
+
+### 主要功能
+
+#### 1. 玩家管理
+- 查看在线/离线玩家列表
+- 实时搜索和筛选玩家
+- 查看玩家详细信息（等级、金币、精灵等）
+- 编辑玩家属性（金币、经验、VIP等）
+- 踢出在线玩家
+- 封禁/解封玩家账号
+
+![玩家管理](image/玩家管理.png)
+![玩家管理详情](image/玩家管理1.png)
+
+#### 2. 精灵管理
+- 查看玩家的所有精灵
+- 添加精灵到玩家背包/仓库
+- 编辑精灵属性（等级、DV、EV、性格等）
+- 修改精灵技能
+- 治疗精灵
+- 删除精灵
+
+![添加精灵](image/添加精灵.png)
+![编辑精灵](image/编辑精灵.png)
+
+#### 3. 地图配置
+- 配置地图怪物刷新
+- 设置怪物等级范围
+- 调整捕捉率和经验倍率
+- 配置 BOSS 刷新
+- 实时热重载配置
+
+![地图配置](image/地图配置.png)
+![地图配置详情](image/地图配置1.png)
+![地图配置编辑](image/地图配置2.png)
+
+#### 4. 服务器管理
+- 查看服务器状态
+- 重启服务器
+- 查看在线人数
+- 系统日志查看
+
+![服务器管理](image/服务器管理.png)
+
+### 启动 Web 管理后台
+
+#### 开发模式
+
+```bash
+# 启动 GM 服务器（后端 API）
+npm run dev:gm
+
+# 启动 Web 前端（另一个终端）
+cd web
+npm install
+npm run dev
+```
+
+访问：`http://localhost:5173`
+
+#### 生产模式
+
+```bash
+# 构建 Web 前端
+cd web
+npm run build
+
+# 启动 GM 服务器（会自动提供静态文件）
+npm run start:gm
+```
+
+访问：`http://localhost:3001`
+
+### 技术栈
+
+**后端（GM Server）**
+- Express.js - Web 框架
+- TypeScript - 类型安全
+- 与 GameServer 共享数据库
+
+**前端（Web UI）**
+- Vue 3 - 渐进式框架
+- Element Plus - UI 组件库
+- TypeScript - 类型安全
+- Vite - 构建工具
+
+### API 端点
+
+- `GET /api/players` - 获取玩家列表
+- `GET /api/players/:uid` - 获取玩家详情
+- `POST /api/players/:uid/kick` - 踢出玩家
+- `POST /api/players/:uid/ban` - 封禁玩家
+- `GET /api/pets` - 获取精灵列表
+- `POST /api/pets/give` - 赠送精灵
+- `PUT /api/pets/:uid/:catchTime` - 编辑精灵
+- `GET /api/config/:type` - 获取配置
+- `POST /api/config/:type` - 保存配置
+
+完整 API 文档请参考：`docs/gm-server-guide.md`
+
 ## 🏗️ 架构特点
 
 本项目架构设计：
@@ -14,22 +117,12 @@
 - ✅ **统一服务器架构** - 所有功能集成在 GameServer 中
 - ✅ **多响应支持** - 一个请求可返回多个响应（主响应 + 额外推送）
 
----
-
 ## 📋 目录
 
 - [项目概述](#项目概述)
 - [已完成功能](#已完成功能)
-- [未完成/未移植功能](#未完成未移植功能)
-- [后续推出功能](#后续推出功能)
-- [目录结构](#目录结构)
-- [启动流程](#启动流程)
+- [目录结构](#启动流程)
 - [框架优点](#框架优点)
-- [开发规范](#开发规范)
-- [配置说明](#配置说明)
-- [快速开始](#快速开始)
-
----
 
 ## 项目概述
 
@@ -49,8 +142,6 @@ KOSE Server 是一个基于 TypeScript 开发的某童年游戏的怀旧服服�
 - 自动化协议处理
 - 类型安全的代码
 - 支持多响应（一个请求返回多个响应包）
-
----
 
 ## 已完成功能
 
@@ -141,48 +232,6 @@ KOSE Server 是一个基于 TypeScript 开发的某童年游戏的怀旧服服�
 - ✅ 协议验证工具
 - ✅ 文档生成工具
 
----
-
-## 未完成/未移植功能
-
-### 游戏功能
-
-#### 1. 社交系统
-
-- ⏳ 好友系统
-- ⏳ 组队系统
-- ⏳ 聊天系统
-- ⏳ 公会系统
-
-#### 2. 任务系统
-
-- ⏳ 主线任务
-- ⏳ 支线任务
-- ⏳ 每日任务
-- ⏳ 成就系统
-
-#### 3. 商城系统
-
-- ⏳ 商城购买
-- ⏳ VIP 系统
-- ⏳ 充值系统
-- ⏳ 礼包系统
-
-#### 4. PVP 系统
-
-- ⏳ 玩家对战
-- ⏳ 排位赛
-- ⏳ 竞技场
-- ⏳ 天梯系统
-
-#### 5. 高级功能
-
-- ⏳ NoNo 系统
-- ⏳ 基地系统
-- ⏳ 精灵融合
-- ⏳ 精灵刻印
-- ⏳ 超进化系统
-
 ### 技术功能
 
 #### 1. 性能优化
@@ -198,73 +247,6 @@ KOSE Server 是一个基于 TypeScript 开发的某童年游戏的怀旧服服�
 - ⏳ 性能监控
 - ⏳ 日志聚合
 - ⏳ 自动重启
-
----
-
-## 后续推出功能
-
-### 短期计划（1-2周）
-
-#### 1. 独立打包测试
-
-- 测试各服务独立运行
-- 优化打包配置
-- 编写部署文档
-
-#### 2. 健康检查
-
-- 添加服务健康检查接口
-- Gateway 监控后端服务状态
-- 自动重连机制
-
-#### 3. 完善文档
-
-- 部署文档
-- 运维文档
-- 故障排查文档
-
-### 中期计划
-
-#### 1. 负载均衡
-
-- 支持多个 GameServer 实例
-- Gateway 实现负载均衡策略
-- 会话粘性支持
-
-#### 2. 监控系统
-
-- 集成 Prometheus
-- 创建 Grafana 仪表板
-- 性能指标收集
-
-#### 3. 配置热重载
-
-- 监听配置文件变化
-- 动态更新配置
-- 无需重启服务
-
-### 长期计划
-
-#### 1. GM 后台系统
-
-- Web 管理界面
-- 玩家数据查询
-- 游戏数据修改
-- 权限管理
-
-#### 2. 服务发现
-
-- 引入 Consul/Etcd
-- 动态服务注册
-- 健康检查
-
-#### 3. 消息队列
-
-- 引入 RabbitMQ/Kafka
-- 异步处理
-- 削峰填谷
-
----
 
 ## 目录结构
 
@@ -462,9 +444,7 @@ ProxyServer
   ├─ 抓包分析
   ├─ Web GUI 查看 (localhost:9000)
   └─ 转发到内部 GameServer
-```
-
-↓ 处理注册/登录
+  ↓ 处理注册/登录
 ↓ 返回响应
 Gateway
 ↓ 转发响应
@@ -478,10 +458,7 @@ GameServer
 Gateway
 ↓ 转发响应
 客户端
-
 ```
-
----
 
 ## 框架优点
 
@@ -617,667 +594,13 @@ Gateway
 - 支持不同的端口配置
 - 支持不同的日志级别
 
----
-
-## 开发规范
-
-### 命名规范
-
-- **私有字段**: `_fieldName` (下划线前缀 + camelCase)
-- **公共属性**: `PropertyName` (PascalCase)
-- **方法**: `MethodName()` (PascalCase)
-- **局部变量**: `localVariable` (camelCase)
-- **类名**: `UserService` (PascalCase)
-- **接口**: `IUserConfig` (PascalCase + I前缀)
-- **常量**: `MAX_CONNECTIONS` (UPPER_SNAKE_CASE)
-
-### 代码组织
-
-**Handler 职责**
-
-- 接收客户端请求并解析协议
-- **必须使用 ReqProto 类解析请求，不能直接读取 Buffer**
-- 简单逻辑直接在 Handler 中完成
-- 复杂逻辑调用对应的 Manager 处理
-- 使用 `@Opcode` 装饰器自动注册
-
-**Packet 职责**
-
-- 封装响应数据并发送给客户端
-- **必须使用 RspProto 类序列化响应，不能直接操作 Buffer**
-- 在构造函数中创建 RspProto 实例并序列化
-- 提供简洁的构造函数接口
-
-**协议解析规范**
-
-```typescript
-// ✅ 正确：使用 ReqProto 解析请求
-@Opcode(CommandID.ITEM_BUY, InjectType.NONE)
-export class ItemBuyHandler implements IHandler {
-  public async Handle(
-    session: IClientSession,
-    head: HeadInfo,
-    body: Buffer,
-  ): Promise<void> {
-    const player = session.Player;
-    if (!player) return;
-
-    // 使用 ReqProto 解析
-    const req = new ItemBuyReqProto();
-    req.deserialize(body);
-
-    await player.ItemManager.HandleItemBuy(req.itemId, req.count);
-  }
-}
-
-// ❌ 错误：直接读取 Buffer
-@Opcode(CommandID.ITEM_BUY, InjectType.NONE)
-export class ItemBuyHandler implements IHandler {
-  public async Handle(
-    session: IClientSession,
-    head: HeadInfo,
-    body: Buffer,
-  ): Promise<void> {
-    const player = session.Player;
-    if (!player) return;
-
-    // ❌ 不要这样做！
-    const itemId = body.readUInt32BE(0);
-    const count = buffer.readUInt32BE(4);
-
-    await player.ItemManager.HandleItemBuy(itemId, count);
-  }
-}
-```
-
-**ReqProto 创建规范**
-
-- 所有请求必须先创建对应的 ReqProto 类
-- ReqProto 类放在 `src/shared/proto/packets/req/模块名/` 目录
-- 继承 `BaseProto` 并实现 `deserialize()` 方法
-- 提供类型安全的字段定义
-
-**ReqProto 示例**
-
-```typescript
-// src/shared/proto/packets/req/item/ItemBuyReqProto.ts
-import { BaseProto } from "../../../base/BaseProto";
-import { CommandID } from "../../../../protocol/CommandID";
-
-export class ItemBuyReqProto extends BaseProto {
-  public itemId: number = 0;
-  public count: number = 1;
-
-  constructor() {
-    super(CommandID.ITEM_BUY);
-  }
-
-  public deserialize(buffer: Buffer): void {
-    let offset = 0;
-    if (buffer.length >= 4) {
-      this.itemId = buffer.readUInt32BE(offset);
-      offset += 4;
-    }
-    if (buffer.length >= 8) {
-      this.count = buffer.readUInt32BE(offset);
-      offset += 4;
-    }
-  }
-
-  public serialize(): Buffer {
-    return Buffer.alloc(0);
-  }
-}
-```
-
-**RspProto 创建规范**
-
-- 所有响应必须先创建对应的 RspProto 类
-- RspProto 类放在 `src/shared/proto/packets/rsp/模块名/` 目录
-- 继承 `BaseProto` 并实现 `serialize()` 和 `deserialize()` 方法
-- 提供类型安全的字段定义和链式调用方法
-
-**RspProto 示例**
-
-```typescript
-// src/shared/proto/packets/rsp/item/ItemBuyRspProto.ts
-import { BaseProto } from "../../../base/BaseProto";
-import { CommandID } from "../../../../protocol/CommandID";
-
-export class ItemBuyRspProto extends BaseProto {
-  public coins: number = 0;
-  public itemId: number = 0;
-  public count: number = 0;
-
-  constructor() {
-    super(CommandID.ITEM_BUY);
-  }
-
-  public serialize(): Buffer {
-    const buffer = Buffer.alloc(12);
-    buffer.writeUInt32BE(this.coins, 0);
-    buffer.writeUInt32BE(this.itemId, 4);
-    buffer.writeUInt32BE(this.count, 8);
-    return buffer;
-  }
-
-  public deserialize(buffer: Buffer): void {
-    let offset = 0;
-    if (buffer.length >= 4) {
-      this.coins = buffer.readUInt32BE(offset);
-      offset += 4;
-    }
-    if (buffer.length >= 8) {
-      this.itemId = buffer.readUInt32BE(offset);
-      offset += 4;
-    }
-    if (buffer.length >= 12) {
-      this.count = buffer.readUInt32BE(offset);
-      offset += 4;
-    }
-  }
-
-  // 链式调用辅助方法
-  public setCoins(coins: number): this {
-    this.coins = coins;
-    return this;
-  }
-}
-```
-
-**Packet 创建规范**
-
-- Packet 类使用 RspProto 来序列化数据
-- Packet 类放在 `src/GameServer/Server/Packet/Send/模块名/` 目录
-- 继承 `BaseProto` 并在构造函数中创建 RspProto 实例
-- **不要在 Packet 中直接操作 Buffer，所有序列化逻辑在 RspProto 中完成**
-
-**Packet 示例**
-
-```typescript
-// ✅ 正确：使用 RspProto 序列化
-// src/GameServer/Server/Packet/Send/Item/PacketItemBuy.ts
-import { BaseProto } from "../../../../../shared/proto/base/BaseProto";
-import { CommandID } from "../../../../../shared/protocol/CommandID";
-import { ItemBuyRspProto } from "../../../../../shared/proto/packets/rsp/item/ItemBuyRspProto";
-
-export class PacketItemBuy extends BaseProto {
-  private _data: Buffer;
-
-  constructor(
-    coins: number,
-    itemId: number,
-    count: number,
-    result: number = 0,
-  ) {
-    super(CommandID.ITEM_BUY);
-
-    // 使用 RspProto 序列化
-    const proto = new ItemBuyRspProto();
-    proto.coins = coins;
-    proto.itemId = itemId;
-    proto.count = count;
-
-    if (result !== 0) {
-      proto.setResult(result);
-    }
-
-    this._data = proto.serialize();
-  }
-
-  public serialize(): Buffer {
-    return this._data;
-  }
-}
-
-// ❌ 错误：直接操作 Buffer
-export class PacketItemBuy extends BaseProto {
-  private _data: Buffer;
-
-  constructor(coins: number, itemId: number, count: number) {
-    super(CommandID.ITEM_BUY);
-
-    // ❌ 不要这样做！
-    const buffer = Buffer.alloc(12);
-    buffer.writeUInt32BE(coins, 0);
-    buffer.writeUInt32BE(itemId, 4);
-    buffer.writeUInt32BE(count, 8);
-    this._data = buffer;
-  }
-
-  public serialize(): Buffer {
-    return this._data;
-  }
-}
-```
-
-**完整的协议开发流程**
-
-1. **创建 ReqProto** (如果有请求参数)
-
-   - 路径: `src/shared/proto/packets/req/模块名/XxxReqProto.ts`
-   - 实现 `deserialize()` 方法解析请求
-2. **创建 RspProto** (如果有响应数据)
-
-   - 路径: `src/shared/proto/packets/rsp/模块名/XxxRspProto.ts`
-   - 实现 `serialize()` 和 `deserialize()` 方法
-   - 提供链式调用辅助方法
-3. **创建 Packet**
-
-   - 路径: `src/GameServer/Server/Packet/Send/模块名/PacketXxx.ts`
-   - 使用 RspProto 序列化数据
-4. **创建 Handler**
-
-   - 路径: `src/GameServer/Server/Packet/Recv/模块名/XxxHandler.ts`
-   - 使用 ReqProto 解析请求
-   - 调用 Manager 处理业务逻辑
-5. **创建 Manager** (如果逻辑复杂)
-
-   - 路径: `src/GameServer/Game/模块名/XxxManager.ts`
-   - 实现业务逻辑
-   - 使用 Packet 发送响应
-
-**示例：完整的好友添加功能**
-
-```typescript
-// 1. ReqProto
-// src/shared/proto/packets/req/friend/FriendAddReqProto.ts
-export class FriendAddReqProto extends BaseProto {
-  public targetId: number = 0;
-
-  public deserialize(buffer: Buffer): void {
-    if (buffer.length >= 4) {
-      this.targetId = buffer.readUInt32BE(0);
-    }
-  }
-}
-
-// 2. RspProto
-// src/shared/proto/packets/rsp/friend/FriendAddRspProto.ts
-export class FriendAddRspProto extends BaseProto {
-  public targetId: number = 0;
-
-  public serialize(): Buffer {
-    const buffer = Buffer.alloc(4);
-    buffer.writeUInt32BE(this.targetId, 0);
-    return buffer;
-  }
-
-  public setTargetId(targetId: number): this {
-    this.targetId = targetId;
-    return this;
-  }
-}
-
-// 3. Packet
-// src/GameServer/Server/Packet/Send/Friend/PacketFriendAdd.ts
-export class PacketFriendAdd extends BaseProto {
-  private _data: Buffer;
-
-  constructor(targetId: number, result: number = 0) {
-    super(CommandID.FRIEND_ADD);
-
-    const proto = new FriendAddRspProto();
-    proto.targetId = targetId;
-
-    if (result !== 0) {
-      proto.setResult(result);
-    }
-
-    this._data = proto.serialize();
-  }
-
-  public serialize(): Buffer {
-    return this._data;
-  }
-}
-
-// 4. Handler
-// src/GameServer/Server/Packet/Recv/Friend/FriendAddHandler.ts
-@Opcode(CommandID.FRIEND_ADD, InjectType.NONE)
-export class FriendAddHandler implements IHandler {
-  public async Handle(
-    session: IClientSession,
-    _head: HeadInfo,
-    body: Buffer,
-  ): Promise<void> {
-    const player = session.Player;
-    if (!player) return;
-
-    const req = new FriendAddReqProto();
-    req.deserialize(body);
-
-    await player.FriendManager.HandleFriendAdd(req.targetId);
-  }
-}
-
-// 5. Manager
-// src/GameServer/Game/Friend/FriendManager.ts
-export class FriendManager extends BaseManager {
-  public async HandleFriendAdd(targetId: number): Promise<void> {
-    // 业务逻辑...
-    await this.Player.SendPacket(new PacketFriendAdd(targetId));
-  }
-}
-```
-
-**Handler 示例**
-
-```typescript
-// 简单逻辑：直接在 Handler 中完成
-@Opcode(CommandID.SYSTEM_TIME, InjectType.NONE)
-export class SystemTimeHandler implements IHandler {
-  public async Handle(
-    session: IClientSession,
-    _head: HeadInfo,
-    _body: Buffer,
-  ): Promise<void> {
-    const player = session.Player;
-    if (!player) return;
-
-    // 简单逻辑直接处理
-    const now = Math.floor(Date.now() / 1000);
-    await player.SendPacket(new SystemTimeRspProto().setTime(now));
-  }
-}
-
-// 复杂逻辑：调用 Manager 处理
-@Opcode(CommandID.LIST_MAP_PLAYER, InjectType.NONE)
-export class ListMapPlayerHandler implements IHandler {
-  public async Handle(
-    session: IClientSession,
-    head: HeadInfo,
-    body: Buffer,
-  ): Promise<void> {
-    const player = session.Player;
-    if (!player) return;
-
-    // 复杂逻辑交给 Manager
-    await player.MapManager.HandleListMapPlayer();
-  }
-}
-```
-
-**Manager 职责**
-
-- 处理复杂的业务逻辑
-- 通过 `this.Player.SendPacket()` 发送响应
-- 继承 `BaseManager` 获得 `Player` 和 `UserID` 属性
-
-**Repository 职责**
-
-- 封装数据库操作
-- 提供 CRUD 接口
-- 不包含业务逻辑
-
-### 数据访问原则⭐
-
-**核心原则：Manager 持有 Data，直接操作，标记保存**
-
-本项目数据访问遵循以下原则：
-
-#### 1. Data 类直接映射数据库
-
-每个 Manager 持有对应的 Data 对象：
-
-- `FriendManager.FriendData` - 好友数据
-- `PetManager.PetData` - 精灵数据
-- `ItemManager.ItemData` - 物品数据
-- `MailManager.MailData` - 邮件数据
-- `PlayerInstance.Data` - 玩家数据
-
-```typescript
-// ✅ 正确：直接访问 Data 对象
-export class FriendManager {
-  public FriendData!: FriendData; // Manager 持有 Data
-
-  public async AddFriend(targetUid: number): Promise<void> {
-    // 直接操作数组（同步操作）
-    this.FriendData.FriendList.push(targetUid);
-
-    // 标记需要实时保存
-  }
-}
-
-// ❌ 错误：使用 Repository 包装器
-export class FriendManager {
-  public async AddFriend(targetUid: number): Promise<void> {
-    // ❌ 不要这样做！Repository 已被移除
-    await this._friendRepo.AddFriend(targetUid);
-  }
-}
-```
-
-#### 2. 通过 DatabaseHelper 加载数据
-
-Manager 在初始化时通过 DatabaseHelper 加载 Data：
-
-```typescript
-export class PetManager extends BaseManager {
-  public PetData!: PetData;
-
-  public async Initialize(): Promise<void> {
-    // 通过 DatabaseHelper 加载或创建数据
-    this.PetData = await DatabaseHelper.Instance.GetInstanceOrCreateNew_PetData(
-      this.UserID,
-    );
-  }
-}
-```
-
-#### 3. 直接操作 Data 对象（同步）
-
-Data 对象提供便捷的操作方法，**无需 await**：
-
-````typescript
-// ✅ 正确：直接操作数组
-this.FriendData.FriendList.push(targetUid);
-this.FriendData.BlackList.splice(index, 1);
-
-// ✅ 正确：使用 Data 提供的方法
-const pet = this.PetData.GetPet(petId);
-this.PetData.AddPet(newPet);
-t
-
-### 异步处理
-
-**Handler 必须是 async**
-```typescript
-@Opcode(CommandID.XXX, InjectType.NONE)
-export class XxxHandler implements IHandler {
-  public async Handle(session: IClientSession, head: HeadInfo, body: Buffer): Promise<void> {
-    // 异步处理
-  }
-}
-````
-
-**使用 await 等待异步操作**
-
-```typescript
-const data = await this._repository.FindById(id);
-await player.SendPacket(new XxxRspProto());
-```
-
-### 错误处理
-
-**使用 try-catch**
-
-```typescript
-try {
-  // 业务逻辑
-} catch (error) {
-  Logger.Error("处理失败", error as Error);
-  await player.SendPacket(new XxxRspProto().setResult(5001));
-}
-```
-
-**提前返回**
-
-```typescript
-// ✅ 推荐：扁平结构
-if (!player) return;
-if (!item) {
-  await player.SendPacket(new XxxRspProto().setResult(5001));
-  return;
-}
-// 主逻辑
-
-// ❌ 不推荐：深层嵌套
-if (player) {
-  if (item) {
-    // 主逻辑
-  }
-}
-```
-
-### 日志规范
-
-**使用 Logger 工具类**
-
-```typescript
-Logger.Info("信息日志");
-Logger.Debug("调试日志");
-Logger.Warn("警告日志");
-Logger.Error("错误日志", error);
-```
-
-**关键操作添加日志**
-
-- 玩家登录/登出
-- 数据库操作
-- 错误和异常
-- 重要的业务逻辑
-
-### 注释规范
-
-**类和方法注释**
-
-```typescript
-/**
- * 玩家管理器
- * 负责玩家数据的加载、保存和管理
- */
-export class PlayerManager {
-  /**
-   * 加载玩家数据
-   * @param userId 用户ID
-   * @returns 玩家信息
-   */
-  public async LoadPlayer(userId: number): Promise<IPlayerInfo> {
-    // ...
-  }
-}
-```
-
-**字段注释**
-
-```typescript
-export class LoginRspProto extends BaseProto {
-  userId: number = 0; // 用户ID
-  nickname: string = ""; // 昵称
-  level: number = 1; // 等级
-}
-```
-
----
-
-## 配置说明
-
-### 服务配置
-
-**config/server.json**
-
-```json
-{
-  "services": {
-    "gateway": {
-      "enabled": true,
-      "loginPort": 9999, // 登录端口
-      "gamePort": 27777, // 游戏端口
-      "rpcPort": 50000, // RPC端口
-      "host": "0.0.0.0" // 监听地址
-    },
-    "game": {
-      "enabled": true,
-      "rpcPort": 50002, // RPC端口
-      "host": "localhost" // Gateway地址
-    }
-  },
-  "database": {
-    "type": "sqlite", // 数据库类型
-    "path": "data/seer.db" // SQLite路径
-  },
-  "logging": {
-    "level": "info" // 日志级别
-  }
-}
-```
-
-### 游戏数据配置
-
-**config/data/xml/** - 从客户端提取的配置
-
-- `pets.xml` - 精灵配置
-- `skills.xml` - 技能配置
-- `items.xml` - 物品配置
-- `skill_effects.xml` - 技能效果配置
-
-**config/game/** - 服务端配置
-
-- `map-ogres.json` - 地图怪物配置
-
----
-
-## 快速开始
-
-### 1. 克隆项目
-
-```bash
-git clone <repository-url>
-cd seer_server
-```
-
-### 2. 安装依赖
-
-```bash
-npm install
-```
-
-### 3. 配置服务
-
-```bash
-cp config/server.json.default config/server.json
-# 根据需要修改配置
-```
-
-### 4. 初始化数据库
-
-```bash
-npm run db:migrate
-```
-
-### 5. 启动服务
-
-```bash
-npm start
-```
-
-### 6. 测试连接
-
-使用客户端连接到 `localhost:9999`（登录）或 `localhost:27777`（游戏）
-
----
 
 ## 许可证
 
 GNU AGPLv3MIT License
 
----
-
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
 
----
-
-**最后更新**: 2026-01-27
+**最后更新**: 2026-01-31
