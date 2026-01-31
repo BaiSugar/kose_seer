@@ -180,4 +180,4 @@ A: 检查 XML 配置文件是否存在且格式正确
 
 ## License
 
-MIT
+GNU Affero General Public License v3（AGPL-3.0）
