@@ -336,14 +336,25 @@ export class BattleTurnExecutor {
     const beforeCalcResults = BattleEffectIntegration.OnBeforeDamageCalc(attacker, defender, skill);
     Logger.Debug(`[ExecuteAttack] 伤害计算前效果: ${beforeCalcResults.length}个结果`);
 
-    // ==================== 伤害计算 ====================
-    const damageResult = BattleCore.CalculateDamage(attacker, defender, skill, isCrit);
-    let damage = damageResult.damage;
+    // 检查是否有固定伤害效果
+    const fixedDamageResult = beforeCalcResults.find(r => r.type === 'fixed_damage' && r.success);
+    
+    let damage = 0;
+    
+    if (fixedDamageResult && fixedDamageResult.value) {
+      // 如果有固定伤害效果，使用固定伤害值
+      damage = fixedDamageResult.value;
+      Logger.Debug(`[ExecuteAttack] 使用固定伤害: ${damage}`);
+    } else {
+      // ==================== 伤害计算 ====================
+      const damageResult = BattleCore.CalculateDamage(attacker, defender, skill, isCrit);
+      damage = damageResult.damage;
 
-    // ==================== 伤害计算后效果（伤害上限/下限）====================
-    const afterCalcResult = BattleEffectIntegration.OnAfterDamageCalc(attacker, defender, skill, damage);
-    damage = afterCalcResult.damage;
-    Logger.Debug(`[ExecuteAttack] 伤害计算后: ${damage} (原始: ${damageResult.damage})`);
+      // ==================== 伤害计算后效果（伤害上限/下限）====================
+      const afterCalcResult = BattleEffectIntegration.OnAfterDamageCalc(attacker, defender, skill, damage);
+      damage = afterCalcResult.damage;
+      Logger.Debug(`[ExecuteAttack] 伤害计算后: ${damage} (原始: ${damageResult.damage})`);
+    }
 
     // ==================== 伤害应用前效果（伤害减免）====================
     const beforeApplyResult = BattleEffectIntegration.OnBeforeDamageApply(attacker, defender, skill, damage);

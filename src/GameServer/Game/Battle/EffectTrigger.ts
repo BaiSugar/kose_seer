@@ -526,6 +526,12 @@ export class EffectTrigger {
           break;
 
         default:
+          // 跳过元数据/控制流类型（这些类型不需要实际应用）
+          if (result.type === 'conditional' || result.type === 'fixed_damage') {
+            // conditional: 条件判断结果，不需要应用
+            // fixed_damage: 固定伤害已通过伤害计算流程应用
+            break;
+          }
           Logger.Debug(`[效果应用] 未处理的效果类型: ${result.type}`);
       }
     }

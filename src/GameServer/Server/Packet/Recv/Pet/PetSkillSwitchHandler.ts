@@ -15,13 +15,12 @@ export class PetSkillSwitchHandler implements IHandler {
 
     const req = PetSkillSwitchReqProto.fromBuffer(body);
     
-    // 注意：客户端发送的是 petId，但我们需要 catchTime
-    // 需要通过 petId 查找对应的精灵获取 catchTime
-    const pet = player.PetManager.PetData.GetPet(req.petId);
-    if (!pet) {
-      return;
-    }
-    
-    await player.PetManager.HandleSkillSwitch(pet.catchTime, req.slot1, req.slot2);
+    await player.PetManager.HandleSkillSwitch(
+      req.catchTime, 
+      req.slot1, 
+      req.slot2, 
+      req.oldSkillId, 
+      req.newSkillId
+    );
   }
 }

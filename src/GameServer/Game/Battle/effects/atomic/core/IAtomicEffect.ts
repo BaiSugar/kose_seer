@@ -163,6 +163,7 @@ export interface IDurationParams extends IAtomicEffectParams {
 export interface IFixedDamageParams extends IAtomicEffectParams {
   type: AtomicEffectType.FIXED_DAMAGE;
   target: 'self' | 'opponent';
-  mode: 'instant_kill' | 'fixed' | 'percent';
+  mode: 'instant_kill' | 'fixed' | 'percent' | 'hp_difference';
   value?: number;
+  multiplier?: number;
 }

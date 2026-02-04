@@ -488,7 +488,28 @@ export class BattleManager extends BaseManager {
       );
     }
 
-    // 4. 如果战斗结束，发送 FIGHT_OVER (2506)
+    // 4. 检查玩家精灵是否阵亡
+    if (this._currentBattle.player.hp <= 0) {
+      // 检查是否还有其他健康精灵
+      const playerPets = this.Player.PetManager.PetData.GetPetsInBag();
+      const currentCatchTime = this._currentBattle.player.catchTime;
+      const hasHealthyPet = playerPets.some(p => p.hp > 0 && p.catchTime !== currentCatchTime);
+      
+      if (!hasHealthyPet) {
+        // 没有健康精灵，战斗失败
+        Logger.Info(`[BattleManager] 所有精灵阵亡，战斗失败: UserID=${this.UserID}`);
+        this._currentBattle.isOver = true;
+        await this.HandleFightOver(0, 0); // 敌人胜利
+        return;
+      } else {
+        // 还有健康精灵，客户端会自动弹出精灵选择面板
+        Logger.Info(`[BattleManager] 当前精灵阵亡，等待切换精灵: UserID=${this.UserID}`);
+        // 不发送 FIGHT_OVER，等待客户端发送 CHANGE_PET
+        return;
+      }
+    }
+
+    // 5. 如果战斗结束（敌人被击败），发送 FIGHT_OVER (2506)
     if (result.isOver) {
       await this.HandleFightOver(result.winner || 0, result.reason || 0);
     }

@@ -27,7 +27,7 @@ import { SptSystem } from './SptSystem';
 import { PetCalculator } from './PetCalculator';
 import { GameConfig } from '../../../shared/config/game/GameConfig';
 import { PacketPetOneCure } from '../../Server/Packet/Send/Pet/PacketPetOneCure';
-
+import { PacketGetPetSkill } from '../../Server/Packet/Send/Pet/PacketGetPetSkill';
 /**
  * 精灵管理器
  * 处理精灵相关的所有逻辑：获取精灵信息、精灵列表、治疗、展示等
@@ -182,20 +182,21 @@ export class PetManager extends BaseManager {
   /**
    * 处理设置首发精灵
    */
-  public async HandlePetDefault(petId: number): Promise<void> {
-    const pet = this.PetData.GetPet(petId);
+  public async HandlePetDefault(catchTime: number): Promise<void> {
+    const pet = this.PetData.GetPetByCatchTime(catchTime);
     
     if (pet && pet.isInBag) {
-      // 清除其他精灵的首发标�?
+      // 清除其他精灵的首发标记
       this.PetData.PetList.forEach(p => p.isDefault = false);
-      // 设置当前精灵为首�?
+      // 设置当前精灵为首发
       pet.isDefault = true;
-      await DatabaseHelper.Instance.SavePetData(this.PetData);
+      // BaseData 自动保存，无需手动调用
       
       await this.Player.SendPacket(new PacketPetDefault());
-      Logger.Info(`[PetManager] 设置首发精灵: UserID=${this.UserID}, PetId=${petId}`);
+      Logger.Info(`[PetManager] 设置首发精灵: UserID=${this.UserID}, PetId=${pet.petId}, CatchTime=${catchTime}`);
     } else {
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_DEFAULT).setResult(5001));
+      Logger.Warn(`[PetManager] 设置首发精灵失败: UserID=${this.UserID}, CatchTime=${catchTime}`);
     }
   }
 
@@ -760,12 +761,20 @@ export class PetManager extends BaseManager {
   }
 
   /**
-   * 处理精灵技能切换（交换技能槽位置）
+   * 处理精灵技能切换（用新技能替换旧技能）
    * @param catchTime 精灵捕获时间
-   * @param slot1 技能槽1 (0-3)
-   * @param slot2 技能槽2 (0-3)
+   * @param slot1 未使用
+   * @param slot2 未使用
+   * @param oldSkillId 旧技能ID - 要被替换的技能
+   * @param newSkillId 新技能ID - 要学习的新技能
    */
-  public async HandleSkillSwitch(catchTime: number, slot1: number, slot2: number): Promise<void> {
+  public async HandleSkillSwitch(
+    catchTime: number, 
+    slot1: number, 
+    slot2: number, 
+    oldSkillId: number, 
+    newSkillId: number
+  ): Promise<void> {
     try {
       // 1. 验证精灵存在
       const pet = this.PetData.GetPetByCatchTime(catchTime);
@@ -775,34 +784,71 @@ export class PetManager extends BaseManager {
         return;
       }
 
-      // 2. 验证技能槽位置有效 (0-3)
-      if (slot1 < 0 || slot1 > 3 || slot2 < 0 || slot2 > 3) {
-        Logger.Warn(`[PetManager] 技能槽位置无效: UserID=${this.UserID}, Slot1=${slot1}, Slot2=${slot2}`);
+      // 2. 查找旧技能在技能数组中的索引
+      const oldSkillIndex = pet.skillArray.indexOf(oldSkillId);
+      if (oldSkillIndex === -1) {
+        Logger.Warn(
+          `[PetManager] 旧技能不存在: UserID=${this.UserID}, ` +
+          `OldSkillId=${oldSkillId}, SkillArray=[${pet.skillArray.join(',')}]`
+        );
         await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SKILL_SWICTH).setResult(5001));
         return;
       }
 
-      // 3. 验证两个槽位不同
-      if (slot1 === slot2) {
-        Logger.Warn(`[PetManager] 技能槽位置相同: UserID=${this.UserID}, Slot=${slot1}`);
+      // 3. 验证新技能不能是已装备的技能
+      if (pet.skillArray.includes(newSkillId)) {
+        Logger.Warn(
+          `[PetManager] 新技能已装备: UserID=${this.UserID}, SkillId=${newSkillId}, ` +
+          `SkillArray=[${pet.skillArray.join(',')}]`
+        );
         await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SKILL_SWICTH).setResult(5001));
         return;
       }
 
-      // 4. 记录旧技能
-      const skill1 = pet.skillArray[slot1] || 0;
-      const skill2 = pet.skillArray[slot2] || 0;
+      // 4. 验证新技能是否可学习
+      const petConfig = GameConfig.GetPetById(pet.petId);
+      if (!petConfig) {
+        Logger.Warn(`[PetManager] 精灵配置不存在: PetId=${pet.petId}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SKILL_SWICTH).setResult(5001));
+        return;
+      }
 
-      // 5. 交换技能
-      pet.skillArray[slot1] = skill2;
-      pet.skillArray[slot2] = skill1;
+      // 构建技能ID到学习等级的映射
+      const skillLevelMap = new Map<number, number>();
+      if (petConfig.LearnableMoves?.Move) {
+        const moves = Array.isArray(petConfig.LearnableMoves.Move) 
+          ? petConfig.LearnableMoves.Move 
+          : [petConfig.LearnableMoves.Move];
+        
+        for (const move of moves) {
+          skillLevelMap.set(move.ID, move.LearningLv);
+        }
+      }
+
+      const learnLevel = skillLevelMap.get(newSkillId);
+      if (learnLevel === undefined) {
+        Logger.Warn(`[PetManager] 新技能不在可学习列表中: SkillId=${newSkillId}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SKILL_SWICTH).setResult(5001));
+        return;
+      }
+
+      if (pet.level < learnLevel) {
+        Logger.Warn(
+          `[PetManager] 精灵等级不足: Level=${pet.level}, Required=${learnLevel}, SkillId=${newSkillId}`
+        );
+        await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SKILL_SWICTH).setResult(5001));
+        return;
+      }
+
+      // 5. 替换技能
+      pet.skillArray[oldSkillIndex] = newSkillId;
 
       // 6. 触发保存：重新赋值数组以触发 Proxy
       pet.skillArray = [...pet.skillArray];
 
       Logger.Info(
-        `[PetManager] 精灵技能切换成功: UserID=${this.UserID}, PetId=${pet.petId}, ` +
-        `Slot1=${slot1}(${skill1}), Slot2=${slot2}(${skill2})`
+        `[PetManager] 精灵技能替换成功: UserID=${this.UserID}, PetId=${pet.petId}, ` +
+        `Index=${oldSkillIndex}, OldSkill=${oldSkillId}, NewSkill=${newSkillId}`
       );
 
       // 7. 发送成功响应
@@ -877,6 +923,77 @@ export class PetManager extends BaseManager {
     } catch (error) {
       Logger.Error(`[PetManager] HandlePetOneCure failed`, error as Error);
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_ONE_CURE).setResult(5000));
+    }
+  }
+
+  /**
+   * 获取精灵技能
+   * CMD: 2336
+   * 只返回当前等级已学会的技能
+   */
+  public async HandleGetPetSkill(catchTime: number): Promise<void> {
+    try {
+      const pet = this.PetData.GetPetByCatchTime(catchTime);
+      if (!pet) {
+        Logger.Warn(`[PetManager] 精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.GET_PET_SKILL).setResult(5001));
+        return;
+      }
+
+      // 获取精灵配置
+      const petConfig = GameConfig.GetPetById(pet.petId);
+      if (!petConfig) {
+        Logger.Warn(`[PetManager] 精灵配置不存在: PetId=${pet.petId}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.GET_PET_SKILL).setResult(5001));
+        return;
+      }
+
+      // 构建技能ID到学习等级的映射
+      const skillLevelMap = new Map<number, number>();
+      if (petConfig.LearnableMoves?.Move) {
+        const moves = Array.isArray(petConfig.LearnableMoves.Move) 
+          ? petConfig.LearnableMoves.Move 
+          : [petConfig.LearnableMoves.Move];
+        
+        for (const move of moves) {
+          skillLevelMap.set(move.ID, move.LearningLv);
+        }
+      }
+
+      // 获取已装备的技能集合
+      const equippedSkills = new Set(pet.skillArray.filter(id => id > 0));
+
+      // 获取所有可学习但未装备的技能（使用Set去重）
+      const skillSet = new Set<number>();
+
+      for (const [skillId, learnLevel] of skillLevelMap) {
+        // 跳过已装备的技能
+        if (equippedSkills.has(skillId)) {
+          Logger.Debug(`[PetManager] 跳过已装备技能: SkillId=${skillId}`);
+          continue;
+        }
+
+        // 检查等级是否满足
+        if (pet.level >= learnLevel) {
+          skillSet.add(skillId);
+        } else {
+          Logger.Debug(`[PetManager] 等级不足: SkillId=${skillId}, Required=${learnLevel}, Current=${pet.level}`);
+        }
+      }
+
+      // 转换为数组
+      const skills = Array.from(skillSet);
+
+      await this.Player.SendPacket(new PacketGetPetSkill(skills));
+      
+      Logger.Info(
+        `[PetManager] 获取精灵技能: UserID=${this.UserID}, PetId=${pet.petId}, Level=${pet.level}, ` +
+        `SkillCount=${skills.length}, Skills=[${skills.join(',')}], ` +
+        `Equipped=[${Array.from(equippedSkills).join(',')}]`
+      );
+    } catch (error) {
+      Logger.Error(`[PetManager] HandleGetPetSkill failed`, error as Error);
+      await this.Player.SendPacket(new PacketEmpty(CommandID.GET_PET_SKILL).setResult(5000));
     }
   }
 }

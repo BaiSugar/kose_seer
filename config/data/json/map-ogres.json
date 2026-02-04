@@ -113,8 +113,8 @@
             "shinyRate": 0.9,
             "shinyPetId": 164
           },
-          "minLevel": 50,
-          "maxLevel": 80,
+          "minLevel": 5,
+          "maxLevel": 10,
           "level": null,
           "expReward": 56,
           "catchRate": 1,
