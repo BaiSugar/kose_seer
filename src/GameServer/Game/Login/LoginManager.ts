@@ -1,5 +1,6 @@
 import { PacketBuilder } from '../../../shared/protocol/PacketBuilder';
 import { PacketMainLogin, PacketGameLogin, PacketCreateRole } from '../../Server/Packet/Send/Login';
+import { PacketChangeCloth } from '../../Server/Packet/Send/Item/PacketChangeCloth';
 import { AccountRepository, SessionRepository, PlayerRepository } from '../../../DataBase';
 import { Logger } from '../../../shared/utils';
 import { IClientSession } from '../../Server/Packet/IHandler';
@@ -303,6 +304,20 @@ export class LoginManager {
       } else {
         Logger.Warn(`[LoginManager] 玩家没有背包精灵！UserID=${userID}`);
       }
+      
+      // 加载服装数据并填充到 Proto
+      const clothList = playerInstance.ItemManager.ItemData.ItemList
+        .filter(item => {
+          // 过滤出服装类物品（ID范围 100000-199999）
+          return item.itemId >= 100000 && item.itemId < 200000;
+        })
+        .map(item => ({
+          id: item.itemId,
+          level: 0  // 服装没有等级概念，默认为0
+        }));
+      
+      proto.clothList = clothList;
+      Logger.Info(`[LoginManager] 服装数据: 共${clothList.length}个服装`);
 
       // 发送响应
       await playerInstance.SendPacket(proto);

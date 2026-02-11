@@ -88,6 +88,12 @@ export function PlayerInfoToLoginProto(player: IPlayerInfo, sessionKey?: string)
   proto.nonoColor = player.nonoColor || 0;
   proto.nonoNick = player.nonoNick || 'NoNo'; // 和Lua端默认值一致
   proto.badge = player.badge || 0;
+  
+  // 当前称号
+  proto.curTitle = player.curTitle || 0;
+  
+  // Boss成就列表
+  proto.bossAchievement = player.bossAchievement || new Array(200).fill(false);
 
   return proto;
 }

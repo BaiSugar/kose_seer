@@ -163,6 +163,7 @@ export class PlayerData implements IPlayerInfo {
   // ============ 装备列表 ============
   clothCount: number;
   clothes: any[];
+  clothIds: number[];  // 当前穿戴的服装ID列表
 
   // ============ 成就信息 ============
   curTitle: number;
@@ -293,6 +294,7 @@ export class PlayerData implements IPlayerInfo {
     // 装备列表
     this.clothCount = data.clothCount;
     this.clothes = data.clothes;
+    this.clothIds = data.clothIds || [];  // 当前穿戴的服装ID列表
 
     // 成就信息
     this.curTitle = data.curTitle;

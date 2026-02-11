@@ -177,22 +177,18 @@ export class GameServer {
       `(已实现: ${effectStats.implemented}, 未实现: ${effectStats.unimplemented})`
     );
 
-    // 3. 初始化数据库
-    Logger.Info('[GameServer] 初始化数据库...');
-    await DatabaseManager.Instance.Initialize();
-
-    // 3.5. 加载任务配置
+    // 3. 加载任务配置
     Logger.Info('[GameServer] 加载任务配置...');
     const { TaskConfig } = await import('./Game/Task/TaskConfig');
     TaskConfig.Instance.Load();
 
-    // 3.6. 启动自动保存任务（每5分钟）
+    // 4. 启动自动保存任务（每5分钟）
     Logger.Info('[GameServer] 启动自动保存任务...');
     const { AutoSaveTask } = await import('./Game/System/AutoSaveTask');
     AutoSaveTask.Instance.Start(300000); // 每300秒（5分钟）保存一次
     
     Logger.Info('[GameServer] 配置加载完成，游戏服务正在启动...');
-    // 4. 启动网络服务
+    // 5. 启动网络服务
     this._server.listen(Config.Game.port, Config.Game.host, () => {
       this._running = true;
       Logger.Info(`[GameServer] 启动成功 ${Config.Game.host}:${Config.Game.port}`);

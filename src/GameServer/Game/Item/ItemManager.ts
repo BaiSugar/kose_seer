@@ -118,6 +118,10 @@ export class ItemManager extends BaseManager {
   public async HandleChangeCloth(clothIds: number[]): Promise<void> {
     Logger.Info(`[ItemManager] 玩家 ${this.UserID} 更换服装，共 ${clothIds.length} 件`);
 
+    // 保存到 PlayerData（自动触发保存）
+    this.Player.Data.clothIds = clothIds;
+    Logger.Debug(`[ItemManager] 保存服装ID到数据库: ${JSON.stringify(clothIds)}`);
+
     // 发送响应给自己
     await this.Player.SendPacket(new PacketChangeCloth(this.UserID, clothIds));
 

@@ -105,6 +105,11 @@ export class PlayerDataAccessor {
         state: data.nonoState
       });
       
+      // 更新服装ID列表
+      if (data.clothIds && data.clothIds.length > 0) {
+        await this._playerRepo.UpdateClothIds(data.userID, data.clothIds);
+      }
+      
       Logger.Debug(`[PlayerDataAccessor] PlayerData 已保存: uid=${data.userID}`);
     } catch (error) {
       Logger.Error(`[PlayerDataAccessor] 保存 PlayerData 失败: uid=${data.userID}`, error as Error);

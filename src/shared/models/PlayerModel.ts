@@ -390,6 +390,7 @@ export interface IPlayerInfo {
   // ============ 装备列表 ============
   clothCount: number;       // 装备数量
   clothes: IClothInfo[];    // 装备列表
+  clothIds?: number[];      // 当前穿戴的服装ID列表
 
   // ============ 成就信息 ============
   curTitle: number;         // 当前称号

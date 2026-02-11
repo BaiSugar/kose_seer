@@ -349,6 +349,18 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
   }
 
   /**
+   * 更新服装ID列表
+   */
+  public async UpdateClothIds(userId: number, clothIds: number[]): Promise<boolean> {
+    const result = await this._db.Execute(
+      'UPDATE players SET cloth_ids = ? WHERE user_id = ?',
+      [JSON.stringify(clothIds), userId]
+    );
+
+    return result.affectedRows > 0;
+  }
+
+  /**
    * 更新飞行模式
    */
   public async UpdateFlyMode(userId: number, flyMode: number): Promise<boolean> {
@@ -649,6 +661,15 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
     player.badge = row.badge;
     player.curTitle = row.cur_title;
     player.teamInfo.id = row.team_id;
+    
+    // 解析服装ID列表
+    try {
+      const clothIdsStr = (row as any).cloth_ids;
+      player.clothIds = clothIdsStr ? JSON.parse(clothIdsStr) : [];
+    } catch (error) {
+      Logger.Warn(`[PlayerRepository] 解析 cloth_ids 失败: userId=${row.user_id}`);
+      player.clothIds = [];
+    }
 
     return player;
   }

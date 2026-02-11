@@ -140,6 +140,15 @@ export class LoginRspProto extends BaseProto {
   
   // 精灵列表
   petList: any[] = [];
+  
+  // 服装列表
+  clothList: Array<{ id: number; level: number }> = [];
+  
+  // 当前称号
+  curTitle: number = 0;
+  
+  // Boss成就列表 (200个)
+  bossAchievement: boolean[] = new Array(200).fill(false);
 
   constructor() {
     super(CommandID.LOGIN_IN);
@@ -278,20 +287,31 @@ export class LoginRspProto extends BaseProto {
 
     // ========== 服装数据 ==========
     // clothes count (4 bytes)
-    writer.WriteUInt32(0); // 暂时没有服装
+    const clothCount = this.clothList?.length || 0;
+    writer.WriteUInt32(clothCount);
     
-    console.log(`[LoginRspProto] 服装数量: 0`);
+    console.log(`[LoginRspProto] 服装数量: ${clothCount}`);
     
-    // clothes data - 如果 count > 0，每个服装 8 bytes (id + level)
-    // 暂时跳过，因为 count = 0
+    // clothes data - 每个服装 8 bytes (id + level)
+    if (clothCount > 0 && this.clothList) {
+      for (let i = 0; i < this.clothList.length; i++) {
+        const cloth = this.clothList[i];
+        writer.WriteUInt32(cloth.id);
+        writer.WriteUInt32(cloth.level || 0);
+        console.log(`[LoginRspProto] 服装 ${i + 1}/${clothCount}: id=${cloth.id}, level=${cloth.level || 0}`);
+      }
+    }
 
     // ========== 当前称号 ==========
-    writer.WriteUInt32(0); // curTitle
+    writer.WriteUInt32(this.curTitle);
+    console.log(`[LoginRspProto] 当前称号: ${this.curTitle}`);
 
     // ========== Boss成就 (200 bytes) ==========
     for (let i = 0; i < 200; i++) {
-      writer.WriteUInt8(0); // false
+      writer.WriteUInt8(this.bossAchievement[i] ? 1 : 0);
     }
+    const achievementCount = this.bossAchievement.filter(a => a).length;
+    console.log(`[LoginRspProto] Boss成就: ${achievementCount}/200`);
 
     const buffer = writer.ToBuffer();
     console.log(`[LoginRspProto] 最终大小: ${buffer.length} bytes`);

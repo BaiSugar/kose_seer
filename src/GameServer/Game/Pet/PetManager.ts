@@ -29,6 +29,7 @@ import { GameConfig } from '../../../shared/config/game/GameConfig';
 import { PacketPetOneCure } from '../../Server/Packet/Send/Pet/PacketPetOneCure';
 import { PacketGetPetSkill } from '../../Server/Packet/Send/Pet/PacketGetPetSkill';
 import { PacketPetRoomList } from '../../Server/Packet/Send/Pet/PacketPetRoomList';
+import { PacketSkillSort } from '../../Server/Packet/Send/Pet/PacketSkillSort';
 /**
  * 精灵管理器
  * 处理精灵相关的所有逻辑：获取精灵信息、精灵列表、治疗、展示等
@@ -1099,6 +1100,86 @@ export class PetManager extends BaseManager {
     } catch (error) {
       Logger.Error(`[PetManager] HandlePetOneCure failed`, error as Error);
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_ONE_CURE).setResult(5000));
+    }
+  }
+
+  /**
+   * 处理技能排序
+   * CMD: 2328 Skill_Sort
+   * 
+   * 功能：调整精灵技能槽的顺序
+   * @param catchTime 精灵捕获时间
+   * @param skill1 第1个技能ID
+   * @param skill2 第2个技能ID
+   * @param skill3 第3个技能ID
+   * @param skill4 第4个技能ID
+   */
+  public async HandleSkillSort(
+    catchTime: number,
+    skill1: number,
+    skill2: number,
+    skill3: number,
+    skill4: number
+  ): Promise<void> {
+    try {
+      // 1. 验证精灵存在
+      const pet = this.PetData.GetPetByCatchTime(catchTime);
+      if (!pet) {
+        Logger.Warn(`[PetManager] 精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
+        await this.Player.SendPacket(new PacketEmpty(CommandID.Skill_Sort).setResult(5001));
+        return;
+      }
+
+      // 2. 构建新的技能数组
+      const newSkills = [skill1, skill2, skill3, skill4].filter(id => id > 0);
+
+      // 3. 验证技能数量（必须是4个）
+      if (newSkills.length !== 4) {
+        Logger.Warn(
+          `[PetManager] 技能数量无效: UserID=${this.UserID}, Count=${newSkills.length}, ` +
+          `Skills=[${newSkills.join(',')}]`
+        );
+        await this.Player.SendPacket(new PacketEmpty(CommandID.Skill_Sort).setResult(5001));
+        return;
+      }
+
+      // 4. 验证所有技能都在精灵的技能列表中
+      const currentSkills = new Set(pet.skillArray);
+      for (const skillId of newSkills) {
+        if (!currentSkills.has(skillId)) {
+          Logger.Warn(
+            `[PetManager] 技能不属于该精灵: UserID=${this.UserID}, SkillId=${skillId}, ` +
+            `CurrentSkills=[${pet.skillArray.join(',')}]`
+          );
+          await this.Player.SendPacket(new PacketEmpty(CommandID.Skill_Sort).setResult(5001));
+          return;
+        }
+      }
+
+      // 5. 验证没有重复的技能
+      const uniqueSkills = new Set(newSkills);
+      if (uniqueSkills.size !== newSkills.length) {
+        Logger.Warn(
+          `[PetManager] 技能列表包含重复: UserID=${this.UserID}, Skills=[${newSkills.join(',')}]`
+        );
+        await this.Player.SendPacket(new PacketEmpty(CommandID.Skill_Sort).setResult(5001));
+        return;
+      }
+
+      // 6. 更新技能顺序
+      const oldSkills = [...pet.skillArray];
+      pet.skillArray = newSkills;
+
+      Logger.Info(
+        `[PetManager] 技能排序成功: UserID=${this.UserID}, PetId=${pet.petId}, ` +
+        `OldSkills=[${oldSkills.join(',')}], NewSkills=[${newSkills.join(',')}]`
+      );
+
+      // 7. 发送成功响应（空包）
+      await this.Player.SendPacket(new PacketSkillSort());
+    } catch (error) {
+      Logger.Error(`[PetManager] HandleSkillSort failed`, error as Error);
+      await this.Player.SendPacket(new PacketEmpty(CommandID.Skill_Sort).setResult(5000));
     }
   }
 
