@@ -28,6 +28,7 @@ import { PetCalculator } from './PetCalculator';
 import { GameConfig } from '../../../shared/config/game/GameConfig';
 import { PacketPetOneCure } from '../../Server/Packet/Send/Pet/PacketPetOneCure';
 import { PacketGetPetSkill } from '../../Server/Packet/Send/Pet/PacketGetPetSkill';
+import { PacketPetRoomList } from '../../Server/Packet/Send/Pet/PacketPetRoomList';
 /**
  * 精灵管理器
  * 处理精灵相关的所有逻辑：获取精灵信息、精灵列表、治疗、展示等
@@ -75,14 +76,54 @@ export class PetManager extends BaseManager {
 
 
   /**
-   * 处理获取精灵列表
+   * 处理获取精灵列表（返回所有精灵的简化信息，用于填充 _storageMap）
+   * 客户端期望的格式：PetListInfo (id, catchTime, skinID)
+   * 排序规则：首发精灵第一个，其他按 catchTime 升序排列
    */
   public async HandleGetPetList(): Promise<void> {
-    const pets = this.PetData.GetPetsInBag();
-    const petProtos = pets.map(pet => this.petInfoToProto(pet));
+    // 获取所有精灵（背包+仓库）
+    const allPets = this.PetData.PetList;
     
-    await this.Player.SendPacket(new PacketGetPetList(petProtos));
-    Logger.Info(`[PetManager] 获取精灵列表: UserID=${this.UserID}, Count=${pets.length}`);
+    // 排序：首发精灵第一个，其他按 catchTime 升序
+    const sortedPets = [...allPets].sort((a, b) => {
+      // 首发精灵排在最前面
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      
+      // 其他精灵按 catchTime 升序排列（越早获得越靠前）
+      return a.catchTime - b.catchTime;
+    });
+    
+    // 转换为 PetListInfo 格式（简化版：id, catchTime, skinID）
+    const petListInfos = sortedPets.map(pet => ({
+      id: pet.petId,
+      catchTime: pet.catchTime,
+      skinID: pet.skinId || 0
+    }));
+    
+    await this.Player.SendPacket(new PacketPetRoomList(petListInfos));
+    Logger.Info(`[PetManager] 获取精灵列表（所有精灵）: UserID=${this.UserID}, Count=${petListInfos.length}`);
+  }
+
+  /**
+   * 处理获取精灵仓库列表
+   * 排序规则：按 catchTime 升序排列（越早获得越靠前）
+   */
+  public async HandleGetPetRoomList(roomType: number): Promise<void> {
+    const storagePets = this.PetData.GetPetsInStorage();
+    
+    // 排序：按 catchTime 升序
+    const sortedPets = [...storagePets].sort((a, b) => a.catchTime - b.catchTime);
+    
+    // 转换为 PetListInfo 格式（简化版）
+    const petList = sortedPets.map(pet => ({
+      id: pet.petId,
+      catchTime: pet.catchTime,
+      skinID: pet.skinId || 0
+    }));
+    
+    await this.Player.SendPacket(new PacketPetRoomList(petList));
+    Logger.Info(`[PetManager] 获取精灵仓库列表: UserID=${this.UserID}, RoomType=${roomType}, Count=${petList.length}`);
   }
 
   /**
@@ -113,6 +154,13 @@ export class PetManager extends BaseManager {
    */
   public async HandleGetPetInfo(catchTime: number): Promise<void> {
     Logger.Debug(`[PetManager] HandleGetPetInfo: UserID=${this.UserID}, CatchTime=${catchTime}`);
+    
+    // 忽略无效的 catchTime（客户端缓存的旧数据）
+    if (catchTime < 1000000000) {
+      Logger.Warn(`[PetManager] 忽略无效的 catchTime: UserID=${this.UserID}, CatchTime=${catchTime} (客户端缓存数据)`);
+      await this.Player.SendPacket(new PacketEmpty(CommandID.GET_PET_INFO).setResult(5001));
+      return;
+    }
     
     const pet = this.PetData.GetPetByCatchTime(catchTime);
     
@@ -174,15 +222,36 @@ export class PetManager extends BaseManager {
   public async HandlePetTakeOut(catchTime: number): Promise<void> {
     const pet = this.PetData.GetPetByCatchTime(catchTime);
     
-    if (pet) {
-      // 精灵已经在背包中，发送确认响应（包含精灵信息）
-      const petProto = this.petInfoToProto(pet);
-      await this.Player.SendPacket(new PacketPetRelease(0, catchTime, 1, petProto));
-      Logger.Info(`[PetManager] 确认精灵放入背包: UserID=${this.UserID}, CatchTime=${catchTime}, PetId=${pet.petId}`);
-    } else {
+    if (!pet) {
       Logger.Warn(`[PetManager] 精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_RELEASE).setResult(5001));
+      return;
     }
+
+    // 检查背包是否已满
+    const bagCount = this.PetData.GetPetsInBag().length;
+    if (!pet.isInBag && bagCount >= 6) {
+      Logger.Warn(`[PetManager] 背包已满: UserID=${this.UserID}, BagCount=${bagCount}`);
+      await this.Player.SendPacket(new PacketEmpty(CommandID.PET_RELEASE).setResult(5001));
+      return;
+    }
+
+    // 如果精灵在仓库中，将其移到背包
+    if (!pet.isInBag) {
+      pet.isInBag = true;
+      Logger.Info(`[PetManager] 将精灵从仓库取回背包: UserID=${this.UserID}, CatchTime=${catchTime}, PetId=${pet.petId}`);
+    } else {
+      Logger.Info(`[PetManager] 确认精灵在背包中: UserID=${this.UserID}, CatchTime=${catchTime}, PetId=${pet.petId}`);
+    }
+
+    // 获取当前首发精灵的 catchTime
+    const defaultPet = this.PetData.PetList.find(p => p.isDefault);
+    const firstPetTime = defaultPet ? defaultPet.catchTime : 0;
+
+    // 发送确认响应（包含精灵信息）
+    const petProto = this.petInfoToProto(pet);
+    await this.Player.SendPacket(new PacketPetRelease(0, firstPetTime, 1, petProto));
+    Logger.Info(`[PetManager] 取回精灵响应: UserID=${this.UserID}, PetCatchTime=${catchTime}, FirstPetTime=${firstPetTime}`);
   }
 
   /**

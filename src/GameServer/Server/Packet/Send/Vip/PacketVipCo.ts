@@ -15,7 +15,10 @@ export class PacketVipCo extends BaseProto {
     userId: number,
     vipType: number,
     autoCharge: number = 0,
-    vipEndTime: number = 0
+    vipEndTime: number = 0,
+    superLevel: number = 0,
+    superEnergy: number = 0,
+    superStage: number = 0
   ) {
     super(CommandID.VIP_CO);
     
@@ -24,6 +27,9 @@ export class PacketVipCo extends BaseProto {
     proto.vipType = vipType;
     proto.autoCharge = autoCharge;
     proto.vipEndTime = vipEndTime;
+    proto.superLevel = superLevel;
+    proto.superEnergy = superEnergy;
+    proto.superStage = superStage;
     
     this._data = proto.serialize();
   }

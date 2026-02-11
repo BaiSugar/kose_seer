@@ -12,24 +12,39 @@ import { CommandID } from '../../../../protocol/CommandID';
  * - vipType (uint32): VIP类型 (0=无VIP, 1=普通VIP, 2=超级NoNo)
  * - autoCharge (uint32): 自动充电
  * - vipEndTime (uint32): VIP结束时间（秒级时间戳）
+ * 
+ * 扩展字段（客户端会忽略，但可用于调试）:
+ * - superLevel (uint32): 超级NoNo等级（仅当vipType=2时有效）
+ * - superEnergy (uint32): 超级NoNo能量
+ * - superStage (uint32): 超级NoNo阶段
  */
 export class VipCoRspProto extends BaseProto {
   userId: number = 0;
   vipType: number = 0;
   autoCharge: number = 0;
   vipEndTime: number = 0;
+  
+  // 扩展字段（用于调试，客户端会忽略）
+  superLevel: number = 0;
+  superEnergy: number = 0;
+  superStage: number = 0;
 
   constructor() {
     super(CommandID.VIP_CO);
   }
 
   serialize(): Buffer {
-    const writer = new BufferWriter(16);
+    const writer = new BufferWriter(28); // 16 + 12 扩展字段
     
     writer.WriteUInt32(this.userId);
     writer.WriteUInt32(this.vipType);
     writer.WriteUInt32(this.autoCharge);
     writer.WriteUInt32(this.vipEndTime);
+    
+    // 扩展字段：客户端会读取但不使用，不会报错
+    writer.WriteUInt32(this.superLevel);
+    writer.WriteUInt32(this.superEnergy);
+    writer.WriteUInt32(this.superStage);
     
     return writer.ToBuffer();
   }
@@ -52,6 +67,21 @@ export class VipCoRspProto extends BaseProto {
 
   setVipEndTime(value: number): this {
     this.vipEndTime = value;
+    return this;
+  }
+  
+  setSuperLevel(value: number): this {
+    this.superLevel = value;
+    return this;
+  }
+  
+  setSuperEnergy(value: number): this {
+    this.superEnergy = value;
+    return this;
+  }
+  
+  setSuperStage(value: number): this {
+    this.superStage = value;
     return this;
   }
 }

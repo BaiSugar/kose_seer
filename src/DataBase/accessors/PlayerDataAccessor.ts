@@ -80,6 +80,9 @@ export class PlayerDataAccessor {
         await this._playerRepo.UpdateAllocatableExp(data.userID, data.allocatableExp);
       }
       
+      // 更新 VIP 信息
+      await this._playerRepo.UpdateVIP(data.userID, data.vip, data.vipLevel, data.vipEndTime);
+      
       // 更新昵称和颜色
       // await this._playerRepo.UpdateNickname(data.userID, data.nick);
       // await this._playerRepo.UpdateColor(data.userID, data.color);

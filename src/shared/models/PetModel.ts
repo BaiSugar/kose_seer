@@ -51,6 +51,7 @@ export interface IPetInfo {
   obtainLevel: number;           // 获得时等级
   effectCount: number;           // 特效计数
   commonMark: number;            // 通用标记
+  skinId?: number;               // 皮肤ID（可选）
 }
 
 /**

@@ -567,21 +567,49 @@ export class NoNoManager extends BaseManager {
         return;
       }
 
-      // 检查是否已经是超级NoNo
+      // 如果已经是超级NoNo，延长时间（续费）
       if (playerData.superNono) {
-        await this.Player.SendPacket(new PacketOpenSuperNono(1)); // 失败
-        Logger.Warn(`[NoNoManager] 开启超级NoNo失败: 已经是超级NoNo, UserID=${this.UserID}`);
+        const currentTime = Math.floor(Date.now() / 1000);
+        const currentExpireTime = playerData.vipEndTime || currentTime;
+        
+        // 如果已过期，从当前时间开始计算；否则从过期时间开始延长
+        const baseTime = currentExpireTime > currentTime ? currentExpireTime : currentTime;
+        const newExpireTime = baseTime + (30 * 24 * 60 * 60); // 延长30天
+        
+        playerData.vipEndTime = newExpireTime;
+        
+        // 发送续费成功响应
+        await this.Player.SendPacket(new PacketOpenSuperNono(0)); // 成功
+        
+        // 推送VIP状态变更包
+        await this.Player.SendPacket(new PacketVipCo(
+          this.UserID,
+          2, // vipType: 2=超级NoNo
+          0, // autoCharge
+          newExpireTime, // vipEndTime
+          playerData.nonoSuperLevel || 1, // superLevel
+          playerData.nonoSuperEnergy || 0, // superEnergy
+          playerData.nonoSuperStage || 0  // superStage
+        ));
+        
+        Logger.Info(`[NoNoManager] 续费超级NoNo成功: UserID=${this.UserID}, Level=${playerData.nonoSuperLevel}, NewExpireTime=${newExpireTime}`);
         return;
       }
 
-      // 开启超级NoNo（自动保存）
+      // 首次开启超级NoNo（自动保存）
       playerData.superNono = true;
       playerData.nonoSuperLevel = 1;
       playerData.nonoSuperEnergy = 0;
       playerData.nonoSuperStage = 0;
       
-      // 设置过期时间（30天后）- 使用VIP系统管理
+      // 同步到 vipLevel（客户端显示用）
+      playerData.vipLevel = 1;
+      playerData.vipValue = 0;
+      playerData.vipStage = 0;
+      
+      // 设置过期时间（30天后）
       const expireTime = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
+      playerData.vipEndTime = expireTime;
 
       // 发送开通成功响应
       await this.Player.SendPacket(new PacketOpenSuperNono(0)); // 成功
@@ -591,10 +619,16 @@ export class NoNoManager extends BaseManager {
         this.UserID,
         2, // vipType: 2=超级NoNo
         0, // autoCharge
-        expireTime // vipEndTime
+        expireTime, // vipEndTime
+        1, // superLevel
+        0, // superEnergy
+        0  // superStage
       ));
       
-      Logger.Info(`[NoNoManager] 开启超级NoNo成功: UserID=${this.UserID}, ExpireTime=${expireTime}`);
+      // 推送更新后的NoNo信息，让客户端刷新超级NoNo等级
+      await this.HandleNoNoInfo();
+      
+      Logger.Info(`[NoNoManager] 开启超级NoNo成功: UserID=${this.UserID}, Level=1, ExpireTime=${expireTime}`);
     } catch (error) {
       Logger.Error(`[NoNoManager] HandleOpenSuperNono failed`, error as Error);
       await this.Player.SendPacket(new PacketOpenSuperNono(1)); // 失败
