@@ -128,23 +128,28 @@ export class EffectTrigger {
       );
 
       for (const atomConfig of atoms) {
-        // 克隆原子配置，避免修改原始配置
-        const atomConfigWithArgs = { ...atomConfig };
-        
+        // 深度克隆原子配置，避免修改原始配置
+        const atomConfigWithArgs = JSON.parse(JSON.stringify(atomConfig));
+
         // 根据效果配置的参数定义，覆盖原子效果的参数
         if (effectConfig.args && effectConfig.args.length > 0 && effectArgs.length > 0) {
+          // 构建参数映射表
+          const argMap: Record<string, number> = {};
           for (let i = 0; i < effectConfig.args.length && i < effectArgs.length; i++) {
             const argDef = effectConfig.args[i];
             const argValue = effectArgs[i];
-            
-            // 将参数值应用到原子效果配置
-            // 例如：args[0].name = "probability" → atomConfig.probability = argValue
+
             if (argDef.name) {
+              // 将参数值应用到顶层原子效果配置
               (atomConfigWithArgs as any)[argDef.name] = argValue;
+              argMap[argDef.name] = argValue;
             }
           }
+
+          // 将参数传播到嵌套的 then/else 子效果中
+          this.PropagateArgsToNestedAtoms(atomConfigWithArgs, argMap);
         }
-        
+
         const atom = AtomicEffectFactory.getInstance().create(atomConfigWithArgs as IAtomicEffectParams);
         if (!atom) {
           Logger.Warn(`[EffectTrigger] 创建原子效果失败: type=${atomConfig.type}`);
@@ -217,16 +222,25 @@ export class EffectTrigger {
         `效果数: ${effectIds.length}, 时机: ${timing}`
       );
 
-      // 2. 按顺序处理每个效果
+      // 2. 解析所有参数，按每个效果的argsNum分割
+      const allArgs = this.ParseEffectArgs(skill.sideEffectArg);
+      let argOffset = 0;
+
+      // 3. 按顺序处理每个效果
       for (let i = 0; i < effectIds.length; i++) {
         const effectId = effectIds[i];
-        
+
         // 获取效果配置
         const effectConfig = SkillEffectsConfig.Instance.GetEffectById(effectId);
         if (!effectConfig) {
           Logger.Warn(`[EffectTrigger] 效果配置不存在: effectId=${effectId}`);
           continue;
         }
+
+        // 提取当前效果的参数
+        const argsNum = effectConfig.argsNum || (effectConfig.args ? effectConfig.args.length : 0);
+        const effectArgs = allArgs.slice(argOffset, argOffset + argsNum);
+        argOffset += argsNum;
 
         // 检查是否有原子效果组合配置
         if (!effectConfig.atomicComposition || !effectConfig.atomicComposition.atoms) {
@@ -246,16 +260,37 @@ export class EffectTrigger {
         context.skillType = skill.type;
         context.skillCategory = skill.category;
         context.skillPower = skill.power;
+        context.effectArgs = effectArgs;
 
         // 执行原子效果组合
         const atoms = effectConfig.atomicComposition.atoms;
         Logger.Debug(
           `[EffectTrigger] 效果 ${i + 1}/${effectIds.length}: ${effectConfig.name} (ID=${effectId}), ` +
-          `原子数: ${atoms.length}`
+          `原子数: ${atoms.length}, 参数: ${effectArgs.join(',')}`
         );
 
         for (const atomConfig of atoms) {
-          const atom = AtomicEffectFactory.getInstance().create(atomConfig as IAtomicEffectParams);
+          // 深度克隆原子配置，避免修改原始配置
+          const atomConfigWithArgs = JSON.parse(JSON.stringify(atomConfig));
+
+          // 根据效果配置的参数定义，覆盖原子效果的参数
+          if (effectConfig.args && effectConfig.args.length > 0 && effectArgs.length > 0) {
+            const argMap: Record<string, number> = {};
+            for (let j = 0; j < effectConfig.args.length && j < effectArgs.length; j++) {
+              const argDef = effectConfig.args[j];
+              const argValue = effectArgs[j];
+
+              if (argDef.name) {
+                (atomConfigWithArgs as any)[argDef.name] = argValue;
+                argMap[argDef.name] = argValue;
+              }
+            }
+
+            // 将参数传播到嵌套的 then/else 子效果中
+            this.PropagateArgsToNestedAtoms(atomConfigWithArgs, argMap);
+          }
+
+          const atom = AtomicEffectFactory.getInstance().create(atomConfigWithArgs as IAtomicEffectParams);
           if (!atom) {
             Logger.Warn(`[EffectTrigger] 创建原子效果失败: type=${atomConfig.type}`);
             continue;
@@ -575,5 +610,38 @@ export class EffectTrigger {
   private static GetStatName(statIndex: number): string {
     const statNames = ['攻击', '防御', '特攻', '特防', '速度', '命中'];
     return statNames[statIndex] || '未知';
+  }
+
+  /**
+   * 参数名到嵌套原子效果字段的映射
+   * args中定义的name → 实际原子效果中的字段名
+   */
+  private static readonly ARG_FIELD_MAP: Record<string, string> = {
+    'statIndex': 'stat',
+    'level': 'change',
+    'probability': 'value',
+  };
+
+  /**
+   * 将参数传播到嵌套的 then/else 子效果中
+   * 解决 conditional 包裹 stat_modifier 等场景下参数丢失的问题
+   */
+  private static PropagateArgsToNestedAtoms(atomConfig: any, argMap: Record<string, number>): void {
+    const branches = ['then', 'else'];
+    for (const branch of branches) {
+      if (!Array.isArray(atomConfig[branch])) continue;
+      for (const childAtom of atomConfig[branch]) {
+        // 将参数应用到子效果，使用字段映射
+        for (const [argName, argValue] of Object.entries(argMap)) {
+          const fieldName = this.ARG_FIELD_MAP[argName] || argName;
+          // 仅在子效果已有该字段时覆盖（避免污染不相关的原子效果）
+          if (fieldName in childAtom) {
+            childAtom[fieldName] = argValue;
+          }
+        }
+        // 递归处理更深层的嵌套
+        this.PropagateArgsToNestedAtoms(childAtom, argMap);
+      }
+    }
   }
 }

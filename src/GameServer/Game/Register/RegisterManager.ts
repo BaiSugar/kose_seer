@@ -67,27 +67,48 @@ export class RegisterManager {
     try {
       Logger.Info(`[RegisterManager] 发送验证码请求: email=${email}`);
 
-      // 生成6位数验证码
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // 生成验证码响应（简单的哈希）
-      const codeRes = Buffer.from(code).toString('base64').substring(0, 32);
-      
-      // 保存验证码（5分钟有效期）
-      this._emailCodes.set(email, {
-        code,
-        codeRes,
-        expireTime: Date.now() + 300000 // 5分钟
-      });
+      // 1. 检查邮箱是否已注册
+      const existingAccount = await this._accountRepo.FindByEmail(email);
+      if (existingAccount) {
+        Logger.Warn(`[RegisterManager] 邮箱已被注册，拒绝发送验证码: ${email}`);
+        const packet = this._packetSendEmailCode.Build('', RegisterResult.ACCOUNT_EXISTS);
+        session.Socket.write(packet);
+        return;
+      }
 
-      Logger.Info(`[RegisterManager] 验证码已生成: email=${email}, code=${code}, codeRes=${codeRes}`);
+      // 2. 检查是否已有未过期的验证码
+      const existingCode = this._emailCodes.get(email);
+      let code: string;
+      let codeRes: string;
 
-      // 发送响应
-      const packet = this._packetSendEmailCode.Build(codeRes);
+      if (existingCode && existingCode.expireTime > Date.now()) {
+        // 使用现有的未过期验证码
+        code = existingCode.code;
+        codeRes = existingCode.codeRes;
+        const remainingTime = Math.ceil((existingCode.expireTime - Date.now()) / 1000);
+        Logger.Info(`[RegisterManager] 使用现有验证码: email=${email}, code=${code}, 剩余有效期=${remainingTime}秒`);
+      } else {
+        // 生成新的6位数验证码
+        code = Math.floor(100000 + Math.random() * 900000).toString();
+        codeRes = code.padEnd(32, ' ');
+        
+        // 保存验证码（5分钟有效期）
+        this._emailCodes.set(email, {
+          code,
+          codeRes,
+          expireTime: Date.now() + 300000 // 5分钟
+        });
+
+        Logger.Info(`[RegisterManager] 生成新验证码: email=${email}, code=${code}, 有效期=5分钟`);
+      }
+
+      // 3. 发送响应，使用验证码作为错误码
+      // 客户端会弹出提示框显示这个数字（因为是未定义的错误码，会走 default 分支）
+      const codeAsNumber = parseInt(code, 10);
+      const packet = this._packetSendEmailCode.Build(codeRes, codeAsNumber);
       session.Socket.write(packet);
 
-      // TODO: 实际项目中应该发送邮件
-      Logger.Info(`[RegisterManager] 验证码响应已发送: ${codeRes}`);
+      Logger.Info(`[RegisterManager] 验证码已发送，客户端将显示: ${code}`);
 
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -95,6 +116,33 @@ export class RegisterManager {
       
       const packet = this._packetSendEmailCode.Build('', RegisterResult.SYSTEM_ERROR);
       session.Socket.write(packet);
+    }
+  }
+
+  /**
+   * 通过系统消息推送验证码
+   * @param session 客户端会话
+   * @param code 验证码
+   */
+  private async SendVerificationCodeMessage(session: IClientSession, code: string): Promise<void> {
+    try {
+      // 动态导入 PacketSystemMessage 避免循环依赖
+      const { PacketSystemMessage } = await import('../../Server/Packet/Send/System/PacketSystemMessage');
+      
+      const message = `您的验证码是：${code}（5分钟内有效）`;
+      const packetMessage = new PacketSystemMessage(message);
+      const buffer = this._packetBuilder.Build(
+        packetMessage.getCmdId(),
+        0, // userID
+        0, // result
+        packetMessage.serialize()
+      );
+      session.Socket.write(buffer);
+      
+      Logger.Info(`[RegisterManager] 验证码已通过系统消息推送: ${code}`);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      Logger.Error('[RegisterManager] 推送验证码消息失败', error);
     }
   }
 

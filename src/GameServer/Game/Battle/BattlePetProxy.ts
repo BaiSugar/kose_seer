@@ -6,6 +6,7 @@
  * 1. 设置 pet.status 时，自动更新 statusArray 和 statusDurations
  * 2. 设置 pet.statusTurns 时，自动更新对应的 statusArray 和 statusDurations
  * 3. 设置 pet.statusDurations[i] 时，自动更新 statusArray[i]
+ * 4. 设置 pet.battleLevels[i] 时，自动同步到 battleLv[i]（协议字段）
  * 
  * 使用方法：
  * ```typescript
@@ -32,6 +33,33 @@ export function createBattlePetProxy(pet: IBattlePet): IBattlePet {
   if (!pet.battleLv) {
     pet.battleLv = new Array(6).fill(0);
   }
+  if (!pet.battleLevels) {
+    pet.battleLevels = [0, 0, 0, 0, 0, 0];
+  }
+
+  // 创建 battleLevels 的 Proxy（监听数组元素修改，同步到 battleLv）
+  const battleLevelsProxy = new Proxy(pet.battleLevels, {
+    set(target: number[], index: string | symbol, value: any): boolean {
+      const numIndex = typeof index === 'string' ? parseInt(index) : -1;
+
+      if (numIndex >= 0 && numIndex < 6) {
+        target[numIndex] = value;
+
+        // 同步到 battleLv
+        if (!pet.battleLv) {
+          pet.battleLv = new Array(6).fill(0);
+        }
+        pet.battleLv[numIndex] = value;
+        return true;
+      }
+
+      (target as any)[index] = value;
+      return true;
+    }
+  });
+
+  // 替换原始的 battleLevels
+  pet.battleLevels = battleLevelsProxy;
 
   // 创建 statusDurations 的 Proxy（监听数组元素修改）
   const statusDurationsProxy = new Proxy(pet.statusDurations, {
@@ -199,6 +227,45 @@ export function createBattlePetProxy(pet: IBattlePet): IBattlePet {
           }
         }
         
+        return true;
+      }
+
+      // 拦截 battleLevels 设置（整个数组替换）
+      if (prop === 'battleLevels') {
+        target.battleLevels = value;
+
+        // 同步到 battleLv
+        if (Array.isArray(value)) {
+          if (!target.battleLv) {
+            target.battleLv = new Array(6).fill(0);
+          }
+          for (let i = 0; i < Math.min(value.length, 6); i++) {
+            target.battleLv[i] = value[i];
+          }
+        }
+
+        // 创建 Proxy 监听数组元素修改
+        const blProxy = new Proxy(value, {
+          set(arrTarget: number[], index: string | symbol, arrValue: any): boolean {
+            const numIndex = typeof index === 'string' ? parseInt(index) : -1;
+
+            if (numIndex >= 0 && numIndex < 6) {
+              arrTarget[numIndex] = arrValue;
+
+              // 同步到 battleLv
+              if (!target.battleLv) {
+                target.battleLv = new Array(6).fill(0);
+              }
+              target.battleLv[numIndex] = arrValue;
+              return true;
+            }
+
+            (arrTarget as any)[index] = arrValue;
+            return true;
+          }
+        });
+
+        target.battleLevels = blProxy;
         return true;
       }
 

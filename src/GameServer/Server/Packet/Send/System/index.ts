@@ -1,4 +1,3 @@
-export * from './PacketSystemTime';
-export * from './PacketGetImageAddress';
-export * from './PacketMapHot';
-export * from './PacketGoldOnlineCheckRemain';
+// 系统相关响应包
+export * from './PacketSystemMessage';
+export * from './PacketGetBossMonster';

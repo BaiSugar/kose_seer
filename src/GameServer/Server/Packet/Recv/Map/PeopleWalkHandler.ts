@@ -45,9 +45,17 @@ export class PeopleWalkHandler implements IHandler {
         `Pos=(${oldX},${oldY})->(${req.x},${req.y}), ` +
         `Ogres=${ogres.filter(o => o.petId > 0).length}`
       );
+      
+      // 广播移动消息到同地图其他玩家
+      const sent = await OnlineTracker.Instance.BroadcastToMap(
+        mapId,
+        rsp,
+        player.Uid  // 排除自己
+      );
+      
+      if (sent > 0) {
+        Logger.Debug(`[PeopleWalkHandler] 广播移动到 ${sent} 个玩家`);
+      }
     }
-    
-    // TODO: 广播移动消息到同地图其他玩家
-    // 在 Gateway 模式下，广播需要通过其他机制实现
   }
 }

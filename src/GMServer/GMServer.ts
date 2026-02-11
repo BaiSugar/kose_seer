@@ -122,7 +122,7 @@ export class GMServer {
     this.app.listen(this.port, () => {
       Logger.Info(`[GMServer] ========================================`);
       Logger.Info(`[GMServer] GM 服务器启动成功`);
-      Logger.Info(`[GMServer] API 地址: http://localhost:${this.port}`);
+      Logger.Info(`[GMServer] WeB GM 地址: http://localhost:${this.port}`);
       // Logger.Info(`[GMServer] API 文档: http://localhost:${this.port}/api/docs`);
       // Logger.Info(`[GMServer] 健康检查: http://localhost:${this.port}/health`);
       Logger.Info(`[GMServer] ========================================`);

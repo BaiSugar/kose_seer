@@ -4,6 +4,7 @@ import { Opcode, InjectType } from '../../../../../shared/decorators';
 import { CommandID } from '../../../../../shared/protocol/CommandID';
 import { DanceActionReqProto } from '../../../../../shared/proto/packets/req/map/DanceActionReqProto';
 import { DanceActionRspProto } from '../../../../../shared/proto/packets/rsp/map/DanceActionRspProto';
+import { OnlineTracker } from '../../../../Game/Player/OnlineTracker';
 
 /**
  * 舞蹈动作处理器
@@ -18,6 +19,15 @@ export class DanceActionHandler implements IHandler {
     const req = new DanceActionReqProto();
     req.deserialize(body);
 
-    await player.SendPacket(new DanceActionRspProto(player.Uid, req.actionId, req.actionType));
+    const rsp = new DanceActionRspProto(player.Uid, req.actionId, req.actionType);
+    
+    // 发送给自己
+    await player.SendPacket(rsp);
+    
+    // 广播给同地图其他玩家
+    const mapId = player.Data.mapID;
+    if (mapId > 0) {
+      await OnlineTracker.Instance.BroadcastToMap(mapId, rsp, player.Uid);
+    }
   }
 }

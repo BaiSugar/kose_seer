@@ -13,8 +13,14 @@ export class ConfigLoader {
   private _configDir: string;
 
   private constructor() {
-    // 配置文件目录：项目根目录/config
-    this._configDir = path.join(process.cwd(), 'config');
+    // 配置文件目录：
+    // - 开发环境：项目根目录/config
+    // - pkg 打包：可执行文件目录/config
+    const baseDir = (process as any).pkg
+      ? path.dirname(process.execPath)
+      : process.cwd();
+    
+    this._configDir = path.join(baseDir, 'config');
     Logger.Info(`[ConfigLoader] 配置目录: ${this._configDir}`);
   }
 

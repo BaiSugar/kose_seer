@@ -20,9 +20,56 @@ import {
   GCCommand,
   AnnounceCommand
 } from './shared/command/commands';
+import { DatabaseManager, MigrationRunner } from './DataBase';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // 初始化日志系统
 Logger.Initialize(Config.Logging.level);
+
+/**
+ * 初始化数据库
+ * 首次运行时自动创建数据库文件和表结构
+ */
+async function initializeDatabase(): Promise<void> {
+  try {
+    Logger.Info('[Startup] 检查数据库...');
+    
+    // 如果是 SQLite，检查数据库文件是否存在
+    if (Config.Database.type === 'sqlite') {
+      const dbPath = Config.Database.path;
+      if (!dbPath) {
+        throw new Error('SQLite 数据库路径未配置');
+      }
+      
+      const dbDir = path.dirname(dbPath);
+      
+      // 确保数据目录存在
+      if (!fs.existsSync(dbDir)) {
+        Logger.Info(`[Startup] 创建数据目录: ${dbDir}`);
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+      
+      const isFirstRun = !fs.existsSync(dbPath);
+      if (isFirstRun) {
+        Logger.Info('[Startup] 首次运行，正在初始化数据库...');
+      }
+    }
+    
+    // 初始化数据库连接
+    await DatabaseManager.Instance.Initialize();
+    
+    // 运行数据库迁移
+    Logger.Info('[Startup] 检查数据库迁移...');
+    const runner = new MigrationRunner();
+    await runner.RunAll();
+    
+    Logger.Info('[Startup] 数据库初始化完成');
+  } catch (err) {
+    Logger.Error('[Startup] 数据库初始化失败', err as Error);
+    throw err;
+  }
+}
 
 /**
  * 命令行参数解析
@@ -128,6 +175,9 @@ class ServiceManager {
     // 启动游戏服务器
     if (options.all || options.game) {
       if (Config.Game.enabled) {
+        // 初始化数据库（首次运行会自动创建表）
+        await initializeDatabase();
+        
         // 只在启动GameServer时加载战斗效果系统和游戏配置
         await import('./GameServer/Game/Battle/effects');
         Logger.Info('[Startup] 战斗效果系统已加载');

@@ -164,17 +164,32 @@ export class PetData extends BaseData {
   }
 
   /**
-   * 获取背包中的精灵
+   * 获取背包中的精灵（按首发和获得时间排序）
+   * 排序规则：
+   * 1. 首发精灵排在最前面
+   * 2. 其他精灵按获得时间（catchTime）升序排列（越早获得越靠前）
    */
   public GetPetsInBag(): IPetInfo[] {
-    return this.PetList.filter(p => p.isInBag);
+    return this.PetList
+      .filter(p => p.isInBag)
+      .sort((a, b) => {
+        // 首发精灵排在最前面
+        if (a.isDefault && !b.isDefault) return -1;
+        if (!a.isDefault && b.isDefault) return 1;
+        
+        // 其他精灵按 catchTime 升序排列（越早获得越靠前）
+        return a.catchTime - b.catchTime;
+      });
   }
 
   /**
-   * 获取仓库中的精灵
+   * 获取仓库中的精灵（按获得时间排序）
+   * 排序规则：按获得时间（catchTime）升序排列（越早获得越靠前）
    */
   public GetPetsInStorage(): IPetInfo[] {
-    return this.PetList.filter(p => !p.isInBag);
+    return this.PetList
+      .filter(p => !p.isInBag)
+      .sort((a, b) => a.catchTime - b.catchTime);
   }
 
   /**

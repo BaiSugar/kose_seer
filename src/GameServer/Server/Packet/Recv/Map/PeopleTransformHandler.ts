@@ -4,6 +4,7 @@ import { Opcode, InjectType } from '../../../../../shared/decorators';
 import { CommandID } from '../../../../../shared/protocol/CommandID';
 import { PeopleTransformReqProto } from '../../../../../shared/proto/packets/req/map/PeopleTransformReqProto';
 import { PeopleTransformRspProto } from '../../../../../shared/proto/packets/rsp/map/PeopleTransformRspProto';
+import { OnlineTracker } from '../../../../Game/Player/OnlineTracker';
 
 /**
  * 玩家变身处理器
@@ -18,6 +19,15 @@ export class PeopleTransformHandler implements IHandler {
     const req = new PeopleTransformReqProto();
     req.deserialize(body);
 
-    await player.SendPacket(new PeopleTransformRspProto(player.Uid, req.transId));
+    const rsp = new PeopleTransformRspProto(player.Uid, req.transId);
+    
+    // 发送给自己
+    await player.SendPacket(rsp);
+    
+    // 广播给同地图其他玩家
+    const mapId = player.Data.mapID;
+    if (mapId > 0) {
+      await OnlineTracker.Instance.BroadcastToMap(mapId, rsp, player.Uid);
+    }
   }
 }

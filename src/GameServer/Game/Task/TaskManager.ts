@@ -74,7 +74,7 @@ export class TaskManager extends BaseManager {
       // 1. 处理选择精灵任务
       if (taskConfig.type === 'select_pet' && taskConfig.paramMap) {
         petId = taskConfig.paramMap[param.toString()] || 1;
-        captureTm = 0x69686700 + petId;
+        captureTm = Math.floor(Date.now() / 1000);
 
         // 给玩家精灵 - 新手精灵等级为5
         await this.Player.PetManager.GivePet(petId, 5, captureTm);

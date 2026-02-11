@@ -53,45 +53,43 @@ export class MailGetListRspProto extends BaseProto {
 
   /**
    * 序列化单个邮件信息
+   * 
+   * 客户端期望的格式 (SingleMailInfo.as):
+   * - id: uint32 (邮件ID)
+   * - template: uint32 (邮件模板ID)
+   * - time: uint32 (发送时间)
+   * - fromID: uint32 (发件人ID)
+   * - fromNick: string[16] (发件人昵称)
+   * - flag: uint32 (是否已读: 0=未读, 1=已读)
    */
   private serializeSingleMail(mail: IMailInfo): Buffer {
-    const buffer = Buffer.alloc(4 + 4 + 16 + 32 + 4 + 4 + 4 + 4);
+    const buffer = Buffer.alloc(4 + 4 + 4 + 4 + 16 + 4);
     let offset = 0;
 
     // id
     buffer.writeUInt32BE(mail.id, offset);
     offset += 4;
 
-    // senderId
+    // template (邮件模板ID，使用mailType)
+    buffer.writeUInt32BE(mail.mailType, offset);
+    offset += 4;
+
+    // time (发送时间)
+    buffer.writeUInt32BE(mail.sendTime, offset);
+    offset += 4;
+
+    // fromID (发件人ID)
     buffer.writeUInt32BE(mail.senderId, offset);
     offset += 4;
 
-    // senderNick (16 bytes)
+    // fromNick (16 bytes)
     const senderNickBuf = Buffer.alloc(16);
     senderNickBuf.write(mail.senderNick, 0, 16, 'utf8');
     senderNickBuf.copy(buffer, offset);
     offset += 16;
 
-    // title (32 bytes)
-    const titleBuf = Buffer.alloc(32);
-    titleBuf.write(mail.title, 0, 32, 'utf8');
-    titleBuf.copy(buffer, offset);
-    offset += 32;
-
-    // isRead
+    // flag (是否已读: 0=未读, 1=已读)
     buffer.writeUInt32BE(mail.isRead ? 1 : 0, offset);
-    offset += 4;
-
-    // hasAttachment
-    buffer.writeUInt32BE(mail.hasAttachment ? 1 : 0, offset);
-    offset += 4;
-
-    // sendTime
-    buffer.writeUInt32BE(mail.sendTime, offset);
-    offset += 4;
-
-    // mailType
-    buffer.writeUInt32BE(mail.mailType, offset);
 
     return buffer;
   }

@@ -9,6 +9,7 @@
 export const ConfigKeys = {
   // 服务器配置
   SERVER_CONFIG: 'server_config',
+  CLIENT_CONFIG: 'client_config',
   
   // 游戏配置 (JSON)
   MAP_OGRES: 'map_ogres',
@@ -38,6 +39,7 @@ export const ConfigKeys = {
 export const ConfigPaths: Record<string, string> = {
   // 服务器配置
   [ConfigKeys.SERVER_CONFIG]: 'server.json',
+  [ConfigKeys.CLIENT_CONFIG]: 'client.json',
   
   // JSON配置
   [ConfigKeys.MAP_OGRES]: 'data/json/map-ogres.json',
@@ -74,6 +76,7 @@ export enum ConfigType {
  */
 export const ConfigTypes: Record<string, ConfigType> = {
   [ConfigKeys.SERVER_CONFIG]: ConfigType.JSON,
+  [ConfigKeys.CLIENT_CONFIG]: ConfigType.JSON,
   
   [ConfigKeys.MAP_OGRES]: ConfigType.JSON,
   [ConfigKeys.BATTLE_CONFIG]: ConfigType.JSON,
@@ -99,6 +102,7 @@ export const ConfigTypes: Record<string, ConfigType> = {
  */
 export function GetGameConfigRegistrations(): Array<{ key: string; path: string; type: ConfigType }> {
   return [
+    { key: ConfigKeys.CLIENT_CONFIG, path: ConfigPaths[ConfigKeys.CLIENT_CONFIG], type: ConfigTypes[ConfigKeys.CLIENT_CONFIG] },
     { key: ConfigKeys.MAP_OGRES, path: ConfigPaths[ConfigKeys.MAP_OGRES], type: ConfigTypes[ConfigKeys.MAP_OGRES] },
     { key: ConfigKeys.DEFAULT_PLAYER, path: ConfigPaths[ConfigKeys.DEFAULT_PLAYER], type: ConfigTypes[ConfigKeys.DEFAULT_PLAYER] },
     { key: ConfigKeys.TASK_CONFIG, path: ConfigPaths[ConfigKeys.TASK_CONFIG], type: ConfigTypes[ConfigKeys.TASK_CONFIG] },

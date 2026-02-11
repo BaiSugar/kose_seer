@@ -113,9 +113,7 @@ export class PetInfoProto extends BaseProto {
     
     // 6. 效果列表
     writer.WriteUInt16(this.effects.length);
-    console.log(`[PetInfoProto] 精灵 ${this.id} 特性数量: ${this.effects.length}`);
     for (const effect of this.effects) {
-      console.log(`[PetInfoProto] 写入特性: effectID=${effect.effectID}, itemId=${effect.itemId}, status=${effect.status}, leftCount=${effect.leftCount}, arg1=${effect.arg1}, arg2=${effect.arg2}`);
       writer.WriteUInt32(effect.itemId);        // 4 bytes
       writer.WriteUInt8(effect.status);          // 1 byte
       writer.WriteUInt8(effect.leftCount);       // 1 byte

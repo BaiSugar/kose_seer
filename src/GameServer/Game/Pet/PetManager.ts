@@ -86,6 +86,29 @@ export class PetManager extends BaseManager {
   }
 
   /**
+   * 主动推送精灵列表更新（用于GM发送精灵、捕捉精灵等场景）
+   * @param includeStorage 是否包含仓库精灵（默认false，只推送背包）
+   * @deprecated 不推荐使用，客户端没有持续监听GET_PET_LIST，请使用SendNoteUpdatePropForNewPet
+   */
+  public async SendPetListUpdate(includeStorage: boolean = false): Promise<void> {
+    const pets = includeStorage ? this.PetData.GetPetsInStorage() : this.PetData.GetPetsInBag();
+    const petProtos = pets.map(pet => this.petInfoToProto(pet));
+    
+    await this.Player.SendPacket(new PacketGetPetList(petProtos));
+    Logger.Info(`[PetManager] 主动推送精灵列表更新: UserID=${this.UserID}, Type=${includeStorage ? '仓库' : '背包'}, Count=${pets.length}`);
+  }
+
+  /**
+   * 推送 NOTE_UPDATE_PROP 触发客户端刷新精灵列表（用于GM发送精灵等场景）
+   * 客户端收到此消息后会自动调用 PetManager.upDate() 刷新精灵列表
+   * @param pet 新获得的精灵信息
+   */
+  public async SendNoteUpdatePropForNewPet(pet: IPetInfo): Promise<void> {
+    await this.sendNoteUpdateProp([pet], 0);
+    Logger.Info(`[PetManager] 推送 NOTE_UPDATE_PROP 触发客户端刷新: UserID=${this.UserID}, PetId=${pet.petId}`);
+  }
+
+  /**
    * 处理获取精灵信息
    */
   public async HandleGetPetInfo(catchTime: number): Promise<void> {
@@ -105,19 +128,44 @@ export class PetManager extends BaseManager {
   }
 
   /**
-   * 处理释放精灵
+   * 处理将精灵放到仓库（flag=0）
    */
   public async HandlePetRelease(catchTime: number): Promise<void> {
-    const success = await this.PetData.RemovePetByCatchTime(catchTime);
+    const pet = this.PetData.GetPetByCatchTime(catchTime);
     
-    if (success) {
-      await DatabaseHelper.Instance.SavePetData(this.PetData);
-      await this.Player.SendPacket(new PacketPetRelease(0, catchTime, 1));
-      Logger.Info(`[PetManager] 释放精灵: UserID=${this.UserID}, CatchTime=${catchTime}`);
-    } else {
-      Logger.Warn(`[PetManager] 释放精灵失败，精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
+    if (!pet) {
+      Logger.Warn(`[PetManager] 精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_RELEASE).setResult(5001));
+      return;
     }
+
+    if (!pet.isInBag) {
+      Logger.Warn(`[PetManager] 精灵不在背包中: UserID=${this.UserID}, CatchTime=${catchTime}`);
+      await this.Player.SendPacket(new PacketEmpty(CommandID.PET_RELEASE).setResult(5001));
+      return;
+    }
+
+    // 将精灵移到仓库
+    pet.isInBag = false;
+    
+    // 如果是首发精灵，需要取消首发状态
+    if (pet.isDefault) {
+      pet.isDefault = false;
+      
+      // 设置新的首发精灵（背包中的第一只）
+      const bagPets = this.PetData.GetPetsInBag();
+      if (bagPets.length > 0) {
+        bagPets[0].isDefault = true;
+      }
+    }
+
+    // 获取新的首发精灵的 catchTime
+    const defaultPet = this.PetData.PetList.find(p => p.isDefault);
+    const firstPetTime = defaultPet ? defaultPet.catchTime : 0;
+
+    await DatabaseHelper.Instance.SavePetData(this.PetData);
+    await this.Player.SendPacket(new PacketPetRelease(0, firstPetTime, 0));
+    Logger.Info(`[PetManager] 将精灵放到仓库: UserID=${this.UserID}, CatchTime=${catchTime}, NewDefaultCatchTime=${firstPetTime}`);
   }
 
   /**

@@ -3,70 +3,80 @@ import { IServerInfo } from '../../Server/Packet/Send/ServerPacket';
 import { IClientSession } from '../../Server/Packet/IHandler';
 import { CommendOnlineRspProto, RangeOnlineRspProto } from '../../../shared/proto';
 import { DatabaseHelper } from '../../../DataBase/DatabaseHelper';
+import { ClientConfig } from '../../../shared/config/ClientConfig';
 import { Logger } from '../../../shared/utils';
 
 /**
  * 服务器管理器
- * 负责管理服务器列表，后续可接入数据库或配置中心
+ * 负责管理服务器列表和在线状态
  */
 export class ServerManager {
-  private _servers: IServerInfo[] = [];
   private _packetBuilder: PacketBuilder;
+  private _onlineUsers: Set<number> = new Set();  // 在线用户集合
 
   constructor(packetBuilder: PacketBuilder) {
     this._packetBuilder = packetBuilder;
-    
-    // 添加默认服务器（当前服务器）
-    this.AddServer({
-      onlineID: 1,
-      userCnt: 0,
-      ip: '127.0.0.1',
-      port: 9999,
-      friends: 1
-    });
   }
 
   /**
-   * 添加服务器
+   * 用户上线
    */
-  public AddServer(server: IServerInfo): void {
-    this._servers.push(server);
+  public UserOnline(userID: number): void {
+    this._onlineUsers.add(userID);
+    Logger.Debug(`[ServerManager] 用户上线: ${userID}, 当前在线: ${this._onlineUsers.size}`);
   }
 
   /**
-   * 移除服务器
+   * 用户下线
    */
-  public RemoveServer(onlineID: number): void {
-    this._servers = this._servers.filter(s => s.onlineID !== onlineID);
+  public UserOffline(userID: number): void {
+    this._onlineUsers.delete(userID);
+    Logger.Debug(`[ServerManager] 用户下线: ${userID}, 当前在线: ${this._onlineUsers.size}`);
   }
 
   /**
-   * 更新服务器在线人数
+   * 获取在线人数
    */
-  public UpdateUserCount(onlineID: number, userCnt: number): void {
-    const server = this._servers.find(s => s.onlineID === onlineID);
-    if (server) {
-      server.userCnt = userCnt;
+  public GetOnlineCount(): number {
+    return this._onlineUsers.size;
+  }
+
+  /**
+   * 获取用户的在线好友数
+   */
+  private async GetOnlineFriendsCount(userID: number): Promise<number> {
+    try {
+      const friendData = await DatabaseHelper.Instance.GetInstance_FriendData(userID);
+      if (!friendData) return 0;
+
+      // 统计在线好友数
+      let count = 0;
+      for (const friendID of friendData.FriendList) {
+        if (this._onlineUsers.has(friendID)) {
+          count++;
+        }
+      }
+      return count;
+    } catch (err) {
+      Logger.Error(`[ServerManager] 获取在线好友数失败: uid=${userID}`, err as Error);
+      return 0;
     }
   }
 
   /**
-   * 获取所有服务器
+   * 构建服务器列表（包含实时数据）
    */
-  public GetServers(): IServerInfo[] {
-    return [...this._servers];
-  }
+  private async buildServerList(userID: number): Promise<IServerInfo[]> {
+    const baseServers = ClientConfig.Instance.Servers;
+    const onlineCount = this.GetOnlineCount();
+    const friendsCount = await this.GetOnlineFriendsCount(userID);
 
-  /**
-   * 构建服务器列表Proto数据
-   */
-  private buildServerList() {
-    return this._servers.map(s => ({
-      onlineID: s.onlineID,
-      userCnt: s.userCnt,
-      ip: s.ip,
-      port: s.port,
-      friends: s.friends
+    return baseServers.map(base => ({
+      onlineID: base.onlineID,
+      userCnt: onlineCount,      // 实时在线人数
+      ip: base.ip,
+      port: base.port,
+      friends: friendsCount      // 实时在线好友数
     }));
   }
 
@@ -74,13 +84,21 @@ export class ServerManager {
    * 处理推荐服务器列表请求
    */
   public async HandleCommendOnline(session: IClientSession, userID: number): Promise<void> {
-    const proto = new CommendOnlineRspProto();
-    proto.maxOnlineID = this._servers.length > 0 ? Math.max(...this._servers.map(s => s.onlineID)) : 1;
-    proto.isVIP = 0;
-    proto.onlineCnt = this._servers.length;
-    proto.servers = this.buildServerList();
+    const servers = await this.buildServerList(userID);
     
-    Logger.Info(`[ServerManager] 构建服务器列表: count=${proto.onlineCnt}`);
+    const proto = new CommendOnlineRspProto();
+    proto.maxOnlineID = servers.length > 0 ? Math.max(...servers.map(s => s.onlineID)) : 1;
+    proto.isVIP = 0;
+    proto.onlineCnt = servers.length;
+    proto.servers = servers.map(s => ({
+      onlineID: s.onlineID,
+      userCnt: s.userCnt,
+      ip: s.ip,
+      port: s.port,
+      friends: s.friends
+    }));
+    
+    Logger.Info(`[ServerManager] 构建服务器列表: count=${proto.onlineCnt}, online=${servers[0]?.userCnt || 0}, friends=${servers[0]?.friends || 0}`);
     
     // 加载好友列表和黑名单
     try {
@@ -121,9 +139,17 @@ export class ServerManager {
    * 处理范围服务器查询请求
    */
   public async HandleRangeOnline(session: IClientSession, userID: number): Promise<void> {
+    const servers = await this.buildServerList(userID);
+    
     const proto = new RangeOnlineRspProto();
-    proto.onlineCnt = this._servers.length;
-    proto.servers = this.buildServerList();
+    proto.onlineCnt = servers.length;
+    proto.servers = servers.map(s => ({
+      onlineID: s.onlineID,
+      userCnt: s.userCnt,
+      ip: s.ip,
+      port: s.port,
+      friends: s.friends
+    }));
 
     // 使用 PacketBuilder 构建完整数据包
     const packet = this._packetBuilder.Build(

@@ -123,6 +123,9 @@ export class BattleRewardService {
 
       if (success) {
         Logger.Info(`[BattleRewardService] 捕获精灵: UserID=${userId}, PetId=${battle.enemy.id}, Level=${battle.enemy.level}, CatchTime=${catchTime}`);
+        
+        // 捕获成功后，客户端会自动处理精灵列表刷新（通过 CATCH_SUCCESS 事件）
+        // 无需服务器主动推送
       }
 
       return success;

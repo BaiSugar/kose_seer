@@ -7,6 +7,7 @@ import { SptSystem } from '../../GameServer/Game/Pet/SptSystem';
 import { OnlineTracker } from '../../GameServer/Game/Player/OnlineTracker';
 import { PlayerManager } from '../../GameServer/Game/Player/PlayerManager';
 import { PacketSystemMessage } from '../../GameServer/Server/Packet/Send/System/PacketSystemMessage';
+import { PacketGetBossMonster } from '../../GameServer/Server/Packet/Send/System/PacketGetBossMonster';
 
 /**
  * 精灵管理服务
@@ -144,7 +145,7 @@ export class PetService {
     
     Logger.Info(`[PetService] 发送精灵成功: uid=${uid}, petId=${petId}, level=${level}, isInBag=${isInBag}, catchTime=${newPet.catchTime}, skills=${newPet.skillArray.join(',')}`);
     
-    // 如果玩家在线，发送系统消息通知
+    // 如果玩家在线，发送系统消息通知并推送GET_BOSS_MONSTER
     try {
       if (OnlineTracker.Instance.IsOnline(uid)) {
         const player = PlayerManager.GetInstance().GetPlayer(uid);
@@ -157,6 +158,12 @@ export class PetService {
           // 发送系统消息通知 (SYSTEM_MESSAGE - CMD 8002)
           await player.SendPacket(new PacketSystemMessage(message, 0, 0));
           Logger.Info(`[PetService] 已发送获得精灵通知给在线玩家: uid=${uid}, petId=${petId}, message=${message}`);
+          
+          // 推送 GET_BOSS_MONSTER (8004) 通知客户端添加精灵
+          // 客户端收到后会调用 PetManager.setIn(catchTime, 1)
+          // 然后发送 PET_RELEASE 请求，服务器响应后客户端会添加精灵到背包
+          await player.SendPacket(new PacketGetBossMonster(petId, newPet.catchTime));
+          Logger.Info(`[PetService] 已推送 GET_BOSS_MONSTER 触发客户端添加精灵: uid=${uid}, petId=${petId}, catchTime=${newPet.catchTime}`);
         }
       }
     } catch (error) {

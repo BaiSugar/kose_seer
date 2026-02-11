@@ -44,6 +44,10 @@ export class GameServer {
     // this._itemManager = new ItemManager();
     this._handlers = new Map();
 
+    // 连接 PlayerManager 和 ServerManager
+    const playerManager = PlayerManager.GetInstance(this._packetBuilder);
+    playerManager.SetServerManager(this._serverManager);
+
     this.RegisterHandlers();
     this.SetupConnectionHandler();
   }

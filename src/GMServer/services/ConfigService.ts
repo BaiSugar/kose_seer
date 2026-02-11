@@ -5,7 +5,10 @@ import { ConfigRegistry } from '../../shared/config/ConfigRegistry';
 import { GameConfig } from '../../shared/config/game/GameConfig';
 
 export class ConfigService {
-  private configPath = path.join(__dirname, '../../../config');
+  private configPath = path.join(
+    (process as any).pkg ? path.dirname(process.execPath) : process.cwd(),
+    'config'
+  );
 
   /**
    * 将前端配置键名（连字符）转换为后端配置键名（下划线）

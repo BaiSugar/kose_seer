@@ -272,10 +272,13 @@ export class LoginManager {
       Logger.Debug(`[LoginManager] 任务数据: 共${playerInstance.TaskManager.TaskData.TaskList.size}个任务`);
       
       // 加载精灵数据并填充到 Proto（所有精灵，包括背包和仓库）
-      // 注意：首发精灵已经在 HandlePetDefault 时被移到第一位，这里不需要排序
-      const allPets = playerInstance.PetManager.PetData.PetList;
+      // 重要：客户端的 initData() 假设第一个精灵是首发精灵
+      // 必须按照正确顺序发送：背包精灵（首发在第一位）+ 仓库精灵
+      const bagPets = playerInstance.PetManager.PetData.GetPetsInBag();
+      const storagePets = playerInstance.PetManager.PetData.GetPetsInStorage();
+      const allPets = [...bagPets, ...storagePets];
       
-      Logger.Debug(`[LoginManager] PetData.PetList 总数: ${allPets.length}`);
+      Logger.Debug(`[LoginManager] 精灵总数: ${allPets.length} (背包: ${bagPets.length}, 仓库: ${storagePets.length})`);
       
       if (allPets.length > 0) {
         Logger.Debug(`[LoginManager] 精灵列表: ${JSON.stringify(allPets.map(p => ({

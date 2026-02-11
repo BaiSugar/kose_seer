@@ -86,6 +86,13 @@ export class MapManager extends BaseManager {
     // 主动推送 MAP_BOSS (地图BOSS列表)
     await this.sendMapBossList(mapId);
     
+    // 广播新玩家进入消息给同地图其他玩家
+    const enterPacket = new PacketEnterMap(userInfo);
+    const sent = await this._onlineTracker.BroadcastToMap(mapId, enterPacket, this.UserID);
+    if (sent > 0) {
+      Logger.Info(`[MapManager] 广播玩家进入到 ${sent} 个玩家`);
+    }
+    
     Logger.Info(`[MapManager] ========== 进入地图完成 ==========`);
   }
 
@@ -96,13 +103,22 @@ export class MapManager extends BaseManager {
     const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
     Logger.Info(`[MapManager] 玩家 ${this.UserID} 离开地图 ${mapId}`);
 
+    // 广播玩家离开消息给同地图其他玩家
+    if (mapId > 0) {
+      const leavePacket = new PacketLeaveMap(this.UserID);
+      const sent = await this._onlineTracker.BroadcastToMap(mapId, leavePacket, this.UserID);
+      if (sent > 0) {
+        Logger.Info(`[MapManager] 广播玩家离开到 ${sent} 个玩家`);
+      }
+    }
+
     // 通知 MapSpawnManager 玩家离开地图（清除状态）
     MapSpawnManager.Instance.OnPlayerLeaveMap(this.UserID);
 
     // 更新在线追踪（设置为地图0）
     this._onlineTracker.UpdatePlayerMap(this.UserID, 0, 0);
 
-    // 发送离开地图响应
+    // 发送离开地图响应给自己
     await this.Player.SendPacket(new PacketLeaveMap(this.UserID));
     
     // 注意：不需要发送空的野怪列表
@@ -187,7 +203,17 @@ export class MapManager extends BaseManager {
     // 更新 PlayerData（自动保存）
     this.Player.Data.nick = newNick;
 
-    await this.Player.SendPacket(new PacketChangeNickName(this.UserID, newNick));
+    const packet = new PacketChangeNickName(this.UserID, newNick);
+    
+    // 发送给自己
+    await this.Player.SendPacket(packet);
+    
+    // 广播给同地图其他玩家
+    const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
+    if (mapId > 0) {
+      await this._onlineTracker.BroadcastToMap(mapId, packet, this.UserID);
+    }
+    
     Logger.Info(`[MapManager] 玩家 ${this.UserID} 修改昵称为 ${newNick}`);
   }
 
@@ -198,7 +224,17 @@ export class MapManager extends BaseManager {
     // 更新 PlayerData（自动保存）
     this.Player.Data.color = newColor;
 
-    await this.Player.SendPacket(new PacketChangeColor(this.UserID, newColor, 0, this.Player.Data.coins));
+    const packet = new PacketChangeColor(this.UserID, newColor, 0, this.Player.Data.coins);
+    
+    // 发送给自己
+    await this.Player.SendPacket(packet);
+    
+    // 广播给同地图其他玩家
+    const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
+    if (mapId > 0) {
+      await this._onlineTracker.BroadcastToMap(mapId, packet, this.UserID);
+    }
+    
     Logger.Info(`[MapManager] 玩家 ${this.UserID} 修改颜色为 0x${newColor.toString(16)}`);
   }
 

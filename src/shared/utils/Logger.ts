@@ -67,7 +67,6 @@ function ParseStackLine(line: string): IStackInfo | null {
   const isInternal = filePath.startsWith('node:') ||
                      filePath.includes('node_modules') ||
                      filePath.includes('internal/') ||
-                     methodName.includes('Object.') ||
                      methodName.includes('Module.') ||
                      methodName.includes('Wrapper');
 
@@ -84,29 +83,65 @@ function ParseStackLine(line: string): IStackInfo | null {
 function IsValidMethodName(name: string): boolean {
   if (!name) return false;
   if (name === 'anonymous') return false;
+  if (name === 'unknown') return false;
   if (name.includes('<')) return false;
-  if (name.includes('Object.')) return false;
-  if (name.includes('Module.')) return false;
+  // 放宽限制，允许 Object. 和 Module. 前缀
+  // if (name.includes('Object.')) return false;
+  // if (name.includes('Module.')) return false;
   if (name.includes('Wrapper')) return false;
   if (name.includes('process.')) return false;
   return true;
 }
 
+// 是否为 pkg 打包环境
+const isPkg = !!(process as any).pkg;
+
+function IsLoggerFrame(line: string): boolean {
+  return line.includes('GetStackInfo') ||
+         line.includes('FormatMessage') ||
+         line.includes('Logger.Output') ||
+         line.includes('Logger.Debug') ||
+         line.includes('Logger.Info') ||
+         line.includes('Logger.Warn') ||
+         line.includes('Logger.Error');
+}
+
 function GetStackInfo(stackIndex: number = 3): IStackInfo {
+  // pkg 打包后栈帧指向 bootstrap.js，无意义，直接跳过
+  if (isPkg)
+    return { FilePath: '', Line: 0, MethodName: '' };
+
   const stack = new Error().stack;
   if (!stack)
     return { FilePath: 'unknown', Line: 0, MethodName: 'unknown' };
 
   const lines = stack.split('\n');
-  if (lines.length <= stackIndex)
-    return { FilePath: 'unknown', Line: 0, MethodName: 'unknown' };
 
-  const targetInfo = ParseStackLine(lines[stackIndex]);
+  // 先尝试固定索引
+  let targetInfo: IStackInfo | null = null;
+  if (lines.length > stackIndex) {
+    targetInfo = ParseStackLine(lines[stackIndex]);
+  }
+
+  // 如果固定索引失败（解析失败或文件名为unknown），智能查找第一个非Logger内部帧
+  if (!targetInfo || targetInfo.FilePath === 'unknown') {
+    targetInfo = null;
+    for (let i = 1; i < lines.length; i++) {
+      if (IsLoggerFrame(lines[i])) continue;
+      const info = ParseStackLine(lines[i]);
+      if (info && !info.IsInternal) {
+        targetInfo = info;
+        break;
+      }
+    }
+  }
+
   if (!targetInfo)
     return { FilePath: 'unknown', Line: 0, MethodName: 'unknown' };
 
   if (!IsValidMethodName(targetInfo.MethodName)) {
-    for (let i = stackIndex + 1; i < lines.length; i++) {
+    for (let i = 1; i < lines.length; i++) {
+      if (IsLoggerFrame(lines[i])) continue;
       const info = ParseStackLine(lines[i]);
       if (info && !info.IsInternal && IsValidMethodName(info.MethodName)) {
         targetInfo.MethodName = info.MethodName;
@@ -133,13 +168,22 @@ function FormatTime(): string {
 function FormatMessage(level: LogLevel, message: string, stackInfo: IStackInfo, tag?: string): string {
   const time = FormatTime();
   const levelColor = LevelColors[level];
-  const methodName = tag || stackInfo.MethodName;
 
-  return `${Colors.BrightBlack}[${time}]${Colors.Reset} ` +
-         `${levelColor}[${level.padEnd(5)}]${Colors.Reset} ` +
-         `${Colors.Cyan}[${stackInfo.FilePath}:${stackInfo.Line}]${Colors.Reset} ` +
-         `${Colors.Magenta}[${methodName}]${Colors.Reset} ` +
-         `${Colors.White}${message}${Colors.Reset}`;
+  let result = `${Colors.BrightBlack}[${time}]${Colors.Reset} ` +
+               `${levelColor}[${level.padEnd(5)}]${Colors.Reset} `;
+
+  // pkg 环境下栈信息无意义，不输出
+  if (stackInfo.FilePath) {
+    result += `${Colors.Cyan}[${stackInfo.FilePath}:${stackInfo.Line}]${Colors.Reset} `;
+  }
+
+  const methodName = tag || stackInfo.MethodName;
+  if (methodName) {
+    result += `${Colors.Magenta}[${methodName}]${Colors.Reset} `;
+  }
+
+  result += `${Colors.White}${message}${Colors.Reset}`;
+  return result;
 }
 
 function FormatStack(error: Error): string {

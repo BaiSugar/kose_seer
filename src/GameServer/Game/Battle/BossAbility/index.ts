@@ -4,4 +4,4 @@
 
 export { BossAbilityManager } from './BossAbilityManager';
 export { BossAbilityConfig } from './BossAbilityConfig';
-export type { IBossAbilityConfig } from './BossAbilityConfig';
+export type { IBossConfig } from './BossAbilityConfig';

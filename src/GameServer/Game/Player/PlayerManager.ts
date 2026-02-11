@@ -1,6 +1,7 @@
 import { PlayerInstance } from './PlayerInstance';
 import { IClientSession } from '../../Server/Packet/IHandler';
 import { PacketBuilder } from '../../../shared/protocol/PacketBuilder';
+import { ServerManager } from '../Server/ServerManager';
 import { Logger } from '../../../shared/utils';
 import { OnlineTracker } from './OnlineTracker';
 
@@ -12,6 +13,7 @@ export class PlayerManager {
   private static _instance: PlayerManager;
   private _players: Map<number, PlayerInstance> = new Map();
   private _packetBuilder: PacketBuilder;
+  private _serverManager?: ServerManager;
 
   private constructor(packetBuilder: PacketBuilder) {
     this._packetBuilder = packetBuilder;
@@ -28,6 +30,13 @@ export class PlayerManager {
       PlayerManager._instance = new PlayerManager(packetBuilder);
     }
     return PlayerManager._instance;
+  }
+
+  /**
+   * 设置 ServerManager（用于在线状态追踪）
+   */
+  public SetServerManager(serverManager: ServerManager): void {
+    this._serverManager = serverManager;
   }
 
   /**
@@ -53,6 +62,11 @@ export class PlayerManager {
     // 注册到在线追踪系统
     OnlineTracker.Instance.PlayerLogin(userID, session);
 
+    // 通知 ServerManager 用户上线
+    if (this._serverManager) {
+      this._serverManager.UserOnline(userID);
+    }
+
     Logger.Info(`[PlayerManager] 创建玩家实例: userID=${userID}, nickname=${nickname}`);
     return player;
   }
@@ -75,6 +89,11 @@ export class PlayerManager {
       
       // 从在线追踪系统移除
       OnlineTracker.Instance.PlayerLogout(userID);
+      
+      // 通知 ServerManager 用户下线
+      if (this._serverManager) {
+        this._serverManager.UserOffline(userID);
+      }
       
       Logger.Info(`[PlayerManager] 移除玩家实例: ${userID}`);
     }
