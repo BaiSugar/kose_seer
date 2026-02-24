@@ -38,3 +38,6 @@ export * from './Exchange';
 
 // 用户相关Handler
 export * from './User';
+
+// 配置相关Handler
+export * from './Config';

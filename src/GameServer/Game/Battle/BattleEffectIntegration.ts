@@ -1078,29 +1078,49 @@ export class BattleEffectIntegration {
       }
     }
 
-    // 清理过期的临时能力变化
+    // 处理过期效果
     for (const key of expiredEffects) {
-      if (key.startsWith('stat_') && key.includes('_boost_')) {
-        const match = key.match(/stat_(\d+)_boost_(-?\d+)/);
-        if (match && pet.battleLv) {
-          const statIndex = parseInt(match[1]);
-          const stages = parseInt(match[2]);
-
-          const oldStage = pet.battleLv[statIndex] || 0;
-          const newStage = Math.max(-6, Math.min(6, oldStage - stages));
-          pet.battleLv[statIndex] = newStage;
-
-          const statNames = ['攻击', '防御', '特攻', '特防', '速度', '命中'];
-          Logger.Info(
-            `[BattleEffectIntegration] 临时能力变化结束: ${pet.name}, ` +
-            `${statNames[statIndex]} ${oldStage} → ${newStage}`
-          );
-        }
-      }
-
+      this.HandleExpiredEffect(pet, key);
       delete pet.effectCounters[key];
-      Logger.Debug(`[BattleEffectIntegration] 效果结束: ${pet.name}, effect=${key}`);
     }
+  }
+
+  /**
+   * 处理单个过期效果
+   */
+  private static HandleExpiredEffect(pet: IBattlePet, effectKey: string): void {
+    // 延迟全回复（誓言之约等技能）
+    if (effectKey === 'delayed_full_heal') {
+      const oldHp = pet.hp;
+      pet.hp = pet.maxHp;
+      Logger.Info(
+        `[BattleEffectIntegration] 延迟全回复触发: ${pet.name}, ` +
+        `HP ${oldHp}/${pet.maxHp} → ${pet.maxHp}/${pet.maxHp}`
+      );
+      return;
+    }
+
+    // 临时能力变化
+    if (effectKey.startsWith('stat_') && effectKey.includes('_boost_')) {
+      const match = effectKey.match(/stat_(\d+)_boost_(-?\d+)/);
+      if (match && pet.battleLv) {
+        const statIndex = parseInt(match[1]);
+        const stages = parseInt(match[2]);
+        const oldStage = pet.battleLv[statIndex] || 0;
+        const newStage = Math.max(-6, Math.min(6, oldStage - stages));
+        pet.battleLv[statIndex] = newStage;
+
+        const statNames = ['攻击', '防御', '特攻', '特防', '速度', '命中'];
+        Logger.Info(
+          `[BattleEffectIntegration] 临时能力变化结束: ${pet.name}, ` +
+          `${statNames[statIndex]} ${oldStage} → ${newStage}`
+        );
+      }
+      return;
+    }
+
+    // 其他效果
+    Logger.Debug(`[BattleEffectIntegration] 效果结束: ${pet.name}, effect=${effectKey}`);
   }
 
   /**

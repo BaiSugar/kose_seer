@@ -50,6 +50,13 @@ export class BufferWriter {
   }
 
   /**
+   * 写入布尔值 (1 字节)
+   */
+  public WriteBoolean(value: boolean): this {
+    return this.WriteUInt8(value ? 1 : 0);
+  }
+
+  /**
    * 写入有符号8位整数
    */
   public WriteInt8(value: number): this {
@@ -79,6 +86,23 @@ export class BufferWriter {
     this.EnsureCapacity(strBuffer.length);
     strBuffer.copy(this._buffer, this._offset);
     this._offset += strBuffer.length;
+    return this;
+  }
+
+  /**
+   * 写入 UTF 字符串 (ActionScript 格式：前置 uint16 长度)
+   */
+  public WriteUTF(value: string): this {
+    return this.WriteVarString(value);
+  }
+
+  /**
+   * 写入 32 位浮点数 (大端)
+   */
+  public WriteFloat(value: number): this {
+    this.EnsureCapacity(4);
+    this._buffer.writeFloatBE(value, this._offset);
+    this._offset += 4;
     return this;
   }
 

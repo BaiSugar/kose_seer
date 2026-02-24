@@ -1,0 +1,150 @@
+{
+  "description": "精灵异色视觉效果配置",
+  "version": 1,
+  "configs": [
+    {
+      "shinyId": 1,
+      "name": "金色异色",
+      "description": "默认金色发光异色，适用于大部分精灵",
+      "enabled": true,
+      "colorMatrix": [
+        0.8, 0.2, 0.0, 0, 20,
+        0.0, 0.6, 0.4, 0, 20,
+        0.2, 0.0, 0.8, 0, 30,
+        0,   0,   0,   1, 0
+      ],
+      "glow": {
+        "color": "0xFFD700",
+        "alpha": 0.8,
+        "blur": 12,
+        "strength": 2
+      },
+      "petOverrides": {
+        "25": {
+          "comment": "皮卡丘使用更亮的金色",
+          "colorMatrix": [
+            1.0, 0.3, 0.0, 0, 30,
+            0.0, 0.8, 0.2, 0, 30,
+            0.0, 0.0, 1.0, 0, 40,
+            0,   0,   0,   1, 0
+          ],
+          "glow": {
+            "color": "0xFFFF00",
+            "alpha": 1.0,
+            "blur": 15,
+            "strength": 3
+          }
+        }
+      }
+    },
+    {
+      "shinyId": 2,
+      "name": "银色异色",
+      "description": "银白色发光异色，适用于稀有精灵",
+      "enabled": true,
+      "colorMatrix": [
+        0.9, 0.9, 0.9, 0, 10,
+        0.9, 0.9, 0.9, 0, 10,
+        0.9, 0.9, 0.9, 0, 10,
+        0,   0,   0,   1, 0
+      ],
+      "glow": {
+        "color": "0xC0C0C0",
+        "alpha": 0.9,
+        "blur": 10,
+        "strength": 2.5
+      },
+      "petOverrides": {}
+    },
+    {
+      "shinyId": 3,
+      "name": "彩虹异色",
+      "description": "彩虹色发光异色，适用于传说精灵",
+      "enabled": true,
+      "colorMatrix": [
+        1.2, 0.3, 0.3, 0, 0,
+        0.3, 1.2, 0.3, 0, 0,
+        0.3, 0.3, 1.2, 0, 0,
+        0,   0,   0,   1, 0
+      ],
+      "glow": {
+        "color": "0xFF00FF",
+        "alpha": 1.0,
+        "blur": 20,
+        "strength": 3
+      },
+      "petOverrides": {}
+    },
+    {
+      "shinyId": 4,
+      "name": "粉色异色",
+      "description": "粉红色发光异色，专为皮皮设计",
+      "enabled": true,
+      "colorMatrix": [
+        1.3, 0.2, 0.3, 0, 40,
+        0.2, 0.7, 0.3, 0, 20,
+        0.3, 0.2, 1.0, 0, 30,
+        0,   0,   0,   1, 0
+      ],
+      "glow": {
+        "color": "0xFF69B4",
+        "alpha": 0.9,
+        "blur": 16,
+        "strength": 2.8
+      },
+      "petOverrides": {
+        "1": {
+          "comment": "皮皮专属粉色异色",
+          "colorMatrix": [
+            1.4, 0.3, 0.4, 0, 50,
+            0.3, 0.8, 0.4, 0, 30,
+            0.4, 0.3, 1.1, 0, 40,
+            0,   0,   0,   1, 0
+          ],
+          "glow": {
+            "color": "0xFFB6C1",
+            "alpha": 1.0,
+            "blur": 18,
+            "strength": 3.2
+          }
+        }
+      }
+    },
+    {
+      "shinyId": 5,
+      "name": "闪耀金色异色",
+      "description": "超级闪耀的金色异色，专为闪光精灵设计",
+      "enabled": true,
+      "colorMatrix": [
+        1.5, 0.4, 0.0, 0, 60,
+        0.4, 1.2, 0.0, 0, 50,
+        0.0, 0.2, 0.8, 0, 20,
+        0,   0,   0,   1, 0
+      ],
+      "glow": {
+        "color": "0xFFD700",
+        "alpha": 1.0,
+        "blur": 22,
+        "strength": 3.5
+      },
+      "petOverrides": {
+        "164": {
+          "comment": "闪光皮皮专属超级金色异色",
+          "colorMatrix": [
+            1.6, 0.5, 0.2, 0, 70,
+            0.5, 1.3, 0.3, 0, 60,
+            0.2, 0.3, 1.0, 0, 30,
+            0,   0,   0,   1, 0
+          ],
+          "glow": {
+            "color": "0xFFA500",
+            "alpha": 1.0,
+            "blur": 25,
+            "strength": 4.0
+          }
+        }
+      }
+    }
+  ],
+  "comment": "颜色矩阵格式：4x5矩阵，前4列是RGBA通道变换，第5列是偏移量"
+}

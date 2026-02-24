@@ -102,13 +102,13 @@ export class RegisterManager {
         Logger.Info(`[RegisterManager] 生成新验证码: email=${email}, code=${code}, 有效期=5分钟`);
       }
 
-      // 3. 发送响应，使用验证码作为错误码
-      // 客户端会弹出提示框显示这个数字（因为是未定义的错误码，会走 default 分支）
-      const codeAsNumber = parseInt(code, 10);
-      const packet = this._packetSendEmailCode.Build(codeRes, codeAsNumber);
+      // 3. 发送响应，result=0表示成功
+      const packet = this._packetSendEmailCode.Build(codeRes, RegisterResult.SUCCESS);
       session.Socket.write(packet);
 
-      Logger.Info(`[RegisterManager] 验证码已发送，客户端将显示: ${code}`);
+      Logger.Info(`[RegisterManager] ✅ 验证码已发送: code=${code}, result=0 (成功)`);
+      Logger.Info(`[RegisterManager] 📧 验证码内容: ${code}`);
+      Logger.Info(`[RegisterManager] 💡 客户端将显示: "发送验证码成功，请查看邮箱"`);
 
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));

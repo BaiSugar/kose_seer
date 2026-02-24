@@ -238,8 +238,9 @@ export class MapSpawnManager extends BaseManager {
         const shinyPetId = selectedOgre.refreshConfig.shinyPetId;
         if (shinyPetId > 0) {
           // 有闪光版本，替换为闪光精灵ID
-          shiny = 1;
           petId = shinyPetId;
+          // 使用配置中的 shinyId，如果没有则默认为 1
+          shiny = selectedOgre.refreshConfig.shinyId || 1;
         }
         // 如果 shinyPetId === -1，表示没有闪光版本，保持原样
       }

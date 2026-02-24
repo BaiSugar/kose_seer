@@ -17,6 +17,7 @@ export const ConfigKeys = {
   TASK_CONFIG: 'task_config',
   SHOP_CONFIG: 'shop_config',
   DEFAULT_PLAYER: 'default_player',
+  SHINY_CONFIGS: 'shiny_configs',
   
   // 游戏数据配置 (XML)
   PET_CONFIG: 'pet_config',
@@ -47,6 +48,7 @@ export const ConfigPaths: Record<string, string> = {
   [ConfigKeys.TASK_CONFIG]: 'data/json/tasks.json',
   [ConfigKeys.SHOP_CONFIG]: 'data/json/shop.json',
   [ConfigKeys.DEFAULT_PLAYER]: 'data/json/default-player.json',
+  [ConfigKeys.SHINY_CONFIGS]: 'data/json/shiny_configs.json',
   
   // XML配置
   [ConfigKeys.PET_CONFIG]: 'data/xml/pets.xml',
@@ -83,6 +85,7 @@ export const ConfigTypes: Record<string, ConfigType> = {
   [ConfigKeys.TASK_CONFIG]: ConfigType.JSON,
   [ConfigKeys.SHOP_CONFIG]: ConfigType.JSON,
   [ConfigKeys.DEFAULT_PLAYER]: ConfigType.JSON,
+  [ConfigKeys.SHINY_CONFIGS]: ConfigType.JSON,
   
   [ConfigKeys.PET_CONFIG]: ConfigType.XML,
   [ConfigKeys.SKILL_CONFIG]: ConfigType.XML,
@@ -107,6 +110,7 @@ export function GetGameConfigRegistrations(): Array<{ key: string; path: string;
     { key: ConfigKeys.DEFAULT_PLAYER, path: ConfigPaths[ConfigKeys.DEFAULT_PLAYER], type: ConfigTypes[ConfigKeys.DEFAULT_PLAYER] },
     { key: ConfigKeys.TASK_CONFIG, path: ConfigPaths[ConfigKeys.TASK_CONFIG], type: ConfigTypes[ConfigKeys.TASK_CONFIG] },
     { key: ConfigKeys.SHOP_CONFIG, path: ConfigPaths[ConfigKeys.SHOP_CONFIG], type: ConfigTypes[ConfigKeys.SHOP_CONFIG] },
+    { key: ConfigKeys.SHINY_CONFIGS, path: ConfigPaths[ConfigKeys.SHINY_CONFIGS], type: ConfigTypes[ConfigKeys.SHINY_CONFIGS] },
     { key: ConfigKeys.PET_CONFIG, path: ConfigPaths[ConfigKeys.PET_CONFIG], type: ConfigTypes[ConfigKeys.PET_CONFIG] },
     { key: ConfigKeys.SKILL_CONFIG, path: ConfigPaths[ConfigKeys.SKILL_CONFIG], type: ConfigTypes[ConfigKeys.SKILL_CONFIG] },
     { key: ConfigKeys.ITEM_CONFIG, path: ConfigPaths[ConfigKeys.ITEM_CONFIG], type: ConfigTypes[ConfigKeys.ITEM_CONFIG] },

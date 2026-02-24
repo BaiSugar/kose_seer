@@ -177,6 +177,15 @@ export class GameServer {
       `(已实现: ${effectStats.implemented}, 未实现: ${effectStats.unimplemented})`
     );
 
+    // 2.6. 加载异色配置
+    Logger.Info('[GameServer] 加载异色配置...');
+    const { ShinyConfigManager } = await import('./Game/Shiny/ShinyConfigManager');
+    await ShinyConfigManager.Instance.Load();
+    const shinyStats = ShinyConfigManager.Instance.GetStats();
+    Logger.Info(
+      `[GameServer] 异色配置加载完成: ${shinyStats.total} 个方案, version=${shinyStats.version}`
+    );
+
     // 3. 加载任务配置
     Logger.Info('[GameServer] 加载任务配置...');
     const { TaskConfig } = await import('./Game/Task/TaskConfig');

@@ -75,13 +75,29 @@ export class ReloadCommand implements ICommand {
     }
   }
 
+  /**
+   * reload shiny - 重载异色配置
+   */
+  @CommandMethod('0 shiny')
+  async reloadShiny(arg: CommandArg): Promise<void> {
+    await CommandOutput.progress(arg, '正在重新加载异色配置...');
+    try {
+      const { ShinyConfigManager } = await import('../../../GameServer/Game/Shiny/ShinyConfigManager');
+      await ShinyConfigManager.Instance.Reload();
+      const stats = ShinyConfigManager.Instance.GetStats();
+      await CommandOutput.success(arg, `异色配置重新加载成功 (共 ${stats.total} 个配置, version=${stats.version})`);
+    } catch (error) {
+      await CommandOutput.error(arg, '异色配置重新加载失败', String(error));
+    }
+  }
+
   @CommandDefault()
   async default(arg: CommandArg): Promise<void> {
     // 如果有参数但不匹配任何子命令，提示无效
     if (arg.basicArgs.length > 0) {
       const subCmd = arg.basicArgs[0];
       await CommandOutput.error(arg, `无效的子命令: ${subCmd}`);
-      await CommandOutput.availableSubcommands(arg, ['all', 'skill', 'effect', 'boss']);
+      await CommandOutput.availableSubcommands(arg, ['all', 'skill', 'effect', 'boss', 'shiny']);
       return;
     }
     

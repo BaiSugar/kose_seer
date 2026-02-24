@@ -52,6 +52,7 @@ export interface IPetInfo {
   effectCount: number;           // 特效计数
   commonMark: number;            // 通用标记
   skinId?: number;               // 皮肤ID（可选）
+  shiny?: number;                // 异色方案ID（0=普通，1+=异色方案编号）
 }
 
 /**
@@ -98,7 +99,8 @@ export function createDefaultPetInfo(userId: number, petId: number): IPetInfo {
     obtainWay: 0,
     obtainLevel: 1,
     effectCount: 0,
-    commonMark: 0
+    commonMark: 0,
+    shiny: 0  // 默认普通精灵
   };
   
   // 注意：属性值应该在调用此函数后，由 PetCalculator.UpdatePetStats(pet) 重新计算

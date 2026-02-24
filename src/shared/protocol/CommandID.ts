@@ -419,6 +419,9 @@ export const CommandID = {
   ACHIEVEINFO: 80006,
   GET_CURRENT_GOLD_NIEOBEAN: 80007,
   HEART: 80008,
+
+  // ============ 自定义扩展 (10xxxx) ============
+  SHINY_CONFIG_GET: 109001,          // 获取异色配置
 } as const;
 
 export type CommandIDType = typeof CommandID[keyof typeof CommandID];

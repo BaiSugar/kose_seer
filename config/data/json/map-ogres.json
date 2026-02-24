@@ -97,7 +97,7 @@
         {
           "slot": 0,
           "petId": 10,
-          "shiny": 0,
+          "shiny": 4,
           "weight": 52,
           "refreshConfig": {
             "enabled": true,
@@ -111,7 +111,8 @@
             "useSchedule": false,
             "scheduleTime": [],
             "shinyRate": 0.9,
-            "shinyPetId": 164
+            "shinyPetId": 164,
+            "shinyId": 5
           },
           "minLevel": 5,
           "maxLevel": 10,
