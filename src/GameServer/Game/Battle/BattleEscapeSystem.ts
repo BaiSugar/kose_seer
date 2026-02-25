@@ -107,8 +107,8 @@ export class BattleEscapeSystem {
     battle: IBattleInfo,
     escapeAttempts: number
   ): EscapeRestriction {
-    // 检查是否是BOSS战斗（通过AI类型判断）
-    if (battle.aiType && battle.aiType.includes('boss')) {
+    // 检查是否是BOSS战斗
+    if (battle.battleType === 'BOSS') {
       return EscapeRestriction.BOSS_BATTLE;
     }
 

@@ -121,8 +121,9 @@ export interface IConditionalParams extends IAtomicEffectParams {
 
 export interface IDamageModifierParams extends IAtomicEffectParams {
   type: AtomicEffectType.DAMAGE_MODIFIER;
-  mode: 'multiply' | 'add' | 'set';
-  value: number;
+  mode: 'multiply' | 'add' | 'set' | 'multiply_add';
+  value?: number;
+  percent?: number;
 }
 
 export interface IPowerModifierParams extends IAtomicEffectParams {

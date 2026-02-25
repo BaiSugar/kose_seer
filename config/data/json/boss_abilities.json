@@ -1,451 +1,645 @@
 {
-  "version": "3.0.0",
-  "description": "BOSS完整配置表 - 包含属性、等级、掉落、特性等",
-  "lastUpdate": "2026-02-08",
+  "version": "4.0.0",
+  "description": "BOSS配置表 - 使用(mapId, param2)组合查找BOSS",
+  "lastUpdate": "2026-02-24",
+  "mapAlias": {
+    "912": 40
+  },
+  "specialRules": {
+    "sequentialTypeBreak": [
+      {
+        "petId": 216,
+        "description": "顺序破防：必须按指定属性类型循环命中才能受伤",
+        "typeSequence": [
+          2,
+          3,
+          1
+        ]
+      }
+    ],
+    "specialKillCondition": [
+      {
+        "petId": 132,
+        "description": "特殊击杀条件：指定技能破防保留1血，仅特定精灵的特定技能可击杀",
+        "breakSkillId": 10323,
+        "killSkillId": 10100,
+        "requiredPetId": 42
+      }
+    ],
+    "weekdaySchedule": [
+      {
+        "petId": 261,
+        "description": "盖亚周几出现规则",
+        "schedules": [
+          {
+            "weekdays": [
+              1,
+              5
+            ],
+            "mapId": 15,
+            "condition": "withinRounds",
+            "conditionValue": 2
+          },
+          {
+            "weekdays": [
+              2,
+              4,
+              7
+            ],
+            "mapId": 54,
+            "condition": "criticalHit",
+            "conditionValue": 1
+          },
+          {
+            "weekdays": [
+              3,
+              6
+            ],
+            "mapId": 105,
+            "condition": "afterRounds",
+            "conditionValue": 10
+          }
+        ]
+      }
+    ]
+  },
   "bossConfigs": [
     {
-      "bossId": 1,
-      "petId": 187,
-      "petName": "魔狮迪露",
-      "clientId": 187,
-      "level": 50,
-      "dv": 24,
+      "mapId": 10,
+      "param2": 0,
+      "petId": 166,
+      "petName": "闪光波克尔",
+      "level": 80,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
-      "customHP": 3000000,
-      "abilities": [2010, { "id": 2023, "args": [0, 50] }],
-      "drops": [
-        { "itemId": 300006, "rate": 100, "count": 1 }
+      "abilities": [],
+      "skills": [
+        20210,
+        10033,
+        20209,
+        10486
       ],
+      "customHP": 2000,
+      "drops": [],
       "rewards": {
-        "exp": 3000000,
-        "coins": 3000000
+        "exp": 800,
+        "coins": 800
       },
-      "description": "无限PP+低血秒杀先手(50%HP)"
+      "spt": {
+        "sptId": 0,
+        "rewardPetId": 166
+      },
+      "comment": "闪光波克尔：固定血量2000，技能：红韵/全力一击/魅惑/挥翼飘舞"
     },
     {
-      "bossId": 2,
+      "mapId": 12,
+      "param2": 0,
+      "petId": 47,
+      "petName": "蘑菇怪",
+      "level": 10,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2010
+      ],
+      "customHP": 100,
+      "drops": [],
+      "rewards": {
+        "exp": 100,
+        "coins": 100
+      },
+      "spt": {
+        "sptId": 1,
+        "rewardPetId": 46
+      }
+    },
+    {
+      "mapId": 12,
+      "param2": 1,
+      "petId": 83,
+      "petName": "依依",
+      "level": 5,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [],
+      "drops": [],
+      "rewards": {
+        "exp": 50,
+        "coins": 50
+      }
+    },
+    {
+      "mapId": 22,
+      "param2": 0,
       "petId": 34,
       "petName": "钢牙鲨",
-      "clientId": 34,
       "level": 25,
-      "dv": 24,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
+      "abilities": [],
       "customHP": 200,
-      "abilities": [],
       "drops": [
-        { "itemId": 400476, "rate": 100, "count": 1 }
-      ],
-      "rewards": {
-        "exp": 200,
-        "coins": 200
-      },
-      "description": "中级BOSS"
-    },
-    {
-      "bossId": 3,
-      "petId": 42,
-      "petName": "里奥斯",
-      "clientId": 42,
-      "level": 35,
-      "dv": 24,
-      "ev": 0,
-      "nature": 0,
-      "customHP": 338,
-      "abilities": [],
-      "drops": [
-        { "itemId": 300013, "rate": 100, "count": 1 }
-      ],
-      "rewards": {
-        "exp": 338,
-        "coins": 338
-      },
-      "description": "中级BOSS"
-    },
-    {
-      "bossId": 4,
-      "petId": 50,
-      "petName": "阿克希亚",
-      "clientId": 50,
-      "level": 65,
-      "dv": 24,
-      "ev": 0,
-      "nature": 0,
-      "customHP": 1000,
-      "abilities": [],
-      "drops": [
-        { "itemId": 300014, "rate": 100, "count": 1 }
-      ],
-      "rewards": {
-        "exp": 1000,
-        "coins": 1000
-      },
-      "description": "高级BOSS"
-    },
-    {
-      "bossId": 5,
-      "petId": 69,
-      "petName": "提亚斯",
-      "clientId": 69,
-      "level": 50,
-      "dv": 24,
-      "ev": 0,
-      "nature": 0,
-      "customHP": 500,
-      "abilities": [],
-      "drops": [
-        { "itemId": 300015, "rate": 100, "count": 1 }
+        {
+          "itemId": 300006,
+          "rate": 100,
+          "count": 1
+        }
       ],
       "rewards": {
         "exp": 500,
         "coins": 500
       },
-      "description": "中高级BOSS"
+      "spt": {
+        "sptId": 2,
+        "rewardItemId": 400051
+      }
     },
     {
-      "bossId": 6,
-      "petId": 70,
-      "petName": "雷伊",
-      "clientId": 70,
-      "level": 70,
-      "dv": 24,
+      "mapId": 17,
+      "param2": 0,
+      "petId": 42,
+      "petName": "里奥斯",
+      "level": 35,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
-      "customHP": 800,
-      "abilities": [1903, 2010, { "id": 2042, "args": [6] }],
-      "drops": [
-        { "itemId": 300004, "rate": 50, "count": 1 },
-        { "itemId": 300005, "rate": 30, "count": 1 }
-      ],
+      "abilities": [],
+      "customHP": 338,
+      "drops": [],
       "rewards": {
-        "exp": 800,
-        "coins": 800
+        "exp": 1000,
+        "coins": 1000
       },
-      "description": "免疫异常+无限PP+先制+6"
+      "spt": {
+        "sptId": 3,
+        "rewardItemId": 400107
+      }
     },
     {
-      "bossId": 7,
-      "petId": 88,
-      "petName": "纳多雷",
-      "clientId": 88,
-      "level": 70,
-      "dv": 24,
+      "mapId": 40,
+      "param2": 0,
+      "petId": 50,
+      "petName": "阿克希亚",
+      "level": 65,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
-      "customHP": 1400,
-      "abilities": [1902],
-      "drops": [
-        { "itemId": 300001, "rate": 100, "count": 1 }
-      ],
+      "abilities": [],
+      "customHP": 1000,
+      "drops": [],
       "rewards": {
-        "exp": 1400,
-        "coins": 1400
+        "exp": 5000,
+        "coins": 5000
       },
-      "description": "免疫能力下降"
+      "spt": {
+        "sptId": 11,
+        "rewardItemId": 400118
+      }
     },
     {
-      "bossId": 8,
-      "petId": 113,
-      "petName": "雷纳多",
-      "clientId": 113,
-      "level": 75,
-      "dv": 24,
+      "mapId": 27,
+      "param2": 0,
+      "petId": 69,
+      "petName": "提亚斯",
+      "level": 50,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
-      "customHP": 1500,
-      "abilities": [1902],
-      "drops": [
-        { "itemId": 300002, "rate": 100, "count": 1 }
-      ],
+      "abilities": [],
+      "customHP": 500,
+      "drops": [],
       "rewards": {
         "exp": 1500,
         "coins": 1500
       },
-      "description": "免疫能力下降"
+      "spt": {
+        "sptId": 5,
+        "rewardItemId": 400102
+      }
     },
     {
-      "bossId": 9,
-      "petId": 132,
-      "petName": "尤纳斯",
-      "clientId": 132,
+      "mapId": 32,
+      "param2": 0,
+      "petId": 70,
+      "petName": "雷伊",
       "level": 70,
-      "dv": 24,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
-      "customHP": 2800,
-      "abilities": [1902, 2010],
-      "drops": [
-        { "itemId": 300003, "rate": 100, "count": 1 }
+      "customHP": 800,
+      "abilities": [
+        2001,
+        2002
       ],
+      "drops": [],
       "rewards": {
-        "exp": 2800,
-        "coins": 2800
+        "exp": 5000,
+        "coins": 5000
       },
-      "description": "免疫能力下降+无限PP"
+      "spt": {
+        "sptId": 6,
+        "rewardItemId": 400103
+      }
     },
     {
-      "bossId": 10,
-      "petId": 47,
-      "petName": "蘑菇怪",
-      "clientId": 47,
-      "level": 10,
-      "dv": 24,
+      "mapId": 106,
+      "param2": 0,
+      "petId": 88,
+      "petName": "纳多雷",
+      "level": 70,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
-      "customHP": 100,
-      "abilities": [],
-      "drops": [
-        { "itemId": 400475, "rate": 100, "count": 1 }
+      "abilities": [
+        2002
       ],
-      "rewards": {
-        "exp": 100,
-        "coins": 100
-      },
-      "description": "初级BOSS"
-    },
-    {
-      "bossId": 11,
-      "petId": 216,
-      "petName": "哈莫雷特",
-      "clientId": 216,
-      "level": 80,
-      "dv": 24,
-      "ev": 0,
-      "nature": 0,
-      "customHP": 10000,
-      "abilities": [1902, 1903],
-      "drops": [
-        { "itemId": 300007, "rate": 100, "count": 1 }
-      ],
-      "rewards": {
-        "exp": 10000,
-        "coins": 10000
-      },
-      "description": "免疫能力下降+免疫异常"
-    },
-    {
-      "bossId": 12,
-      "petId": 264,
-      "petName": "奈尼芬多",
-      "clientId": 264,
-      "level": 60,
-      "dv": 24,
-      "ev": 0,
-      "nature": 0,
-      "customHP": 2500,
-      "abilities": [1903, 2010],
-      "drops": [
-        { "itemId": 300010, "rate": 100, "count": 1 }
-      ],
-      "rewards": {
-        "exp": 2500,
-        "coins": 2500
-      },
-      "description": "免疫异常+无限PP"
-    },
-    {
-      "bossId": 13,
-      "petId": 421,
-      "petName": "厄尔塞拉",
-      "clientId": 421,
-      "level": 80,
-      "dv": 24,
-      "ev": 0,
-      "nature": 0,
-      "customHP": 3000,
-      "abilities": [],
-      "drops": [
-        { "itemId": 300016, "rate": 100, "count": 1 }
-      ],
+      "customHP": 1400,
+      "drops": [],
       "rewards": {
         "exp": 3000,
         "coins": 3000
       },
-      "description": "高级BOSS"
+      "spt": {
+        "sptId": 7,
+        "rewardItemId": 400104
+      }
     },
     {
-      "bossId": 14,
-      "petId": 261,
-      "petName": "盖亚",
-      "clientId": 261,
+      "mapId": 49,
+      "param2": 0,
+      "petId": 113,
+      "petName": "雷纳多",
+      "level": 75,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2002
+      ],
+      "customHP": 1500,
+      "drops": [],
+      "rewards": {
+        "exp": 3500,
+        "coins": 3500
+      },
+      "spt": {
+        "sptId": 8,
+        "rewardItemId": 400105
+      }
+    },
+    {
+      "mapId": 314,
+      "param2": 0,
+      "petId": 132,
+      "petName": "尤纳斯",
       "level": 70,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2002,
+        2010
+      ],
+      "customHP": 2800,
+      "drops": [],
+      "rewards": {
+        "exp": 3000,
+        "coins": 3000
+      },
+      "spt": {
+        "sptId": 9,
+        "rewardItemId": 400108
+      }
+    },
+    {
+      "mapId": 53,
+      "param2": 0,
+      "petId": 187,
+      "petName": "魔狮迪露",
+      "level": 50,
       "dv": 24,
       "ev": 0,
       "nature": 0,
-      "customHP": 2000,
-      "abilities": [1902, 1903, 2010, { "id": 2042, "args": [6] }],
+      "customHP": 3000000,
+      "abilities": [
+        2010,
+        {
+          "id": 2023,
+          "args": [
+            0,
+            50
+          ]
+        }
+      ],
       "drops": [
-        { "itemId": 300008, "rate": 40, "count": 1 },
-        { "itemId": 300009, "rate": 25, "count": 1 }
+        {
+          "itemId": 300006,
+          "rate": 100,
+          "count": 1
+        }
       ],
       "rewards": {
-        "exp": 2000,
-        "coins": 2000
+        "exp": 3000000,
+        "coins": 3000000
       },
-      "description": "免疫能力下降+免疫异常+无限PP+先制+6"
+      "spt": {
+        "sptId": 10,
+        "rewardItemId": 400114
+      }
     },
     {
-      "bossId": 15,
-      "petId": 274,
-      "petName": "塔克林",
-      "clientId": 274,
+      "mapId": 57,
+      "param2": 0,
+      "petId": 216,
+      "petName": "哈莫雷特",
       "level": 80,
-      "dv": 24,
-      "ev": 0,
-      "nature": 0,
-      "customHP": 13000,
-      "abilities": [1902],
-      "drops": [
-        { "itemId": 300011, "rate": 100, "count": 1 }
-      ],
-      "rewards": {
-        "exp": 13000,
-        "coins": 13000
-      },
-      "description": "免疫能力下降"
-    },
-    {
-      "bossId": 16,
-      "petId": 391,
-      "petName": "塔西亚",
-      "clientId": 391,
-      "level": 70,
-      "dv": 24,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
       "customHP": 10000,
-      "abilities": [1902],
-      "drops": [
-        { "itemId": 300012, "rate": 100, "count": 1 }
+      "abilities": [
+        2001,
+        2002
       ],
+      "drops": [],
       "rewards": {
-        "exp": 10000,
-        "coins": 10000
+        "exp": 5000,
+        "coins": 5000
       },
-      "description": "免疫能力下降"
+      "spt": {
+        "sptId": 11,
+        "rewardItemId": 400118
+      }
     },
     {
-      "bossId": 17,
+      "mapId": 348,
+      "param2": 0,
+      "petId": 274,
+      "petName": "塔克林",
+      "level": 80,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2002
+      ],
+      "customHP": 13000,
+      "drops": [],
+      "rewards": {
+        "exp": 4000,
+        "coins": 4000
+      },
+      "spt": {
+        "sptId": 15,
+        "rewardItemId": 400136
+      }
+    },
+    {
+      "mapId": 348,
+      "param2": 1,
+      "petId": 391,
+      "petName": "塔西亚",
+      "level": 70,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2002
+      ],
+      "customHP": 10000,
+      "drops": [],
+      "rewards": {
+        "exp": 3500,
+        "coins": 3500
+      },
+      "spt": {
+        "sptId": 16,
+        "rewardItemId": 400137
+      }
+    },
+    {
+      "mapId": 348,
+      "param2": 2,
+      "petId": 216,
+      "petName": "哈莫雷特",
+      "level": 80,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "customHP": 10000,
+      "abilities": [
+        2001,
+        2002
+      ],
+      "drops": [],
+      "rewards": {
+        "exp": 5000,
+        "coins": 5000
+      },
+      "spt": {
+        "sptId": 11,
+        "rewardItemId": 400118
+      }
+    },
+    {
+      "mapId": 348,
+      "param2": 3,
+      "petId": 413,
+      "petName": "塞维尔",
+      "level": 75,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [],
+      "drops": [],
+      "rewards": {
+        "exp": 3800,
+        "coins": 3800
+      }
+    },
+    {
+      "mapId": 325,
+      "param2": 0,
+      "petId": 264,
+      "petName": "奈尼芬多",
+      "level": 60,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2001,
+        2010
+      ],
+      "customHP": 2500,
+      "drops": [],
+      "rewards": {
+        "exp": 2500,
+        "coins": 2500
+      },
+      "spt": {
+        "sptId": 12,
+        "rewardItemId": 400125
+      }
+    },
+    {
+      "mapId": 61,
+      "param2": 0,
+      "petId": 421,
+      "petName": "厄尔塞拉",
+      "level": 80,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [],
+      "customHP": 3000,
+      "drops": [],
+      "rewards": {
+        "exp": 4500,
+        "coins": 4500
+      },
+      "spt": {
+        "sptId": 13,
+        "rewardItemId": 400139
+      }
+    },
+    {
+      "mapId": 419,
+      "param2": 0,
+      "petId": 261,
+      "petName": "盖亚",
+      "level": 70,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2001,
+        2002
+      ],
+      "customHP": 2000,
+      "drops": [],
+      "rewards": {
+        "exp": 4000,
+        "coins": 4000
+      },
+      "spt": {
+        "sptId": 14,
+        "rewardItemId": 400126
+      }
+    },
+    {
+      "mapId": 15,
+      "param2": 0,
+      "petId": 261,
+      "petName": "盖亚",
+      "level": 70,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2001,
+        2002
+      ],
+      "customHP": 2000,
+      "drops": [],
+      "rewards": {
+        "exp": 4000,
+        "coins": 4000
+      },
+      "spt": {
+        "sptId": 14,
+        "rewardItemId": 400126
+      }
+    },
+    {
+      "mapId": 54,
+      "param2": 0,
+      "petId": 261,
+      "petName": "盖亚",
+      "level": 70,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2001,
+        2002
+      ],
+      "customHP": 2000,
+      "drops": [],
+      "rewards": {
+        "exp": 4000,
+        "coins": 4000
+      },
+      "spt": {
+        "sptId": 14,
+        "rewardItemId": 400126
+      }
+    },
+    {
+      "mapId": 105,
+      "param2": 0,
+      "petId": 261,
+      "petName": "盖亚",
+      "level": 70,
+      "dv": 31,
+      "ev": 0,
+      "nature": 0,
+      "abilities": [
+        2001,
+        2002
+      ],
+      "customHP": 2000,
+      "drops": [],
+      "rewards": {
+        "exp": 4000,
+        "coins": 4000
+      },
+      "spt": {
+        "sptId": 14,
+        "rewardItemId": 400126
+      }
+    },
+    {
+      "mapId": 59,
+      "param2": 0,
       "petId": 347,
       "petName": "远古鱼龙",
-      "clientId": 347,
       "level": 70,
-      "dv": 24,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
-      "customHP": 5000,
       "abilities": [],
-      "drops": [
-        { "itemId": 300017, "rate": 100, "count": 1 }
-      ],
+      "drops": [],
       "rewards": {
-        "exp": 5000,
-        "coins": 5000
+        "exp": 3500,
+        "coins": 3500
       },
-      "description": "远古系列BOSS"
+      "spt": {
+        "sptId": 17,
+        "rewardItemId": 400127
+      }
     },
     {
-      "bossId": 18,
+      "mapId": 16,
+      "param2": 0,
       "petId": 393,
       "petName": "上古炎兽",
-      "clientId": 393,
-      "level": 70,
-      "dv": 24,
+      "level": 75,
+      "dv": 31,
       "ev": 0,
       "nature": 0,
-      "customHP": 5000,
       "abilities": [],
-      "drops": [
-        { "itemId": 300018, "rate": 100, "count": 1 }
-      ],
+      "drops": [],
       "rewards": {
-        "exp": 5000,
-        "coins": 5000
+        "exp": 3800,
+        "coins": 3800
       },
-      "description": "上古系列BOSS"
-    },
-    {
-      "bossId": 19,
-      "petId": 4150,
-      "petName": "拂晓兔",
-      "clientId": 4150,
-      "level": 80,
-      "dv": 24,
-      "ev": 0,
-      "nature": 0,
-      "customHP": 8000,
-      "abilities": [],
-      "drops": [
-        { "itemId": 300019, "rate": 100, "count": 1 }
-      ],
-      "rewards": {
-        "exp": 8000,
-        "coins": 8000
-      },
-      "description": "高级BOSS"
+      "spt": {
+        "sptId": 18
+      }
     }
-  ],
-  "abilityReference": {
-    "1902": { "name": "免疫能力下降", "args": "无参数" },
-    "1903": { "name": "免疫异常状态", "args": "无参数" },
-    "1904": { "name": "受伤减免", "args": "[减免百分比(0-100)]" },
-    "1905": { "name": "同系吸收", "args": "无参数" },
-    "1906": { "name": "属性免疫", "args": "[允许属性1, 允许属性2, ..., 允许属性8]" },
-    "2006": { "name": "受击致异常", "args": "[异常状态类型, 概率百分比]" },
-    "2007": { "name": "闪避提升", "args": "[命中率下降百分比(0-100)]" },
-    "2008": { "name": "固定会心率", "args": "[会心率分子(0-16)] → 会心率=n/16" },
-    "2009": { "name": "濒死回满", "args": "[血量阈值高32位, 血量阈值低32位]" },
-    "2010": { "name": "无限PP", "args": "无参数" },
-    "2011": { "name": "伤害反弹", "args": "[除数n] → 反弹1/n伤害" },
-    "2023": { "name": "低血秒杀先手", "args": "[血量阈值高16位(为0时启用百分比模式), 血量阈值低16位(百分比模式下为百分比值0-100)]" },
-    "2042": { "name": "先制变化", "args": "[先制变化值(+/-)]" }
-  },
-  "dropItemReference": {
-    "400475": "蘑菇怪精元",
-    "400476": "钢牙鲨精元",
-    "300001": "纳多雷精元",
-    "300002": "雷纳多精元",
-    "300003": "尤纳斯精元",
-    "300004": "雷伊精元",
-    "300005": "雷伊之魂",
-    "300006": "迪露精元",
-    "300007": "哈莫精元",
-    "300008": "盖亚精元",
-    "300009": "盖亚之魂",
-    "300010": "奈尼精元",
-    "300011": "塔克精元",
-    "300012": "塔西亚精元",
-    "300013": "里奥斯精元",
-    "300014": "阿克希亚精元",
-    "300015": "提亚斯精元",
-    "300016": "厄尔塞拉精元",
-    "300017": "远古鱼龙精元",
-    "300018": "上古炎兽精元",
-    "300019": "拂晓兔精元"
-  },
-  "notes": [
-    "配置说明:",
-    "  bossId: BOSS唯一ID（服务器内部使用，用于索引配置）",
-    "  petId: 精灵ID（用于读取种族值）",
-    "  clientId: 客户端显示ID（客户端传来的ID，通常与petId相同，闪光精灵时不同）",
-    "  level: BOSS等级",
-    "  dv: 个体值（默认24）",
-    "  ev: 努力值（默认0，BOSS没有努力值）",
-    "  nature: 性格（默认0=平衡）",
-    "  customHP: 自定义血量（可选，如果设置则覆盖计算值）",
-    "  abilities: 特性列表（支持纯数字或带参数对象）",
-    "  drops: 掉落物品列表 { itemId, rate(0-100), count }",
-    "  rewards: 战斗奖励 { exp, coins }",
-    "",
-    "重要说明:",
-    "  - 客户端挑战BOSS时传来的是 clientId",
-    "  - 服务器通过 clientId 查找对应的 bossId 和完整配置",
-    "  - bossId 用于服务器内部索引和奖励系统",
-    "  - customHP 用于设置特殊血量（如魔狮迪露300万血）",
-    "",
-    "属性计算公式:",
-    "  HP = customHP（如果设置）或 ((种族值*2 + dv + ev/4) * level / 100) + 10 + level",
-    "  其他 = ((种族值*2 + dv + ev/4) * level / 100 + 5) * 性格修正"
   ]
 }

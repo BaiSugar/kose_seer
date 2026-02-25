@@ -181,19 +181,22 @@ export class OnHitStatus extends BaseAtomicEffect {
    * 施加状态
    */
   private applyStatus(pet: any, status: number, duration?: number): void {
+    // 转换状态编号为 BattleStatusType 索引
+    const convertedStatus = this.convertStatusIndex(status);
+    
     if (pet.status !== undefined) {
-      pet.status = status;
+      pet.status = convertedStatus;
     }
     if (pet.battleStatus !== undefined) {
-      pet.battleStatus = status;
+      pet.battleStatus = convertedStatus;
     }
 
-    // 设置状态持续时间
+    // 设置状态持续时间（使用转换后的索引）
     if (duration !== undefined) {
       if (!pet.statusDurations) {
         pet.statusDurations = {};
       }
-      pet.statusDurations[status] = duration;
+      pet.statusDurations[convertedStatus] = duration;
     }
   }
 
@@ -202,15 +205,27 @@ export class OnHitStatus extends BaseAtomicEffect {
    */
   private getStatusName(status: number): string {
     const statusNames: { [key: number]: string } = {
-      1: '中毒',
-      2: '麻痹',
-      3: '冰冻',
-      4: '灼伤',
-      5: '睡眠',
-      6: '混乱',
-      7: '害怕',
-      8: '封印'
+      1: '中毒', 2: '麻痹', 3: '冰冻', 4: '灼伤', 5: '睡眠', 6: '混乱', 7: '害怕', 8: '封印'
     };
     return statusNames[status] ?? `状态${status}`;
+  }
+
+  /**
+   * 将 OnHitStatus 的状态编号转换为 BattleStatusType 索引
+   * OnHitStatus: 1=中毒 2=麻痹 3=冰冻 4=灼伤 5=睡眠 6=混乱 7=害怕 8=封印
+   * BattleStatusType: 0=麻痹 1=中毒 2=烧伤 5=冻伤 6=害怕 8=睡眠 10=混乱
+   */
+  private convertStatusIndex(status: number): number {
+    const mapping: { [key: number]: number } = {
+      1: 1,   // 中毒 -> 1
+      2: 0,   // 麻痹 -> 0
+      3: 5,   // 冰冻 -> 5 (冻伤)
+      4: 2,   // 灼伤 -> 2 (烧伤)
+      5: 8,   // 睡眠 -> 8
+      6: 10,  // 混乱 -> 10
+      7: 6,   // 害怕 -> 6
+      8: 9    // 封印 -> 9 (石化)
+    };
+    return mapping[status] ?? status;
   }
 }

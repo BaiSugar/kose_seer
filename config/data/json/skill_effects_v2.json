@@ -1018,7 +1018,7 @@
       ],
       "description": "连续进行X~Y次攻击",
       "implemented": true,
-      "implementClass": "MultiHitEffect",
+      "implementClass": "MultiHit",
       "args": [
         {
           "index": 0,
@@ -8565,7 +8565,7 @@
       ],
       "description": "附加所造成伤害值X%的固定伤害",
       "implemented": true,
-      "implementClass": "DamagePercentAddEffect",
+      "implementClass": "DamagePercentAdd",
       "args": [
         {
           "index": 0,
@@ -8576,15 +8576,16 @@
         }
       ],
       "atomicComposition": {
-        "type": "composite",
+        "type": "atomic",
         "atoms": [
           {
             "type": "damage_modifier",
             "mode": "multiply_add",
-            "value": 50
+            "percent": 50
           }
         ]
-      }
+      },
+      "specialType": "damage_percent_add"
     },
     {
       "effectId": 423,

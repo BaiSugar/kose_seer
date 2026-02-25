@@ -665,6 +665,7 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
     // 解析服装ID列表
     try {
       const clothIdsStr = (row as any).cloth_ids;
+      Logger.Debug(`[PlayerRepository] 加载 clothIds: userId=${row.user_id}, clothIdsStr=${clothIdsStr}`);
       player.clothIds = clothIdsStr ? JSON.parse(clothIdsStr) : [];
     } catch (error) {
       Logger.Warn(`[PlayerRepository] 解析 cloth_ids 失败: userId=${row.user_id}`);

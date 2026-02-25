@@ -22,8 +22,8 @@ export class PacketGetMoreUserInfo extends BaseProto {
     proto.setPetAllNum(playerData.petAllNum || 0);
     proto.setPetMaxLev(playerData.petMaxLev || 0);
     
-    // BOSS成就（暂时全部为false，后续可以从数据库读取）
-    proto.setBossAchievement(new Array(200).fill(false));
+    // BOSS成就（从数据库读取）
+    proto.setBossAchievement(playerData.bossAchievement || new Array(200).fill(false));
     
     proto.setGraduationCount(playerData.graduationCount || 0);
     proto.setMonKingWin(playerData.monKingWin || 0);

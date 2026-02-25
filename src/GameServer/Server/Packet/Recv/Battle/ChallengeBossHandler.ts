@@ -7,6 +7,9 @@ import { Logger } from '../../../../../shared/utils/Logger';
 
 /**
  * [CMD: 2411 CHALLENGE_BOSS] 挑战BOSS
+ * 
+ * 客户端发送param2，服务器结合玩家当前地图ID查找BOSS
+ * 逻辑与 go-server handleChallengeBoss 保持一致
  */
 @Opcode(CommandID.CHALLENGE_BOSS, InjectType.NONE)
 export class ChallengeBossHandler implements IHandler {
@@ -22,12 +25,20 @@ export class ChallengeBossHandler implements IHandler {
       req.deserialize(body);
     }
 
+    // 获取玩家当前地图ID
+    let mapId = player.Data.mapID || 1;
+    if (mapId === 0) {
+      mapId = 1;
+    }
+
+    const param2 = req.bossId; // 客户端发送的是param2，字段名保持bossId向后兼容
+
     Logger.Info(
-      `[ChallengeBossHandler] 玩家挑战BOSS: UserID=${player.Uid}, ` +
-      `BossID=${req.bossId}`
+      `[ChallengeBossHandler] 收到挑战BOSS请求: UserID=${player.Uid}, ` +
+      `MapID=${mapId}, Param2=${param2}, BodyLen=${body.length}`
     );
 
     // 调用 BattleManager 处理
-    await player.BattleManager.HandleChallengeBoss(req.bossId);
+    await player.BattleManager.HandleChallengeBoss(mapId, param2);
   }
 }

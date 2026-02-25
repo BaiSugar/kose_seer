@@ -292,6 +292,13 @@ export interface IPlayerInfo {
   mapID: number;            // 地图ID
   posX: number;             // X坐标
   posY: number;             // Y坐标
+  actionType: number;       // 动作类型 (0=正常, 1=飞行)
+  action: number;           // 动作
+  direction: number;        // 方向
+  changeShape: number;      // 变形
+  playerForm: boolean;      // 玩家形态
+  transTime: number;        // 变形时间
+  fightFlag: number;        // 战斗标志
 
   // ============ 时间信息 ============
   timeToday: number;        // 今日在线时间
@@ -326,7 +333,10 @@ export interface IPlayerInfo {
   teacherID: number;        // 老师ID
   studentID: number;        // 学生ID
   graduationCount: number;  // 毕业次数
-  maxPuniLv: number;        // 最大惩罚等级
+
+  // ============ 挑战进度 ============
+  maxPuniLv: number;        // 谱尼封印进度（0-8：0=未开启，1-7=封印进度，8=解锁真身）
+  towerBossIndex?: number;  // 勇者之塔当前层已击败的BOSS数（0/1/2）
 
   // ============ 精灵统计 ============
   petMaxLev: number;        // 精灵最高等级
@@ -594,6 +604,13 @@ export function createDefaultPlayerInfo(userID: number, nick: string): IPlayerIn
     mapID: 1,
     posX: 300,
     posY: 300,
+    actionType: 0,
+    action: 0,
+    direction: 0,
+    changeShape: 0,
+    playerForm: false,
+    transTime: 0,
+    fightFlag: 0,
     timeToday: 0,
     timeLimit: 0,
     isClothHalfDay: false,

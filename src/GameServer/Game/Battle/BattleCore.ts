@@ -1,39 +1,46 @@
 /**
  * 赛尔号战斗核心系统
  * 完整实现战斗逻辑、状态效果、AI等
- * 
+ *
  * 移植自: luvit/luvit_version/game/seer_battle.lua
  */
 
-import { Logger } from '../../../shared/utils';
-import { IBattleInfo, IBattlePet, IAttackResult, ITurnResult, BattleStatus } from '../../../shared/models/BattleModel';
-import { BattleAlgorithm, SkillCategory } from './BattleAlgorithm';
-import { ISkillConfig } from '../../../shared/models/SkillModel';
-import { BattleAI } from './BattleAI';
+import { Logger } from "../../../shared/utils";
+import {
+  IBattleInfo,
+  IBattlePet,
+  IAttackResult,
+  ITurnResult,
+  BattleStatus,
+} from "../../../shared/models/BattleModel";
+import { BattleAlgorithm, SkillCategory } from "./BattleAlgorithm";
+import { ISkillConfig } from "../../../shared/models/SkillModel";
+import { BattleAI } from "./BattleAI";
+import { BattleEffectIntegration } from "./BattleEffectIntegration";
 
 /**
  * 战斗状态枚举
  */
 export enum BattleStatusType {
-  PARALYSIS = 0,    // 麻痹
-  POISON = 1,       // 中毒
-  BURN = 2,         // 烧伤
-  DRAIN = 3,        // 吸取对方体力
-  DRAINED = 4,      // 被对方吸取体力
-  FREEZE = 5,       // 冻伤
-  FEAR = 6,         // 害怕
-  FATIGUE = 7,      // 疲惫
-  SLEEP = 8,        // 睡眠
-  PETRIFY = 9,      // 石化
-  CONFUSION = 10,   // 混乱
-  WEAKNESS = 11,    // 衰弱
-  MOUNTAIN_GUARD = 12,  // 山神守护
-  FLAMMABLE = 13,   // 易燃
-  RAGE = 14,        // 狂暴
-  ICE_SEAL = 15,    // 冰封
-  BLEED = 16,       // 流血
+  PARALYSIS = 0, // 麻痹
+  POISON = 1, // 中毒
+  BURN = 2, // 烧伤
+  DRAIN = 3, // 吸取对方体力
+  DRAINED = 4, // 被对方吸取体力
+  FREEZE = 5, // 冻伤
+  FEAR = 6, // 害怕
+  FATIGUE = 7, // 疲惫
+  SLEEP = 8, // 睡眠
+  PETRIFY = 9, // 石化
+  CONFUSION = 10, // 混乱
+  WEAKNESS = 11, // 衰弱
+  MOUNTAIN_GUARD = 12, // 山神守护
+  FLAMMABLE = 13, // 易燃
+  RAGE = 14, // 狂暴
+  ICE_SEAL = 15, // 冰封
+  BLEED = 16, // 流血
   IMMUNE_DOWN = 17, // 免疫能力下降
-  IMMUNE_STATUS = 18 // 免疫异常状态
+  IMMUNE_STATUS = 18, // 免疫异常状态
 }
 
 /**
@@ -48,11 +55,10 @@ export interface ICannotActReason {
  * 战斗核心类
  */
 export class BattleCore {
-
   /**
    * 同步状态数组
    * 当设置 pet.status 时，同步更新 pet.statusArray 以便客户端显示
-   * 
+   *
    * @deprecated 推荐使用 createBattlePetProxy() 自动同步，此方法作为后备方案
    * @param pet 精灵对象
    */
@@ -100,22 +106,38 @@ export class BattleCore {
       pet.statusDurations[BattleStatusType.POISON]--;
     }
 
-    // 烧伤伤害 (每回合损失1/16最大HP)
+    // 烧伤伤害 (每回合损失1/8最大HP)
     if (pet.statusDurations[BattleStatusType.BURN] > 0) {
-      statusDamage += Math.floor(pet.maxHp / 16);
+      statusDamage += Math.floor(pet.maxHp / 8);
       pet.statusDurations[BattleStatusType.BURN]--;
     }
 
-    // 冻伤伤害 (每回合损失1/16最大HP)
+    // 冻伤伤害 (每回合损失1/8最大HP)
     if (pet.statusDurations[BattleStatusType.FREEZE] > 0) {
-      statusDamage += Math.floor(pet.maxHp / 16);
+      statusDamage += Math.floor(pet.maxHp / 8);
       pet.statusDurations[BattleStatusType.FREEZE]--;
     }
 
-    // 流血伤害 (每回合损失1/8最大HP)
+    // 流血伤害 (每回合损失80点体力)
     if (pet.statusDurations[BattleStatusType.BLEED] > 0) {
-      statusDamage += Math.floor(pet.maxHp / 8);
+      statusDamage += 80;
       pet.statusDurations[BattleStatusType.BLEED]--;
+    }
+
+    // 混乱伤害 (每回合5%概率扣除50点体力)
+    if (pet.statusDurations[BattleStatusType.CONFUSION] > 0) {
+      if (Math.random() < 0.05) {
+        statusDamage += 50;
+        Logger.Info(`[BattleCore] 混乱状态触发: 5%概率扣除50点体力`);
+      }
+      pet.statusDurations[BattleStatusType.CONFUSION]--;
+    }
+
+    // 寄生伤害 (每回合扣除1/8最大HP)
+    if (pet.statusDurations[BattleStatusType.DRAIN] > 0) {
+      const drainDamage = Math.floor(pet.maxHp / 8);
+      statusDamage += drainDamage;
+      pet.statusDurations[BattleStatusType.DRAIN]--;
     }
 
     // 束缚伤害 (每回合损失1/16最大HP)
@@ -141,54 +163,49 @@ export class BattleCore {
     // 疲惫状态无法行动
     if (pet.fatigueTurns && pet.fatigueTurns > 0) {
       pet.fatigueTurns--;
-      return { canAct: false, reason: 'fatigue' };
+      return { canAct: false, reason: "fatigue" };
     }
 
     // 睡眠状态无法行动
     if (pet.statusDurations[BattleStatusType.SLEEP] > 0) {
       pet.statusDurations[BattleStatusType.SLEEP]--;
-      return { canAct: false, reason: 'sleep' };
+      return { canAct: false, reason: "sleep" };
     }
 
     // 石化状态无法行动
     if (pet.statusDurations[BattleStatusType.PETRIFY] > 0) {
       pet.statusDurations[BattleStatusType.PETRIFY]--;
-      return { canAct: false, reason: 'petrify' };
+      return { canAct: false, reason: "petrify" };
     }
 
     // 冰封状态无法行动
     if (pet.statusDurations[BattleStatusType.ICE_SEAL] > 0) {
       pet.statusDurations[BattleStatusType.ICE_SEAL]--;
-      return { canAct: false, reason: 'ice_seal' };
+      return { canAct: false, reason: "ice_seal" };
     }
 
-    // 麻痹有25%几率无法行动
+    // 麻痹状态无法行动（与睡眠一致，必中）
     if (pet.statusDurations[BattleStatusType.PARALYSIS] > 0) {
-      if (Math.random() < 0.25) {
-        return { canAct: false, reason: 'paralysis' };
-      }
+      pet.statusDurations[BattleStatusType.PARALYSIS]--;
+      return { canAct: false, reason: 'paralysis' };
     }
 
-    // 害怕有50%几率无法行动
+    // 害怕状态无法行动（必中）
     if (pet.statusDurations[BattleStatusType.FEAR] > 0) {
       pet.statusDurations[BattleStatusType.FEAR]--;
-      if (Math.random() < 0.5) {
-        return { canAct: false, reason: 'fear' };
-      }
+      return { canAct: false, reason: "fear" };
     }
 
-    // 混乱有33%几率攻击自己
+    // 混乱状态无法行动（必中）
     if (pet.statusDurations[BattleStatusType.CONFUSION] > 0) {
       pet.statusDurations[BattleStatusType.CONFUSION]--;
-      if (Math.random() < 0.33) {
-        return { canAct: false, reason: 'confusion' };
-      }
+      return { canAct: false, reason: "confusion" };
     }
 
     // 畏缩状态无法行动 (只持续一回合)
     if (pet.flinched) {
       pet.flinched = false;
-      return { canAct: false, reason: 'flinch' };
+      return { canAct: false, reason: "flinch" };
     }
 
     return { canAct: true };
@@ -197,12 +214,14 @@ export class BattleCore {
   /**
    * 应用状态效果
    */
-  public static ApplyStatus(target: IBattlePet, statusType: BattleStatusType, duration: number): void {
+  public static ApplyStatus(
+    target: IBattlePet,
+    statusType: BattleStatusType,
+    duration: number,
+  ): void {
     // 免疫异常状态检查（由 PassiveEffectRunner 在初始化时设置 immuneFlags）
     if (target.immuneFlags?.status) {
-      Logger.Debug(
-        `[BattleCore] ${target.name} 免疫异常状态: ${statusType}`
-      );
+      Logger.Debug(`[BattleCore] ${target.name} 免疫异常状态: ${statusType}`);
       return;
     }
 
@@ -210,7 +229,7 @@ export class BattleCore {
       target.statusDurations = new Array(20).fill(0);
     }
     target.statusDurations[statusType] = duration;
-    
+
     // 同时更新主要状态显示
     target.status = statusType as unknown as BattleStatus;
     target.statusTurns = duration;
@@ -218,18 +237,22 @@ export class BattleCore {
 
   /**
    * 应用能力等级变化
-   * 
+   *
    * @param target 目标精灵
    * @param statIndex 能力索引（0-5）
    * @param change 变化值（正数提升，负数下降）
    * @returns 是否成功应用
    */
-  public static ApplyStatChange(target: IBattlePet, statIndex: number, change: number): boolean {
+  public static ApplyStatChange(
+    target: IBattlePet,
+    statIndex: number,
+    change: number,
+  ): boolean {
     // 免疫能力下降检查（由 PassiveEffectRunner 在初始化时设置 immuneFlags）
     if (change < 0 && target.immuneFlags?.statDown) {
-      const statNames = ['攻击', '防御', '特攻', '特防', '速度', '命中'];
+      const statNames = ["攻击", "防御", "特攻", "特防", "速度", "命中"];
       Logger.Debug(
-        `[BattleCore] ${target.name} 免疫能力下降: ${statNames[statIndex]} ${change}`
+        `[BattleCore] ${target.name} 免疫能力下降: ${statNames[statIndex]} ${change}`,
       );
       return false;
     }
@@ -244,10 +267,10 @@ export class BattleCore {
     const newLevel = Math.max(-6, Math.min(6, oldLevel + change));
     target.battleLv[statIndex] = newLevel;
 
-    const statNames = ['攻击', '防御', '特攻', '特防', '速度', '命中'];
+    const statNames = ["攻击", "防御", "特攻", "特防", "速度", "命中"];
     Logger.Debug(
       `[BattleCore] 能力变化: ${target.name}, ${statNames[statIndex]} ` +
-      `${oldLevel} → ${newLevel} (${change >= 0 ? '+' : ''}${change})`
+        `${oldLevel} → ${newLevel} (${change >= 0 ? "+" : ""}${change})`,
     );
 
     return true;
@@ -257,10 +280,14 @@ export class BattleCore {
 
   /**
    * 检查是否命中
-   * 
+   *
    * 注意：此方法内部会触发 HIT_CHECK 效果，允许效果修改命中结果
    */
-  public static CheckHit(attacker: IBattlePet, defender: IBattlePet, skill: ISkillConfig): boolean {
+  public static CheckHit(
+    attacker: IBattlePet,
+    defender: IBattlePet,
+    skill: ISkillConfig,
+  ): boolean {
     // 1. 必中技能
     if (skill.mustHit) {
       Logger.Debug(`[BattleCore] 必中技能: ${skill.name}`);
@@ -268,12 +295,19 @@ export class BattleCore {
     }
 
     // 2. 触发 HIT_CHECK 效果（导入需要延迟加载避免循环依赖）
-    const { BattleEffectIntegration } = require('./BattleEffectIntegration');
-    const hitCheckResults = BattleEffectIntegration.OnHitCheck(attacker, defender, skill);
-    
+    const { BattleEffectIntegration } = require("./BattleEffectIntegration");
+    const hitCheckResults = BattleEffectIntegration.OnHitCheck(
+      attacker,
+      defender,
+      skill,
+    );
+
     // 3. 检查是否有必中效果
     for (const result of hitCheckResults) {
-      if (result.success && (result.type === 'never_miss' || result.effectType === 'never_miss')) {
+      if (
+        result.success &&
+        (result.type === "never_miss" || result.effectType === "never_miss")
+      ) {
         Logger.Debug(`[BattleCore] 效果必中: ${skill.name}`);
         return true;
       }
@@ -283,28 +317,42 @@ export class BattleCore {
     const accuracy = skill.accuracy || 100;
     if (accuracy >= 100) return true;
 
+    // 混乱状态：命中率减少80%
+    let finalAccuracy = accuracy;
+    const attackerStatusDurations = attacker.statusDurations || [];
+    if (attackerStatusDurations[BattleStatusType.CONFUSION] > 0) {
+      finalAccuracy = Math.floor(finalAccuracy * 0.2); // 减少80%
+      Logger.Debug(`[BattleCore] 混乱状态：命中率减少80%, ${accuracy}% -> ${finalAccuracy}%`);
+    }
+
     // 命中等级 (攻击方 battleLv[5]) / 闪避等级 (防御方 battleLv[5])
     const accStage = attacker.battleLv[5] || 0;
     const evaStage = defender.battleLv[5] || 0;
-    const finalAcc = BattleAlgorithm.CalculateAccuracy(accuracy, accStage, evaStage);
+    const finalAcc = BattleAlgorithm.CalculateAccuracy(
+      finalAccuracy,
+      accStage,
+      evaStage,
+    );
 
     // 5. 命中判定
     const hit = Math.random() * 100 <= finalAcc;
-    Logger.Debug(`[BattleCore] 命中判定: ${skill.name}, 基础=${accuracy}%, 命中等级=${accStage}, 闪避等级=${evaStage}, 最终=${finalAcc}%, 结果=${hit}`);
+    Logger.Debug(
+      `[BattleCore] 命中判定: ${skill.name}, 基础=${accuracy}%, 命中等级=${accStage}, 闪避等级=${evaStage}, 最终=${finalAcc}%, 结果=${hit}`,
+    );
     return hit;
   }
 
   /**
    * 检查是否暴击
    * 考虑特殊暴击条件
-   * 
+   *
    * 注意：此方法内部会触发 CRIT_CHECK 效果，允许效果修改暴击结果
    */
   public static CheckCrit(
     attacker: IBattlePet,
     defender: IBattlePet,
     skill: ISkillConfig,
-    isFirst: boolean
+    isFirst: boolean,
   ): boolean {
     // CritAtkFirst: 先出手必暴击
     if (skill.critAtkFirst && isFirst) {
@@ -331,20 +379,29 @@ export class BattleCore {
     }
 
     // 触发 CRIT_CHECK 效果（导入需要延迟加载避免循环依赖）
-    const { BattleEffectIntegration } = require('./BattleEffectIntegration');
-    const critCheckResults = BattleEffectIntegration.OnCritCheck(attacker, defender, skill);
-    
+    const critCheckResults = BattleEffectIntegration.OnCritCheck(
+      attacker,
+      defender,
+      skill,
+    );
+
     // 检查是否有必定暴击效果
     for (const result of critCheckResults) {
-      if (result.success && (result.type === 'always_crit' || result.effectType === 'always_crit')) {
+      if (
+        result.success &&
+        (result.type === "always_crit" || result.effectType === "always_crit")
+      ) {
         Logger.Debug(`[BattleCore] 效果必定暴击: ${skill.name}`);
         return true;
       }
     }
-    
+
     // 检查是否有暴击无效效果
     for (const result of critCheckResults) {
-      if (result.success && (result.type === 'no_crit' || result.effectType === 'no_crit')) {
+      if (
+        result.success &&
+        (result.type === "no_crit" || result.effectType === "no_crit")
+      ) {
         Logger.Debug(`[BattleCore] 效果暴击无效: ${skill.name}`);
         return false;
       }
@@ -354,18 +411,27 @@ export class BattleCore {
     let critRate = skill.critRate || 1;
     const speedStage = attacker.battleLv[4] || 0;
     const bonusCrit = Math.max(0, speedStage); // 速度等级正值增加暴击
-    
+
     // 应用暴击率修正效果
     for (const result of critCheckResults) {
-      if (result.success && (result.type === 'crit_modifier' || result.effectType === 'crit_modifier') && result.value !== undefined) {
+      if (
+        result.success &&
+        (result.type === "crit_modifier" ||
+          result.effectType === "crit_modifier") &&
+        result.value !== undefined
+      ) {
         critRate += result.value;
-        Logger.Debug(`[BattleCore] 暴击率修正: +${result.value}, 新暴击率=${critRate}`);
+        Logger.Debug(
+          `[BattleCore] 暴击率修正: +${result.value}, 新暴击率=${critRate}`,
+        );
       }
     }
 
     // 暴击判定
-    const isCrit = Math.random() * 16 <= (critRate + bonusCrit);
-    Logger.Debug(`[BattleCore] 暴击判定: ${skill.name}, 暴击率=${critRate + bonusCrit}/16, 结果=${isCrit}`);
+    const isCrit = Math.random() * 16 <= critRate + bonusCrit;
+    Logger.Debug(
+      `[BattleCore] 暴击判定: ${skill.name}, 暴击率=${critRate + bonusCrit}/16, 结果=${isCrit}`,
+    );
     return isCrit;
   }
 
@@ -387,7 +453,7 @@ export class BattleCore {
       pet2AlwaysFirst?: boolean;
       pet1PriorityMod?: number;
       pet2PriorityMod?: number;
-    }
+    },
   ): boolean {
     const p1AlwaysFirst = modifiers?.pet1AlwaysFirst ?? false;
     const p2AlwaysFirst = modifiers?.pet2AlwaysFirst ?? false;
@@ -400,8 +466,14 @@ export class BattleCore {
     // 2. 先制等级比较 — (skill.priority + priorityMod) clamp 到 -128~+127
     const p1PriorityMod = modifiers?.pet1PriorityMod ?? 0;
     const p2PriorityMod = modifiers?.pet2PriorityMod ?? 0;
-    const priority1 = Math.max(-128, Math.min(127, (skill1.priority || 0) + p1PriorityMod));
-    const priority2 = Math.max(-128, Math.min(127, (skill2.priority || 0) + p2PriorityMod));
+    const priority1 = Math.max(
+      -128,
+      Math.min(127, (skill1.priority || 0) + p1PriorityMod),
+    );
+    const priority2 = Math.max(
+      -128,
+      Math.min(127, (skill2.priority || 0) + p2PriorityMod),
+    );
 
     if (priority1 !== priority2) {
       return priority1 > priority2;
@@ -418,10 +490,16 @@ export class BattleCore {
     speed2 = BattleAlgorithm.ApplyStageModifier(speed2, speedStage2);
 
     // 麻痹状态速度减半
-    if (pet1.statusDurations && pet1.statusDurations[BattleStatusType.PARALYSIS] > 0) {
+    if (
+      pet1.statusDurations &&
+      pet1.statusDurations[BattleStatusType.PARALYSIS] > 0
+    ) {
       speed1 = Math.floor(speed1 / 2);
     }
-    if (pet2.statusDurations && pet2.statusDurations[BattleStatusType.PARALYSIS] > 0) {
+    if (
+      pet2.statusDurations &&
+      pet2.statusDurations[BattleStatusType.PARALYSIS] > 0
+    ) {
       speed2 = Math.floor(speed2 / 2);
     }
 
@@ -443,7 +521,7 @@ export class BattleCore {
     aiPet: IBattlePet,
     playerPet: IBattlePet,
     skills: number[],
-    skillConfigs: Map<number, ISkillConfig>
+    skillConfigs: Map<number, ISkillConfig>,
   ): number {
     return BattleAI.SelectSkill(aiPet, playerPet, skills, skillConfigs);
   }
@@ -452,12 +530,14 @@ export class BattleCore {
 
   /**
    * 计算伤害（使用 BattleAlgorithm）
+   * @param skillPower 可选的技能威力（用于烧伤等状态降低威力）
    */
   public static CalculateDamage(
     attacker: IBattlePet,
     defender: IBattlePet,
     skill: ISkillConfig,
-    isCrit: boolean
+    isCrit: boolean,
+    skillPower?: number,
   ): { damage: number; effectiveness: number; isCrit: boolean } {
     // 构建属性对象
     const attackerStats = {
@@ -467,7 +547,7 @@ export class BattleCore {
       defence: attacker.defence,
       spAtk: attacker.spAtk,
       spDef: attacker.spDef,
-      speed: attacker.speed
+      speed: attacker.speed,
     };
 
     const defenderStats = {
@@ -477,7 +557,7 @@ export class BattleCore {
       defence: defender.defence,
       spAtk: defender.spAtk,
       spDef: defender.spDef,
-      speed: defender.speed
+      speed: defender.speed,
     };
 
     return BattleAlgorithm.CalculateDamage(
@@ -486,12 +566,12 @@ export class BattleCore {
       attacker.type,
       defender.type,
       attacker.level,
-      skill.power || 40,
+      skillPower !== undefined ? skillPower : (skill.power || 40),
       skill.type || 8,
       (skill.category as SkillCategory) || SkillCategory.PHYSICAL,
-      attacker.battleLevels || attacker.battleLv,  // 优先使用battleLevels
-      defender.battleLevels || defender.battleLv,  // 优先使用battleLevels
-      { isCrit }
+      attacker.battleLevels || attacker.battleLv, // 优先使用battleLevels
+      defender.battleLevels || defender.battleLv, // 优先使用battleLevels
+      { isCrit },
     );
   }
 
@@ -499,9 +579,11 @@ export class BattleCore {
    * 调试：打印精灵的battleLv状态
    */
   public static DebugBattleLv(pet: IBattlePet, label: string): void {
-    const statNames = ['攻击', '防御', '特攻', '特防', '速度', '命中'];
+    const statNames = ["攻击", "防御", "特攻", "特防", "速度", "命中"];
     const levels = pet.battleLv || [];
-    const levelsStr = levels.map((lv, i) => `${statNames[i]}:${lv || 0}`).join(', ');
+    const levelsStr = levels
+      .map((lv, i) => `${statNames[i]}:${lv || 0}`)
+      .join(", ");
     Logger.Debug(`[BattleCore] ${label} battleLv: [${levelsStr}]`);
   }
 

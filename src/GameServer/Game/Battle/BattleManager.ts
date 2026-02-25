@@ -9,6 +9,7 @@ import { PacketEmpty } from '../../Server/Packet/Send/PacketEmpty';
 import { CommandID } from '../../../shared/protocol/CommandID';
 import { GameConfig } from '../../../shared/config/game/GameConfig';
 import { BattleEffectIntegration } from './BattleEffectIntegration';
+import { BossSpecialRules } from './BossSpecialRules';
 import { SimplePetInfoProto } from '../../../shared/proto/common/SimplePetInfoProto';
 import { AttackValueProto } from '../../../shared/proto/common/AttackValueProto';
 import {
@@ -24,6 +25,7 @@ import {
 } from '../../Server/Packet/Send/Battle';
 import { PacketMapBoss, PacketMapOgreList } from '../../Server/Packet/Send/Map';
 import { PvpBattleManager, IPvpAction } from './PvpBattleManager';
+import { BossAbilityConfig } from './BossAbility';
 
 /**
  * 战斗管理器
@@ -550,16 +552,46 @@ export class BattleManager extends BaseManager {
    * 处理挑战BOSS
    * CMD 2411: CHALLENGE_BOSS
    * 发送 2411 确认 + NOTE_READY_TO_FIGHT (2503)
+   * 
+   * 1. 优先从 (mapId, param2) 查找BOSS配置
+   * 2. 如果未找到且该地图有param2=0的配置，回退到param2=0
+   * 3. 如果仍未找到，记录警告
    */
-  public async HandleChallengeBoss(bossId: number): Promise<void> {
+  public async HandleChallengeBoss(mapId: number, param2: number): Promise<void> {
     try {
       // 清理旧战斗（如果存在）
       if (this._currentBattle) {
         this.CleanupBattle();
       }
 
+      // 1. 尝试从 (mapId, param2) 查找BOSS配置
+      let bossConfig = BossAbilityConfig.Instance.GetBossConfigByMapAndParam(mapId, param2);
+      let actualParam2 = param2;
+
+      if (bossConfig) {
+        Logger.Info(
+          `[BattleManager] 从配置获取BOSS: MapId=${mapId}, Param2=${param2} -> ` +
+          `PetId=${bossConfig.petId}, Level=${bossConfig.level}`
+        );
+      } else {
+        // 2. 该地图在配置中但param2不匹配：按单BOSS地图回退到param2=0
+        bossConfig = BossAbilityConfig.Instance.GetBossConfigByMapAndParam(mapId, 0);
+        if (bossConfig) {
+          actualParam2 = 0;
+          Logger.Info(
+            `[BattleManager] param2未命中，回退到 MapId=${mapId}, Param2=0 -> ` +
+            `PetId=${bossConfig.petId}, Level=${bossConfig.level}`
+          );
+        } else {
+          // 3. 配置未找到
+          Logger.Warn(
+            `[BattleManager] 配置未找到: MapId=${mapId}, Param2=${param2}`
+          );
+        }
+      }
+
       // 使用CreateBossBattle方法
-      const battle = await this._initService.CreateBossBattle(this.UserID, bossId);
+      const battle = await this._initService.CreateBossBattle(this.UserID, mapId, actualParam2);
 
       if (!battle) {
         const healthyPets = this.Player.PetManager.PetData.GetPetsInBag().filter(p => p.hp > 0);
@@ -568,7 +600,7 @@ export class BattleManager extends BaseManager {
           Logger.Warn(`[BattleManager] 玩家所有精灵已阵亡: UserID=${this.UserID}`);
         } else {
           await this.Player.SendPacket(new PacketEmpty(CommandID.CHALLENGE_BOSS).setResult(5001));
-          Logger.Warn(`[BattleManager] 创建BOSS战斗失败: UserID=${this.UserID}, BossId=${bossId}`);
+          Logger.Warn(`[BattleManager] 创建BOSS战斗失败: UserID=${this.UserID}, MapId=${mapId}, Param2=${param2}`);
         }
         return;
       }
@@ -579,7 +611,7 @@ export class BattleManager extends BaseManager {
       await this.Player.SendPacket(new PacketEmpty(CommandID.CHALLENGE_BOSS));
       await this.SendReadyToFight(battle, 'BOSS');
 
-      Logger.Info(`[BattleManager] 挑战BOSS: UserID=${this.UserID}, BossId=${bossId}, BattleBossId=${battle.bossId}`);
+      Logger.Info(`[BattleManager] 挑战BOSS: UserID=${this.UserID}, MapId=${mapId}, Param2=${actualParam2}`);
     } catch (error) {
       Logger.Error(`[BattleManager] HandleChallengeBoss failed`, error as Error);
       await this.Player.SendPacket(new PacketEmpty(CommandID.CHALLENGE_BOSS).setResult(5000));
@@ -614,6 +646,9 @@ export class BattleManager extends BaseManager {
     // 初始化HP记录（记录首发精灵）
     this._battlePetHPMap.clear();
     this._battlePetHPMap.set(this._currentBattle.player.catchTime, this._currentBattle.player.hp);
+
+    // 重置BOSS特殊规则状态
+    BossSpecialRules.ResetBattleState(this._currentBattle.enemy.id);
 
     // 战斗开始效果
     const battleStartResults = BattleEffectIntegration.OnBattleStart(this._currentBattle);
@@ -745,7 +780,6 @@ export class BattleManager extends BaseManager {
         isOver: false,
         isPvp: true,
         player2Id: player2.Uid,
-        bossId: 0,
         startTime: Date.now()
       };
 
@@ -1174,7 +1208,9 @@ export class BattleManager extends BaseManager {
           `捕获率=${catchResult.catchRate.toFixed(2)}%, 摇晃次数=${catchResult.shakeCount}`
         );
       } else {
+        // 捕获成功但入库失败（理论上不应该发生，因为 GivePet 已处理背包满情况）
         await this.Player.SendPacket(new PacketEmpty(CommandID.CATCH_MONSTER).setResult(5003));
+        Logger.Error(`[BattleManager] 捕获成功但入库失败: UserID=${this.UserID}`);
       }
     } else {
       // 捕获失败
@@ -1303,12 +1339,21 @@ export class BattleManager extends BaseManager {
     const playerPets = this.BuildPlayerPetsInfo();
     const enemyPets = [BattleConverter.ToSimplePetInfo(battle.enemy)];
 
+    // 如果是BOSS战斗，使用BOSS配置中的petName作为敌人昵称
+    let actualEnemyNickname = enemyNickname;
+    if (battle.bossMapId !== undefined && battle.bossParam2 !== undefined) {
+      const bossConfig = BossAbilityConfig.Instance.GetBossConfigByMapAndParam(battle.bossMapId, battle.bossParam2);
+      if (bossConfig && bossConfig.petName) {
+        actualEnemyNickname = bossConfig.petName;
+      }
+    }
+
     await this.Player.SendPacket(new PacketNoteReadyToFight(
       this.UserID,
       playerNick,
       playerPets,
       0,
-      enemyNickname,
+      actualEnemyNickname,
       enemyPets
     ));
   }

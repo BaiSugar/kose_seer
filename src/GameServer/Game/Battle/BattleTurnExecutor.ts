@@ -8,10 +8,11 @@
 import { Logger } from '../../../shared/utils';
 import { IBattleInfo, IBattlePet, IAttackResult, ITurnResult } from '../../../shared/models/BattleModel';
 import { ISkillConfig } from '../../../shared/models/SkillModel';
-import { BattleCore } from './BattleCore';
+import { BattleCore, BattleStatusType } from './BattleCore';
 import { EffectTrigger } from './EffectTrigger';
 import { EffectTiming } from './effects/core/EffectContext';
 import { BattleEffectIntegration } from './BattleEffectIntegration';
+import { BossSpecialRules } from './BossSpecialRules';
 
 /**
  * 回合执行选项
@@ -220,6 +221,11 @@ export class BattleTurnExecutor {
       }
     }
 
+    // 更新回合数（每个完整回合+1）
+    if (battle.roundCount !== undefined) {
+      battle.roundCount++;
+    }
+
     return result;
   }
 
@@ -270,6 +276,10 @@ export class BattleTurnExecutor {
     // ==================== 阶段1: ATTACK_START — 出手流程开始 ====================
     const attackStartResult = BattleEffectIntegration.OnAttackStart(attacker, defender, skill);
     Logger.Debug(`[ExecuteAttack] 阶段1 出手流程开始: 异常扣血=${attackStartResult.statusDamage}, 效果=${attackStartResult.results.length}个`);
+
+    // 检查连续攻击次数
+    const multiHitCount = (attacker as any).effectData?.multiHitCount || 1;
+    Logger.Debug(`[ExecuteAttack] 连续攻击次数: ${multiHitCount}`);
 
     // 异常致死检查 — defender 被异常扣血致死，提前返回
     if (defender.hp <= 0) {
@@ -356,6 +366,13 @@ export class BattleTurnExecutor {
     const attackedResults = BattleEffectIntegration.OnAttacked(attacker, defender, skill);
     Logger.Debug(`[ExecuteAttack] 阶段3 受到攻击时效果: ${attackedResults.length}个结果`);
 
+    // 睡眠状态解除：被攻击命中时解除
+    const attackerStatusDurations = attacker.statusDurations || [];
+    if (attackerStatusDurations[BattleStatusType.SLEEP] > 0) {
+      Logger.Info(`[ExecuteAttack] 睡眠状态解除: ${attacker.name} 被攻击命中`);
+      attackerStatusDurations[BattleStatusType.SLEEP] = 0;
+    }
+
     // ==================== 阶段4: SKILL_EFFECT — 即时技能效果结算 ====================
     const skillEffectResults = BattleEffectIntegration.OnSkillEffect(attacker, defender, skill);
     Logger.Debug(`[ExecuteAttack] 阶段4 即时技能效果结算: ${skillEffectResults.length}个结果`);
@@ -395,17 +412,69 @@ export class BattleTurnExecutor {
           damage = fixedDamageResult.value;
           Logger.Debug(`[ExecuteAttack] 阶段5 使用固定伤害: ${damage}`);
         } else {
+          // 检查烧伤状态：攻击威力降低50%
+          let skillPower = skill.power || 40;
+          const statusDurations = attacker.statusDurations || [];
+          if (statusDurations[BattleStatusType.BURN] > 0) {
+            skillPower = Math.floor(skillPower * 0.5);
+            Logger.Debug(`[ExecuteAttack] 烧伤状态：威力降低50%, ${skill.power} -> ${skillPower}`);
+          }
+
+          // 检查衰弱状态：伤害随层级提升（25%|50%|100%|250%|500%）
+          let weakenMultiplier = 1.0;
+          const defenderStatusDurations = defender.statusDurations || [];
+          if (defenderStatusDurations[BattleStatusType.WEAKNESS] > 0) {
+            const weaknessLevel = defenderStatusDurations[BattleStatusType.WEAKNESS];
+            const weakenRates = [1.25, 1.5, 2.0, 3.5, 6.0];
+            weakenMultiplier = weakenRates[Math.min(weaknessLevel - 1, 4)] || 1.0;
+            Logger.Debug(`[ExecuteAttack] 衰弱状态：伤害提升${(weakenMultiplier - 1) * 100}%, 倍率=${weakenMultiplier}`);
+          }
+
           // 伤害计算
           BattleCore.DebugBattleLv(attacker, `${attacker.name}(攻击方)`);
           BattleCore.DebugBattleLv(defender, `${defender.name}(防御方)`);
 
-          const damageResult = BattleCore.CalculateDamage(attacker, defender, skill, isCrit);
-          damage = damageResult.damage;
+          const damageResult = BattleCore.CalculateDamage(attacker, defender, skill, isCrit, skillPower);
+          damage = Math.floor(damageResult.damage * weakenMultiplier);
+
+          Logger.Debug(`[ExecuteAttack] 属性克制: 攻击方type=${attacker.type}, 防御方type=${defender.type}, 克制倍率=${damageResult.effectiveness}`);
 
           // 伤害计算后效果（伤害上限/下限）
           const afterCalcResult = BattleEffectIntegration.OnAfterDamageCalc(attacker, defender, skill, damage);
           damage = afterCalcResult.damage;
           Logger.Debug(`[ExecuteAttack] 阶段5 伤害计算后: ${damage} (原始: ${damageResult.damage})`);
+
+          // ==================== BOSS特殊规则：顺序破防 ====================
+          const sequentialBreakResult = BossSpecialRules.ApplySequentialTypeBreak(
+            defender.id,
+            skill.type || 8,
+            damage
+          );
+          if (sequentialBreakResult.phaseAdvanced || sequentialBreakResult.damage !== damage) {
+            damage = sequentialBreakResult.damage;
+            Logger.Info(
+              `[ExecuteAttack] BOSS特殊规则-顺序破防: 伤害=${damage}, ` +
+              `阶段推进=${sequentialBreakResult.phaseAdvanced}, ` +
+              `所需属性=${sequentialBreakResult.requiredType}`
+            );
+          }
+
+          // ==================== BOSS特殊规则：特殊击杀条件 ====================
+          const specialKillResult = BossSpecialRules.ApplySpecialKillCondition(
+            defender.id,
+            attacker.id,
+            skill.id,
+            damage,
+            defender.hp
+          );
+          if (specialKillResult.broken || specialKillResult.protected) {
+            damage = specialKillResult.damage;
+            Logger.Info(
+              `[ExecuteAttack] BOSS特殊规则-特殊击杀: 伤害=${damage}, ` +
+              `已破防=${specialKillResult.broken}, ` +
+              `受保护=${specialKillResult.protected}`
+            );
+          }
         }
 
         // 伤害应用前效果（伤害减免）
@@ -446,6 +515,16 @@ export class BattleTurnExecutor {
     const afterApplyResults = BattleEffectIntegration.OnAfterDamageApply(attacker, defender, skill, actualDamage);
     Logger.Debug(`[ExecuteAttack] 阶段7 伤害应用后效果: ${afterApplyResults.length}个结果`);
 
+    // 寄生状态：对手恢复等量体力
+    const defenderStatusDurations = defender.statusDurations || [];
+    if (defenderStatusDurations[BattleStatusType.DRAIN] > 0) {
+      const healAmount = Math.min(actualDamage, attacker.maxHp - attacker.hp);
+      if (healAmount > 0) {
+        attacker.hp = Math.min(attacker.maxHp, attacker.hp + healAmount);
+        Logger.Info(`[ExecuteAttack] 寄生状态：攻击方恢复${healAmount}点体力`);
+      }
+    }
+
     // 受到伤害时效果
     const receiveDamageResults = BattleEffectIntegration.OnReceiveDamage(attacker, defender, skill, actualDamage);
     Logger.Debug(`[ExecuteAttack] 阶段7 受到伤害效果: ${receiveDamageResults.length}个结果`);
@@ -466,6 +545,12 @@ export class BattleTurnExecutor {
       // 击败对方后效果
       const afterKoResults = BattleEffectIntegration.OnAfterKO(attacker, defender, skill);
       Logger.Debug(`[ExecuteAttack] 阶段8 击败对方后效果: ${afterKoResults.length}个结果`);
+
+      // 记录最后一击是否暴击（用于周几规则验证）
+      if (battle.lastHitWasCritical !== undefined) {
+        battle.lastHitWasCritical = isCrit;
+        Logger.Debug(`[ExecuteAttack] 记录最后一击暴击状态: ${isCrit}`);
+      }
     }
 
     // ==================== 统计效果结果（吸血等）====================
@@ -487,7 +572,7 @@ export class BattleTurnExecutor {
     const result = {
       userId: attackerUserId,
       skillId: skill.id,
-      atkTimes: 1,
+      atkTimes: multiHitCount,
       damage: actualDamage,
       gainHp,
       attackerRemainHp: attacker.hp,

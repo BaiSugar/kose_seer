@@ -65,6 +65,13 @@ export class PlayerData implements IPlayerInfo {
   mapID: number;
   posX: number;
   posY: number;
+  actionType: number = 0;       // 动作类型
+  action: number = 0;           // 动作
+  direction: number = 0;        // 方向
+  changeShape: number = 0;      // 变形
+  playerForm: boolean = false;  // 玩家形态
+  transTime: number = 0;        // 变形时间
+  fightFlag: number = 0;        // 战斗标志
 
   // ============ 时间信息 ============
   timeToday: number;
@@ -99,7 +106,10 @@ export class PlayerData implements IPlayerInfo {
   teacherID: number;
   studentID: number;
   graduationCount: number;
-  maxPuniLv: number;
+
+  // ============ 挑战进度 ============
+  maxPuniLv: number;           // 谱尼封印进度（0-8：0=未开启，1-7=封印进度，8=解锁真身）
+  towerBossIndex: number;      // 勇者之塔当前层已击败的BOSS数（0/1/2）
 
   // ============ 精灵统计 ============
   petMaxLev: number;
@@ -231,7 +241,10 @@ export class PlayerData implements IPlayerInfo {
     this.teacherID = data.teacherID;
     this.studentID = data.studentID;
     this.graduationCount = data.graduationCount;
-    this.maxPuniLv = data.maxPuniLv;
+
+    // 挑战进度
+    this.maxPuniLv = data.maxPuniLv || 0;
+    this.towerBossIndex = data.towerBossIndex || 0;
 
     // 精灵统计
     this.petMaxLev = data.petMaxLev;

@@ -106,7 +106,8 @@ export class PlayerDataAccessor {
       });
       
       // 更新服装ID列表
-      if (data.clothIds && data.clothIds.length > 0) {
+      if (Array.isArray(data.clothIds)) {
+        Logger.Debug(`[PlayerDataAccessor] 保存 clothIds: uid=${data.userID}, clothIds=${JSON.stringify(data.clothIds)}`);
         await this._playerRepo.UpdateClothIds(data.userID, data.clothIds);
       }
       

@@ -33,6 +33,8 @@ interface IPvpBattleRoom {
   player2Ready: boolean;
   player1Action: IPvpAction | null;
   player2Action: IPvpAction | null;
+  player1LoadPercent: number;  // 玩家1的加载进度
+  player2LoadPercent: number;  // 玩家2的加载进度
   createdAt: number;
 }
 
@@ -210,6 +212,8 @@ export class PvpBattleManager {
       player2Ready: false,
       player1Action: null,
       player2Action: null,
+      player1LoadPercent: 0,
+      player2LoadPercent: 0,
       createdAt: Date.now()
     };
 
@@ -245,6 +249,42 @@ export class PvpBattleManager {
 
     Logger.Info(`[PvpBattleManager] 玩家准备: userId=${userId}, room=${roomKey}`);
     return room.player1Ready && room.player2Ready;
+  }
+
+  /**
+   * 设置玩家加载进度
+   */
+  public SetPlayerLoadPercent(userId: number, percent: number): void {
+    const roomKey = this._playerRooms.get(userId);
+    if (!roomKey) return;
+
+    const room = this._battleRooms.get(roomKey);
+    if (!room) return;
+
+    if (room.player1Id === userId) {
+      room.player1LoadPercent = percent;
+    } else if (room.player2Id === userId) {
+      room.player2LoadPercent = percent;
+    }
+  }
+
+  /**
+   * 获取对方玩家的加载进度
+   */
+  public GetOpponentLoadPercent(userId: number): number {
+    const roomKey = this._playerRooms.get(userId);
+    if (!roomKey) return 0;
+
+    const room = this._battleRooms.get(roomKey);
+    if (!room) return 0;
+
+    if (room.player1Id === userId) {
+      return room.player2LoadPercent;
+    } else if (room.player2Id === userId) {
+      return room.player1LoadPercent;
+    }
+
+    return 0;
   }
 
   /**

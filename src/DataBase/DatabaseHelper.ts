@@ -16,6 +16,7 @@ import { ItemData } from './models/ItemData';
 import { PetData } from './models/PetData';
 import { MailData } from './models/MailData';
 import { TaskData } from './models/TaskData';
+import { ChallengeProgressData } from './models/ChallengeProgressData';
 
 import { DataCache } from './cache/DataCache';
 import { DataSaver } from './savers/DataSaver';
@@ -25,6 +26,7 @@ import { PetDataAccessor } from './accessors/PetDataAccessor';
 import { MailDataAccessor } from './accessors/MailDataAccessor';
 import { TaskDataAccessor } from './accessors/TaskDataAccessor';
 import { PlayerDataAccessor } from './accessors/PlayerDataAccessor';
+import { ChallengeProgressDataAccessor } from './accessors/ChallengeProgressDataAccessor';
 
 /**
  * 数据库助手单例
@@ -127,6 +129,20 @@ export class DatabaseHelper {
 
   public async SavePlayerData(data: PlayerData): Promise<void> {
     return PlayerDataAccessor.Instance.Save(data);
+  }
+
+  // ==================== ChallengeProgressData ====================
+
+  public async GetInstance_ChallengeProgressData(uid: number): Promise<ChallengeProgressData | undefined> {
+    return ChallengeProgressDataAccessor.Instance.GetCached(uid);
+  }
+
+  public async GetInstanceOrCreateNew_ChallengeProgressData(uid: number): Promise<ChallengeProgressData> {
+    return ChallengeProgressDataAccessor.Instance.GetOrCreate(uid);
+  }
+
+  public async SaveChallengeProgressData(data: ChallengeProgressData): Promise<void> {
+    return ChallengeProgressDataAccessor.Instance.Save(data);
   }
 
   // ==================== 批量操作 ====================

@@ -1,7 +1,8 @@
 import { Logger } from '../../../../shared/utils';
 import { PlayerInstance } from '../../Player/PlayerInstance';
-import { IBattleInfo, IBattlePet, BattleStatus } from '../../../../shared/models/BattleModel';
+import { IBattleInfo, IBattlePet, BattleStatus, BattleType } from '../../../../shared/models/BattleModel';
 import { GameConfig } from '../../../../shared/config/game/GameConfig';
+import { IPetInfo } from '../../../../shared/models/PetModel';
 import { createBattlePetProxy } from '../BattlePetProxy';
 import { SptSystem } from '../../Pet/SptSystem';
 import { BossAbilityConfig } from '../BossAbility/BossAbilityConfig';
@@ -63,6 +64,7 @@ export class BattleInitService {
         playerPet.catchTime,
         0  // 皮肤ID（暂时使用默认皮肤0）
       );
+      (playerBattlePet as any).effectList = playerPet.effectList || [];
 
       // 4. 从配置获取敌人精灵信息
       const enemyPetConfig = GameConfig.GetPetById(enemyId);
@@ -104,8 +106,10 @@ export class BattleInitService {
         enemy: enemyBattlePet,
         turn: 0,
         isOver: false,
-        aiType: 'random',
-        startTime: Math.floor(Date.now() / 1000)
+        battleType: BattleType.PVE,
+        startTime: Math.floor(Date.now() / 1000),
+        roundCount: 0,
+        lastHitWasCritical: false
       };
 
       // 7. 触发被动能力（BATTLE_START时机）
@@ -145,24 +149,30 @@ export class BattleInitService {
   }
 
   /**
-   * 创建BOSS战斗（使用bossId从配置读取完整信息）
+   * 创建BOSS战斗（使用mapId和param2从配置读取完整信息）
    * 
    * @param userId 玩家ID
-   * @param bossId 客户端传来的BOSS ID
+   * @param mapId 地图ID
+   * @param param2 参数2（区域/槽位）
    * @returns 战斗实例，失败返回null
    */
-  public async CreateBossBattle(userId: number, bossId: number): Promise<IBattleInfo | null> {
+  public async CreateBossBattle(userId: number, mapId: number, param2: number): Promise<IBattleInfo | null> {
     try {
-      // 1. 从配置读取BOSS信息（通过bossId查找）
-      const bossConfig = BossAbilityConfig.Instance.GetBossConfig(bossId);
+      // 新手战斗(mapId=515)：根据玩家精灵属性生成克制对手
+      if (mapId === 515) {
+        return this.CreateFreshBattle(userId);
+      }
+
+      // 1. 从配置读取BOSS信息（通过mapId和param2查找）
+      const bossConfig = BossAbilityConfig.Instance.GetBossConfigByMapAndParam(mapId, param2);
       if (!bossConfig) {
-        Logger.Warn(`[BattleInitService] 找不到BOSS配置: BossId=${bossId}`);
+        Logger.Warn(`[BattleInitService] 找不到BOSS配置: MapId=${mapId}, Param2=${param2}`);
         return null;
       }
 
       Logger.Info(
-        `[BattleInitService] 创建BOSS战斗: BossId=${bossId}, ` +
-        `PetId=${bossConfig.petId}, ClientId=${bossConfig.clientId}, Level=${bossConfig.level}, ` +
+        `[BattleInitService] 创建BOSS战斗: MapId=${mapId}, Param2=${param2}, ` +
+        `PetId=${bossConfig.petId}, Level=${bossConfig.level}, ` +
         `DV=${bossConfig.dv}, Nature=${bossConfig.nature}`
       );
 
@@ -192,7 +202,7 @@ export class BattleInitService {
       // 5. 构建玩家精灵数据
       const playerBattlePet = this.BuildBattlePet(
         playerPet.petId,
-        playerPet.nick || playerPetConfig?.DefName || 'Pet',
+        playerPet.nick || playerPetConfig?.DefName || 'Player',
         playerPet.level,
         playerPet.hp,
         playerPet.maxHp,
@@ -206,6 +216,7 @@ export class BattleInitService {
         playerPet.catchTime,
         0
       );
+      (playerBattlePet as any).effectList = playerPet.effectList || [];
 
       // 6. 从配置获取BOSS精灵信息
       const bossPetConfig = GameConfig.GetPetById(bossConfig.petId);
@@ -228,20 +239,29 @@ export class BattleInitService {
         bossStats.hp = bossConfig.customHP;
         bossStats.maxHp = bossConfig.customHP;
         Logger.Info(
-          `[BattleInitService] 使用自定义血量: BossId=${bossConfig.bossId}, ` +
+          `[BattleInitService] 使用自定义血量: MapId=${mapId}, Param2=${param2}, ` +
           `CustomHP=${bossConfig.customHP}`
         );
       }
 
-      // 8. 获取BOSS技能
-      let bossSkills = this.GetEnemySkills(bossConfig.petId, bossConfig.level);
-      if (bossSkills.length === 0) {
-        bossSkills = [10001];
+      // 8. 获取BOSS技能（优先使用配置中的skills字段）
+      let bossSkills: number[];
+      if (bossConfig.skills && bossConfig.skills.length > 0) {
+        bossSkills = bossConfig.skills;
+        Logger.Info(
+          `[BattleInitService] 使用配置的固定技能: MapId=${mapId}, Param2=${param2}, ` +
+          `Skills=${JSON.stringify(bossSkills)}`
+        );
+      } else {
+        bossSkills = this.GetEnemySkills(bossConfig.petId, bossConfig.level);
+        if (bossSkills.length === 0) {
+          bossSkills = [10001];
+        }
       }
 
-      // 9. 构建BOSS精灵数据（使用clientId作为显示ID）
+      // 9. 构建BOSS精灵数据（使用petId作为显示ID，闪光BOSS需要在配置中添加clientId字段）
       const bossBattlePet = this.BuildBattlePet(
-        bossConfig.clientId,  // 使用clientId（闪光精灵时不同）
+        bossConfig.petId,  // 使用petId作为显示ID（大部分情况下clientId = petId）
         bossConfig.petName,
         bossConfig.level,
         bossStats.hp,
@@ -264,9 +284,12 @@ export class BattleInitService {
         enemy: bossBattlePet,
         turn: 0,
         isOver: false,
-        aiType: 'random',
+        battleType: BattleType.BOSS,
         startTime: Math.floor(Date.now() / 1000),
-        bossId: bossConfig.bossId  // 保存bossId用于战斗结束时读取奖励配置
+        bossMapId: mapId,
+        bossParam2: param2,
+        roundCount: 0,              // 初始化回合数
+        lastHitWasCritical: false   // 初始化暴击标记
       };
 
       // 11. 触发被动能力（BATTLE_START时机）
@@ -296,7 +319,7 @@ export class BattleInitService {
 
       Logger.Info(
         `[BattleInitService] 创建BOSS战斗成功: UserID=${userId}, ` +
-        `BossId=${bossId}, Pet=${playerPet.petId}(Lv${playerPet.level}) vs ` +
+        `MapId=${mapId}, Param2=${param2}, Pet=${playerPet.petId}(Lv${playerPet.level}) vs ` +
         `${bossConfig.petName}(Lv${bossConfig.level})`
       );
       
@@ -542,5 +565,136 @@ export class BattleInitService {
     }
     Logger.Debug(`[BattleInitService] ValidateBattle: 战斗有效`);
     return true;
+  }
+
+  /**
+   * 创建新手战斗（mapId=1）
+   * 根据玩家精灵属性生成克制对手：草系→火系→水系→草系
+   */
+  private async CreateFreshBattle(userId: number): Promise<IBattleInfo | null> {
+    try {
+      // 1. 获取玩家首发精灵
+      const playerPets = this._player.PetManager.PetData.GetPetsInBag();
+      const healthyPets = playerPets.filter(p => p.hp > 0);
+      
+      if (healthyPets.length === 0) {
+        Logger.Warn(`[BattleInitService] 新手战斗：玩家没有健康的精灵`);
+        return null;
+      }
+      
+      const playerPet = healthyPets.find(p => p.isDefault) || healthyPets[0];
+      const playerPetConfig = GameConfig.GetPetById(playerPet.petId);
+      const playerType = playerPetConfig?.Type || 0;
+
+      // 2. 根据玩家精灵属性生成克制对手
+      // 草系(1)→火系(2)→水系(3)→草系(1)
+      // 初始精灵：布布种子(1,草), 小火猴(7,火), 伊优(4,水)
+      let enemyPetId: number;
+      switch (playerType) {
+        case 1: // 草系 -> 火系
+          enemyPetId = 7;   // 小火猴
+          break;
+        case 2: // 火系 -> 水系
+          enemyPetId = 4;   // 伊优
+          break;
+        case 3: // 水系 -> 草系
+          enemyPetId = 1;   // 布布种子
+          break;
+        default:
+          enemyPetId = 7;   // 默认火系
+      }
+
+      const enemyLevel = 3;
+      const enemyPetConfig = GameConfig.GetPetById(enemyPetId);
+      if (!enemyPetConfig) {
+        Logger.Warn(`[BattleInitService] 新手战斗：找不到敌人精灵配置: PetId=${enemyPetId}`);
+        return null;
+      }
+
+      // 3. 构建战斗精灵数据
+      const playerBattlePet = this.BuildPlayerBattlePet(playerPet, playerPetConfig, playerType);
+      const enemyBattlePet = this.BuildEnemyBattlePet(enemyPetId, enemyPetConfig, enemyLevel);
+
+      // 4. 创建战斗实例
+      const battle: IBattleInfo = {
+        userId: userId,
+        player: playerBattlePet,
+        enemy: enemyBattlePet,
+        turn: 0,
+        isOver: false,
+        startTime: Date.now(),
+        battleType: BattleType.FRESH,
+      };
+
+      Logger.Info(
+        `[BattleInitService] 新手战斗创建: UserID=${userId}, ` +
+        `玩家精灵=${playerPet.petId}(type=${playerType}), 敌人精灵=${enemyPetId}(type=${enemyPetConfig.Type})`
+      );
+
+      return battle;
+    } catch (error) {
+      Logger.Error(`[BattleInitService] 新手战斗创建失败`, error as Error);
+      return null;
+    }
+  }
+
+  /**
+   * 构建玩家战斗精灵数据
+   */
+  private BuildPlayerBattlePet(playerPet: IPetInfo, playerPetConfig: any, playerType: number): IBattlePet {
+    let playerSkills = playerPet.skillArray.filter((s: number) => s > 0);
+    if (playerSkills.length === 0) {
+      playerSkills = [10001];
+    }
+
+    const battlePet = this.BuildBattlePet(
+      playerPet.petId,
+      playerPet.nick || playerPetConfig?.DefName || 'Player',
+      playerPet.level,
+      playerPet.hp,
+      playerPet.maxHp,
+      playerPet.atk,
+      playerPet.def,
+      playerPet.spAtk,
+      playerPet.spDef,
+      playerPet.speed,
+      playerType,
+      playerSkills,
+      playerPet.catchTime,
+      0
+    );
+
+    // 传递玩家精灵的特性列表
+    (battlePet as any).effectList = playerPet.effectList || [];
+
+    return battlePet;
+  }
+
+  /**
+   * 构建敌人战斗精灵数据
+   */
+  private BuildEnemyBattlePet(enemyPetId: number, enemyPetConfig: any, enemyLevel: number): IBattlePet {
+    const enemyStats = this.CalculateEnemyStats(enemyPetConfig, enemyLevel);
+    let enemySkills = this.GetEnemySkills(enemyPetId, enemyLevel);
+    if (enemySkills.length === 0) {
+      enemySkills = [10001];
+    }
+
+    return this.BuildBattlePet(
+      enemyPetId,
+      enemyPetConfig.DefName || 'Enemy',
+      enemyLevel,
+      enemyStats.hp,
+      enemyStats.maxHp,
+      enemyStats.attack,
+      enemyStats.defence,
+      enemyStats.spAtk,
+      enemyStats.spDef,
+      enemyStats.speed,
+      enemyPetConfig.Type || 0,
+      enemySkills,
+      0,
+      0
+    );
   }
 }

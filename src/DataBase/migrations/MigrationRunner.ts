@@ -21,6 +21,8 @@ import { Migration008AlignNoNoFieldsWithOfficial } from './scripts/008_align_non
 import { Migration014AddMessWinAndCurTitle } from './scripts/014_add_mess_win_and_cur_title';
 import { Migration016AddGoldField } from './scripts/016_add_gold_field';
 import { Migration017AddClothIds } from './scripts/017_add_cloth_ids';
+import { Migration018CreateChallengeProgressTable } from './scripts/018_create_challenge_progress_table';
+import { Migration019AddChallengeFieldsToPlayers } from './scripts/019_add_challenge_fields_to_players';
 
 /**
  * 所有迁移脚本（按版本号排序）
@@ -41,6 +43,8 @@ const AllMigrations: IMigration[] = [
   new Migration014AddMessWinAndCurTitle(),
   new Migration016AddGoldField(),
   new Migration017AddClothIds(),
+  new Migration018CreateChallengeProgressTable(),
+  new Migration019AddChallengeFieldsToPlayers(),
 ];
 
 export class MigrationRunner {

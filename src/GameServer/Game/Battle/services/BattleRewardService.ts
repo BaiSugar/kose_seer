@@ -2,6 +2,8 @@ import { Logger } from '../../../../shared/utils';
 import { PlayerInstance } from '../../Player/PlayerInstance';
 import { IBattleInfo } from '../../../../shared/models/BattleModel';
 import { GameConfig } from '../../../../shared/config/game/GameConfig';
+import { BossAbilityConfig } from '../BossAbility/BossAbilityConfig';
+import { BossSpecialRules } from '../BossSpecialRules';
 
 /**
  * 战斗奖励服务
@@ -59,7 +61,10 @@ export class BattleRewardService {
         Logger.Info(`[BattleRewardService] 掉落物品已添加到背包: ItemId=${drop.itemId}, Count=${drop.count}`);
       }
 
-      // 6. 构建奖励列表（用于显示弹窗）
+      // 6. 处理SPT首次击败奖励（如果是BOSS战斗）
+      const sptRewards = await this.ProcessSPTFirstDefeatReward(battle, mapId);
+      
+      // 7. 构建奖励列表（用于显示弹窗）
       const rewardItems: Array<{ itemId: number; itemCnt: number }> = [];
       
       // 添加金币奖励（itemId=1表示赛尔豆）
@@ -77,7 +82,12 @@ export class BattleRewardService {
         rewardItems.push({ itemId: drop.itemId, itemCnt: drop.count });
       }
 
-      Logger.Info(`[BattleRewardService] 战斗奖励: UserID=${userId}, Exp=${expGained}, Coins=${coinsGained}, LevelUp=${levelUp}, Drops=${droppedItems.length}, RewardItems=${rewardItems.length}`);
+      // 添加SPT首次击败奖励
+      for (const reward of sptRewards) {
+        rewardItems.push({ itemId: reward.itemId, itemCnt: reward.count });
+      }
+
+      Logger.Info(`[BattleRewardService] 战斗奖励: UserID=${userId}, Exp=${expGained}, Coins=${coinsGained}, LevelUp=${levelUp}, Drops=${droppedItems.length}, SPTRewards=${sptRewards.length}, RewardItems=${rewardItems.length}`);
 
       return { expGained, coinsGained, levelUp, newLevel, droppedItems, rewardItems };
 
@@ -85,6 +95,92 @@ export class BattleRewardService {
       Logger.Error(`[BattleRewardService] 处理奖励失败: ${error}`);
       return { expGained: 0, coinsGained: 0, levelUp: false, newLevel: battle.player.level, droppedItems: [], rewardItems: [] };
     }
+  }
+
+  /**
+   * 处理SPT首次击败奖励
+   * @param battle 战斗信息
+   * @param mapId 地图ID（用于周几规则验证）
+   * @returns 奖励物品列表
+   */
+  private async ProcessSPTFirstDefeatReward(
+    battle: IBattleInfo,
+    mapId?: number
+  ): Promise<{ itemId: number; count: number }[]> {
+    const rewards: { itemId: number; count: number }[] = [];
+
+    // 检查是否是BOSS战斗
+    if (battle.bossMapId === undefined || battle.bossParam2 === undefined) {
+      return rewards;
+    }
+
+    // 获取BOSS配置
+    const bossConfig = BossAbilityConfig.Instance.GetBossConfigByMapAndParam(battle.bossMapId, battle.bossParam2);
+    if (!bossConfig || !bossConfig.spt) {
+      return rewards;
+    }
+
+    const sptInfo = bossConfig.spt;
+
+    // 检查是否是SPT BOSS
+    if (!sptInfo.sptId || sptInfo.sptId <= 0 || sptInfo.sptId > 200) {
+      return rewards;
+    }
+
+    // 检查玩家是否已经击败过这个SPT BOSS（通过 ChallengeProgressManager）
+    if (this._player.ChallengeProgressManager.HasDefeatedSPTBoss(sptInfo.sptId)) {
+      Logger.Info(`[BattleRewardService] SPT BOSS已击败过，不发放首次奖励: MapId=${battle.bossMapId}, Param2=${battle.bossParam2}, SPTId=${sptInfo.sptId}`);
+      return rewards;
+    }
+
+    // 验证周几出现规则（如果适用）
+    if (mapId !== undefined && BossAbilityConfig.Instance.IsWeekdayScheduleBoss(battle.enemy.id)) {
+      const roundCount = battle.roundCount || 0;
+      const isCriticalHit = battle.lastHitWasCritical || false;
+
+      const validation = BossSpecialRules.ValidateWeekdayScheduleCondition(
+        battle.enemy.id,
+        mapId,
+        roundCount,
+        isCriticalHit
+      );
+
+      if (!validation.valid) {
+        Logger.Warn(
+          `[BattleRewardService] 周几规则验证失败，不发放首次奖励: ` +
+          `MapId=${battle.bossMapId}, Param2=${battle.bossParam2}, 条件=${validation.conditionDesc}`
+        );
+        return rewards;
+      }
+
+      Logger.Info(
+        `[BattleRewardService] 周几规则验证通过: ` +
+        `MapId=${battle.bossMapId}, Param2=${battle.bossParam2}, 条件=${validation.conditionDesc}`
+      );
+    }
+
+    // 标记为已击败（通过 ChallengeProgressManager）
+    this._player.ChallengeProgressManager.MarkSPTBossDefeated(sptInfo.sptId);
+    Logger.Info(`[BattleRewardService] SPT BOSS首次击败: MapId=${battle.bossMapId}, Param2=${battle.bossParam2}, SPTId=${sptInfo.sptId}, PetName=${bossConfig.petName}`);
+
+    // 奖励精灵
+    if (sptInfo.rewardPetId && sptInfo.rewardPetId > 0) {
+      const catchTime = Math.floor(Date.now() / 1000);
+      const success = await this._player.PetManager.GivePet(sptInfo.rewardPetId, 1, catchTime);
+      if (success) {
+        Logger.Info(`[BattleRewardService] SPT奖励精灵已发放: PetId=${sptInfo.rewardPetId}`);
+        // 注意：精灵奖励不添加到rewardItems，因为客户端会通过精灵列表更新显示
+      }
+    }
+
+    // 奖励物品
+    if (sptInfo.rewardItemId && sptInfo.rewardItemId > 0) {
+      this._player.ItemManager.ItemData.AddItem(sptInfo.rewardItemId, 1, 0);
+      rewards.push({ itemId: sptInfo.rewardItemId, count: 1 });
+      Logger.Info(`[BattleRewardService] SPT奖励物品已发放: ItemId=${sptInfo.rewardItemId}`);
+    }
+
+    return rewards;
   }
 
   /**

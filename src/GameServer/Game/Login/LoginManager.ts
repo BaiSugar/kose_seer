@@ -1,6 +1,7 @@
 import { PacketBuilder } from '../../../shared/protocol/PacketBuilder';
 import { PacketMainLogin, PacketGameLogin, PacketCreateRole } from '../../Server/Packet/Send/Login';
 import { PacketChangeCloth } from '../../Server/Packet/Send/Item/PacketChangeCloth';
+import { PacketEnterMap } from '../../Server/Packet/Send/Map/PacketEnterMap';
 import { AccountRepository, SessionRepository, PlayerRepository } from '../../../DataBase';
 import { Logger } from '../../../shared/utils';
 import { IClientSession } from '../../Server/Packet/IHandler';
@@ -241,23 +242,25 @@ export class LoginManager {
       // 随机登录地图（除新账号外）
       // 新账号判断：mapID == 515 表示在新手地图，保持不变
       // 老玩家：随机传送到 1-9 地图（排除mapID=2）
-      if (player.mapID !== 515) {
-        // 可选地图：1, 3, 4, 5, 6, 7, 8, 9（排除2）
+      // 新手任务判断：curFreshStage < maxFreshStage 表示新手任务未完成，保持新手地图
+      if (player.mapID !== 515 && player.curFreshStage >= player.maxFreshStage) {
+        // 可选地图：1, 4, 5, 6, 7, 8, 9（排除2）
         const availableMaps = [1, 4, 5, 6, 7, 8, 9];
         const randomMapId = availableMaps[Math.floor(Math.random() * availableMaps.length)];
         player.mapID = randomMapId;
         await this._playerRepo.UpdatePlayerMap(userID, randomMapId);
         Logger.Info(`[LoginManager] 老玩家随机登录地图: userID=${userID}, mapID=${randomMapId}`);
       } else {
-        Logger.Info(`[LoginManager] 新玩家保持新手地图: userID=${userID}, mapID=515`);
+        // 新手任务未完成，保持新手地图
+        if (player.mapID !== 515) {
+          player.mapID = 515;
+          await this._playerRepo.UpdatePlayerMap(userID, 515);
+        }
+        Logger.Info(`[LoginManager] 新手任务未完成，保持新手地图: userID=${userID}, curFreshStage=${player.curFreshStage}, maxFreshStage=${player.maxFreshStage}`);
       }
 
       // 创建Player实例
       const playerInstance = await this._playerManager.CreatePlayer(session, userID, player.nick);
-
-      // 更新在线追踪系统的地图信息
-      OnlineTracker.Instance.UpdatePlayerMap(userID, player.mapID, 0);
-      Logger.Info(`[LoginManager] 更新在线追踪地图: userID=${userID}, mapID=${player.mapID}`);
 
       Logger.Info(`[LoginManager] 游戏登录成功: userID=${userID}, nick=${player.nick}`);
       
@@ -319,6 +322,12 @@ export class LoginManager {
       proto.clothList = clothList;
       Logger.Info(`[LoginManager] 服装数据: 共${clothList.length}个服装`);
 
+      // 加载挑战进度数据并填充到 Proto
+      const achievementBuffer = playerInstance.ChallengeProgressManager.GetAchievementBuffer();
+      proto.bossAchievement = Array.from(achievementBuffer).map(b => b === 1);
+      const achievementCount = proto.bossAchievement.filter(a => a).length;
+      Logger.Info(`[LoginManager] 挑战进度数据: SPT BOSS击败=${achievementCount}/200`);
+
       // 发送响应
       await playerInstance.SendPacket(proto);
       
@@ -328,6 +337,35 @@ export class LoginManager {
       await playerInstance.OnLogin();
       
       Logger.Info(`[LoginManager] OnLogin完成，玩家已完全登录`);
+
+      // pushInitialMapEnter: 登录成功后主动推送 2001/2003/2004，使客户端直接进入地图
+      const mapId = playerInstance.Data.mapID;
+      const x = playerInstance.Data.posX || 500;
+      const y = playerInstance.Data.posY || 300;
+      
+      Logger.Info(`[LoginManager] pushInitialMapEnter: UID=${userID}, MapID=${mapId}, X=${x}, Y=${y}`);
+      
+      // 添加玩家到地图
+      OnlineTracker.Instance.PlayerLogin(userID, session);
+      OnlineTracker.Instance.UpdatePlayerMap(userID, mapId, 0, x, y);
+      
+      // 构建并发送 2001 (ENTER_MAP)
+      const userInfo = playerInstance.MapManager.buildUserInfo(userID, playerInstance.Data, x, y, playerInstance);
+      await playerInstance.SendPacket(new PacketEnterMap(userInfo));
+      
+      // 发送 2003 (LIST_MAP_PLAYER) - 包含同地图所有人
+      await playerInstance.MapManager.sendMapPlayerList(mapId);
+      
+      // 发送 2004 (MAP_OGRE_LIST)
+      await playerInstance.MapManager.sendMapOgreList(mapId);
+      
+      // 发送 2021 (MAP_BOSS)
+      await playerInstance.MapManager.sendMapBossList(mapId);
+      
+      // 发送 9003 (Nono info) - 使客户端 NonoManager.info 有完整数据
+      await playerInstance.NoNoManager.HandleNoNoInfo();
+      
+      Logger.Info(`[LoginManager] pushInitialMapEnter 完成: UID=${userID}, MapID=${mapId}`);
 
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));

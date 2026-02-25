@@ -13,3 +13,4 @@ export * from './PacketPeopleTransform';
 export * from './PacketOnOrOffFlying';
 export * from './PacketPeopleWalk';
 export * from './PacketChat';
+export * from './PacketLoadPercent';

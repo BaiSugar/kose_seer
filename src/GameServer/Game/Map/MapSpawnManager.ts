@@ -12,6 +12,8 @@
 import { Logger } from '../../../shared/utils/Logger';
 import { GameConfig } from '../../../shared/config/game/GameConfig';
 import { BaseManager } from '../Base/BaseManager';
+import { BossAbilityConfig } from '../Battle/BossAbility/BossAbilityConfig';
+import { IOgreRefreshConfig } from '../../../shared/config/game/interfaces/IMapOgreConfig';
 
 /**
  * 单个野怪刷新状态
@@ -144,6 +146,104 @@ export class MapSpawnManager extends BaseManager {
   }
 
   /**
+   * 检查BOSS是否应该刷新
+   * @param petId BOSS精灵ID
+   * @param mapId 地图ID
+   * @param refreshConfig 刷新配置
+   * @returns 是否应该刷新
+   */
+  private ShouldBossSpawn(
+    petId: number,
+    mapId: number,
+    refreshConfig: IOgreRefreshConfig
+  ): boolean {
+    // 1. 检查基础刷新配置
+    if (!refreshConfig.enabled) {
+      return false;
+    }
+
+    // 2. 检查周几出现规则（如盖亚）
+    if (BossAbilityConfig.Instance.IsWeekdayScheduleBoss(petId)) {
+      const now = new Date();
+      const weekday = now.getDay(); // 0=周日, 1=周一, ..., 6=周六
+
+      // 获取当前周几的规则
+      const schedule = BossAbilityConfig.Instance.GetWeekdayScheduleByWeekday(petId, weekday);
+      if (!schedule) {
+        Logger.Debug(
+          `[MapSpawnManager] 周几规则BOSS ${petId} 在周${weekday}无刷新配置`
+        );
+        return false;
+      }
+
+      // 检查地图是否匹配
+      if (schedule.mapId !== mapId) {
+        Logger.Debug(
+          `[MapSpawnManager] 周几规则BOSS ${petId} 在周${weekday}应出现在地图${schedule.mapId}(${schedule.mapName})，当前地图${mapId}不匹配`
+        );
+        return false;
+      }
+
+      Logger.Info(
+        `[MapSpawnManager] 周几规则BOSS ${petId} 在周${weekday}应出现在地图${mapId}(${schedule.mapName})，刷新条件：${schedule.conditionDesc}`
+      );
+    }
+
+    // 3. 检查时间段刷新配置
+    if (refreshConfig.useSchedule && refreshConfig.scheduleTime.length > 0) {
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
+      // 检查是否在指定时间点
+      const isScheduledTime = refreshConfig.scheduleTime.some(time => {
+        // 简单匹配：当前时间在指定时间的前后5分钟内
+        const [scheduleHour, scheduleMinute] = time.split(':').map(Number);
+        const scheduleMinutes = scheduleHour * 60 + scheduleMinute;
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const diff = Math.abs(currentMinutes - scheduleMinutes);
+        return diff <= 5;
+      });
+
+      if (!isScheduledTime) {
+        Logger.Debug(
+          `[MapSpawnManager] BOSS ${petId} 不在指定刷新时间点: 当前时间=${currentTime}, 配置时间=${refreshConfig.scheduleTime.join(',')}`
+        );
+        return false;
+      }
+    }
+
+    // 4. 检查白天/夜间刷新配置
+    const now = new Date();
+    const hour = now.getHours();
+    const isNight = hour >= 18 || hour < 6; // 18:00-06:00为夜间
+    const isDay = !isNight;
+
+    if (isNight && !refreshConfig.refreshAtNight) {
+      Logger.Debug(`[MapSpawnManager] BOSS ${petId} 不在夜间刷新`);
+      return false;
+    }
+
+    if (isDay && !refreshConfig.refreshAtDay) {
+      Logger.Debug(`[MapSpawnManager] BOSS ${petId} 不在白天刷新`);
+      return false;
+    }
+
+    // 5. 检查时间范围
+    if (refreshConfig.startTime && refreshConfig.endTime) {
+      const currentTime = `${hour.toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
+      if (currentTime < refreshConfig.startTime || currentTime > refreshConfig.endTime) {
+        Logger.Debug(
+          `[MapSpawnManager] BOSS ${petId} 不在刷新时间范围: 当前=${currentTime}, 范围=${refreshConfig.startTime}-${refreshConfig.endTime}`
+        );
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * 生成地图野怪列表
    * @param mapId 地图ID
    * @returns 野怪列表
@@ -163,6 +263,14 @@ export class MapSpawnManager extends BaseManager {
       if (ogre.isBoss === true && ogre.petId > 0) {
         const refreshConfig = ogre.refreshConfig;
         if (refreshConfig.enabled) {
+          // 检查BOSS是否应该在当前时间刷新
+          if (!this.ShouldBossSpawn(ogre.petId, mapId, refreshConfig)) {
+            Logger.Debug(
+              `[MapSpawnManager] BOSS不满足刷新条件: petId=${ogre.petId}, mapId=${mapId}`
+            );
+            continue;
+          }
+
           // BOSS固定槽位
           bosses.push({
             petId: ogre.petId,

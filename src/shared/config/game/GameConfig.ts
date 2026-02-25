@@ -22,6 +22,7 @@ import {
   IUniqueItemsConfig,
   IDefaultPlayerConfig
 } from './interfaces';
+import { BossAbilityConfig } from '../../../GameServer/Game/Battle/BossAbility/BossAbilityConfig';
 
 /**
  * 游戏配置管理器
@@ -537,6 +538,56 @@ export class GameConfig {
   public static GetPetAbilityById(abilityId: number): any | null {
     const abilities = this.GetAllPetAbilities();
     return abilities.find((a: any) => a.abilityId === abilityId) || null;
+  }
+
+  /**
+   * 获取BOSS特性配置
+   */
+  public static GetBossAbilitiesConfig(): any | null {
+    return ConfigRegistry.Instance.Get<any>(ConfigKeys.BOSS_ABILITIES);
+  }
+
+  /**
+   * 获取所有BOSS配置
+   */
+  public static GetAllBosses(): any[] {
+    const config = this.GetBossAbilitiesConfig();
+    if (!config || !config.bossConfigs) {
+      return [];
+    }
+    return config.bossConfigs;
+  }
+
+  /**
+   * 根据地图ID和param2获取BOSS配置
+   * @param mapId 地图ID
+   * @param param2 参数2
+   */
+  public static GetBossByMapAndParam(mapId: number, param2: number): any | null {
+    return BossAbilityConfig.Instance.GetBossConfigByMapAndParam(mapId, param2) || null;
+  }
+
+  /**
+   * 根据petId获取BOSS配置
+   * @param petId 精灵ID
+   */
+  public static GetBossByPetId(petId: number): any | null {
+    return BossAbilityConfig.Instance.GetBossConfigByPetId(petId) || null;
+  }
+
+  /**
+   * 获取所有SPT BOSS配置
+   */
+  public static GetAllSPTBosses(): any[] {
+    return BossAbilityConfig.Instance.GetAllSPTBosses();
+  }
+
+  /**
+   * 根据SPT任务ID获取BOSS配置
+   * @param sptId SPT任务ID (1-20)
+   */
+  public static GetBossBySPTId(sptId: number): any | null {
+    return BossAbilityConfig.Instance.GetBossBySPTId(sptId) || null;
   }
 
   /**

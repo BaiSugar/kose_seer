@@ -42,13 +42,18 @@ export class DamageModifier extends BaseAtomicEffect {
     // 根据模式修正伤害
     switch (this.params.mode) {
       case 'multiply':
-        newDamage = Math.floor(oldDamage * this.params.value);
+        newDamage = Math.floor(oldDamage * (this.params.value || 1));
         break;
       case 'add':
-        newDamage = oldDamage + this.params.value;
+        newDamage = oldDamage + (this.params.value || 0);
         break;
       case 'set':
-        newDamage = this.params.value;
+        newDamage = this.params.value ?? oldDamage;
+        break;
+      case 'multiply_add':
+        // 附加所造成伤害值X%的固定伤害
+        const bonusDamage = Math.floor(oldDamage * (this.params.percent || this.params.value || 0) / 100);
+        newDamage = oldDamage + bonusDamage;
         break;
     }
 

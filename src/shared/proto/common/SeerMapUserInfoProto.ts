@@ -97,8 +97,9 @@ export class SeerMapUserInfoProto extends BaseProto {
     writer.WriteUInt32(this.teacherID);
     writer.WriteUInt32(this.studentID);
     
-    // 6. NoNo信息
-    writer.WriteUInt32(this.nonoState);
+    // 6. NoNo信息 - nonoState需要作为bit flags (32位)
+    // bit 0-31对应32个NoNo状态位
+    writer.WriteUInt32(this.nonoState || 0);
     writer.WriteUInt32(this.nonoColor);
     writer.WriteUInt32(this.superNono);
     writer.WriteUInt32(this.playerForm);
@@ -108,10 +109,10 @@ export class SeerMapUserInfoProto extends BaseProto {
     writer.WriteUInt32(this.teamId);
     writer.WriteUInt32(this.teamCoreCount);
     writer.WriteUInt32(this.teamIsShow);
-    writer.WriteUInt16(this.teamLogoBg);
-    writer.WriteUInt16(this.teamLogoIcon);
-    writer.WriteUInt16(this.teamLogoColor);
-    writer.WriteUInt16(this.teamTxtColor);
+    writer.WriteUInt32(this.teamLogoBg);
+    writer.WriteUInt32(this.teamLogoIcon);
+    writer.WriteUInt32(this.teamLogoColor);
+    writer.WriteUInt32(this.teamTxtColor);
     writer.WriteBytes(this.buildString(this.teamLogoWord, 4));
     
     // 8. 服装列表

@@ -513,11 +513,6 @@ export class PetManager extends BaseManager {
       const bagSpace = await this.GetBagSpace();
       Logger.Debug(`[PetManager] 背包空间: ${bagSpace}`);
       
-      if (bagSpace <= 0) {
-        Logger.Warn(`[PetManager] Bag full, cannot give pet UserId=${this.UserID}, PetId=${petId}`);
-        return false;
-      }
-
       // Create new pet using createDefaultPetInfo
       const newPet = createDefaultPetInfo(this.UserID, petId);
       Logger.Debug(`[PetManager] 创建精灵对象: PetId=${newPet.petId}, CatchTime=${newPet.catchTime}`);
@@ -541,7 +536,13 @@ export class PetManager extends BaseManager {
       newPet.skillArray = defaultSkills.slice(0, 4).map(skill => skill.id);
       Logger.Debug(`[PetManager] 设置技能: ${newPet.skillArray.join(',')}`);
       
-      // Add to bag
+      // 背包满时自动放入仓库
+      if (bagSpace <= 0) {
+        newPet.isInBag = false;
+        Logger.Info(`[PetManager] 背包满，将精灵放入仓库: UserId=${this.UserID}, PetId=${petId}`);
+      }
+      
+      // Add to bag or storage
       Logger.Debug(`[PetManager] 添加前 PetList 长度: ${this.PetData.PetList.length}`);
       Logger.Debug(`[PetManager] PetData 对象 Uid: ${this.PetData.Uid}`);
       Logger.Debug(`[PetManager] PetData 对象引用: ${typeof this.PetData}`);

@@ -4,6 +4,16 @@
  */
 
 /**
+ * 战斗类型枚举
+ */
+export enum BattleType {
+  PVE = 'PVE',           // 普通PVE战斗
+  BOSS = 'BOSS',         // BOSS战斗
+  FRESH = 'FRESH',       // 新手战斗
+  PVP = 'PVP'            // PVP战斗
+}
+
+/**
  * 战斗状态枚举
  */
 export enum BattleStatus {
@@ -119,9 +129,12 @@ export interface IBattleInfo {
   turn: number;            // 当前回合数
   isOver: boolean;         // 是否结束
   winner?: number;         // 胜利者
-  aiType?: string;         // AI类型
+  battleType?: BattleType; // 战斗类型
   startTime: number;       // 开始时间
-  bossId?: number;         // BOSS唯一ID（用于读取奖励配置）
+  bossMapId?: number;      // BOSS地图ID（用于读取奖励配置）
+  bossParam2?: number;     // BOSS参数2（用于读取奖励配置）
   isPvp?: boolean;         // 是否为PVP战斗
   player2Id?: number;      // PVP对手ID（仅PVP战斗有效）
+  roundCount?: number;     // 战斗回合数（用于周几规则验证）
+  lastHitWasCritical?: boolean; // 最后一击是否暴击（用于周几规则验证）
 }

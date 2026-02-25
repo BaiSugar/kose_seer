@@ -21,6 +21,8 @@ import {
   PacketChangeColor,
   PacketOnOrOffFlying
 } from '../../Server/Packet/Send';
+import { PacketChangeCloth } from '../../Server/Packet/Send/Item/PacketChangeCloth';
+import { BossAbilityConfig } from '../Battle/BossAbility/BossAbilityConfig';
 
 /**
  * 地图管理器
@@ -51,7 +53,6 @@ export class MapManager extends BaseManager {
     const y = req.y || 300;
 
     // 特殊处理：如果 mapId == userId，说明是访问家园
-    // 将家园地图ID改为 99999 + userId（避免与普通地图ID冲突）
     if (mapId === this.UserID) {
       mapId = this.UserID;
       Logger.Debug(`[MapManager] 检测到家园访问请求 (mapId == userId)，转换为家园地图ID: ${mapId}`);
@@ -77,7 +78,9 @@ export class MapManager extends BaseManager {
     this.Player.Data.mapID = mapId;
     this.Player.Data.posX = x;
     this.Player.Data.posY = y;
+    Logger.Debug(`[MapManager] 进图前 clothIds: ${JSON.stringify(this.Player.Data.clothIds)}`);
     await DatabaseHelper.Instance.SavePlayerData(this.Player.Data);
+    Logger.Debug(`[MapManager] 进图后 clothIds: ${JSON.stringify(this.Player.Data.clothIds)}`);
 
     Logger.Info(`[MapManager] 已更新玩家位置到地图 ${mapId}`);
 
@@ -85,7 +88,8 @@ export class MapManager extends BaseManager {
     this.Player.MapSpawnManager.OnEnterMap(mapId);
 
     // 构建用户信息（使用 PlayerData）
-    const userInfo = this.buildUserInfo(this.UserID, this.Player.Data, x, y);
+    Logger.Debug(`[MapManager] HandleEnterMap clothIds: ${JSON.stringify(this.Player.Data.clothIds)}`);
+    const userInfo = this.buildUserInfo(this.UserID, this.Player.Data, x, y, this.Player);
 
     // 发送进入地图响应
     await this.Player.SendPacket(new PacketEnterMap(userInfo));
@@ -100,11 +104,45 @@ export class MapManager extends BaseManager {
     // 主动推送 MAP_BOSS (地图BOSS列表)
     await this.sendMapBossList(mapId);
     
+    // 特殊地图事件：赫尔卡星荒地(32) 雷雨天推送 2021 触发雷伊出场动画
+    if (mapId === 32 && this.IsLeiyiWeather()) {
+      Logger.Info(`[MapManager] 雷雨天，将刷新雷伊 (当前分钟=${new Date().getMinutes()})`);
+      // 发送两次，第二次客户端 BOSS 已存在会调用 show() 播放出场动画
+      await this.Player.SendPacket(new PacketMapBoss([{ id: 70, region: 0, hp: 0, pos: 0 }]));
+      await this.Player.SendPacket(new PacketMapBoss([{ id: 70, region: 0, hp: 0, pos: 0 }]));
+    }
+    
+    // 特殊地图事件：盖亚按周几出现在三张地图之一，推送 2022 显示盖亚
+    const gaiyaMapId = this.GetGaiyaMapIDForToday();
+    if (mapId === gaiyaMapId) {
+      Logger.Info(`[MapManager] 今日盖亚地图: ${mapId}`);
+      // TODO: 推送 2022 (SPECIAL_PET_NOTE) 显示盖亚
+    }
+    
     // 广播新玩家进入消息给同地图其他玩家
     const enterPacket = new PacketEnterMap(userInfo);
     const sent = await this._onlineTracker.BroadcastToMap(mapId, enterPacket, this.UserID);
     if (sent > 0) {
       Logger.Info(`[MapManager] 广播玩家进入到 ${sent} 个玩家`);
+
+      // 同步穿戴服装给同地图其他玩家（避免在 ENTER_MAP 之前广播导致对方未创建角色）
+      const clothIds = (this.Player.Data as any).clothIds as number[] | undefined;
+      if (Array.isArray(clothIds)) {
+        await this._onlineTracker.BroadcastToMap(
+          mapId,
+          new PacketChangeCloth(this.UserID, clothIds),
+          this.UserID
+        );
+      }
+      
+      // 给老玩家发送更新后的地图玩家列表
+      const sessions = this._onlineTracker.GetClientsOnMap(mapId);
+      for (const session of sessions) {
+        if (session.UserID === this.UserID) continue;
+        if (session.Player) {
+          await session.Player.MapManager.sendMapPlayerList(mapId);
+        }
+      }
     } else {
       Logger.Info(`[MapManager] 地图中没有其他玩家，无需广播`);
     }
@@ -136,6 +174,16 @@ export class MapManager extends BaseManager {
 
     // 发送离开地图响应给自己
     await this.Player.SendPacket(new PacketLeaveMap(this.UserID));
+
+    // 给仍在该地图的玩家推送最新玩家列表（避免客户端残留场景对象）
+    if (mapId > 0) {
+      const sessions = this._onlineTracker.GetClientsOnMap(mapId);
+      for (const session of sessions) {
+        if (session.Player) {
+          await session.Player.MapManager.sendMapPlayerList(mapId);
+        }
+      }
+    }
     
     // 注意：不需要发送空的野怪列表
     // 客户端会在 MAP_SWITCH_OPEN 或 MAP_DESTROY 事件时自动清理野怪
@@ -165,7 +213,7 @@ export class MapManager extends BaseManager {
    * 推送地图BOSS列表（只在有BOSS时推送）
    * @param mapId 地图ID
    */
-  private async sendMapBossList(mapId: number): Promise<void> {
+  public async sendMapBossList(mapId: number): Promise<void> {
     const bosses = this.Player.MapSpawnManager.GetMapBosses(mapId);
     
     // 只在有BOSS时才推送
@@ -299,7 +347,7 @@ export class MapManager extends BaseManager {
   /**
    * 发送地图玩家列表
    */
-  private async sendMapPlayerList(mapId: number): Promise<void> {
+  public async sendMapPlayerList(mapId: number): Promise<void> {
     const playerIds = this._onlineTracker.GetPlayersInMap(mapId);
     const players: SeerMapUserInfoProto[] = [];
 
@@ -316,7 +364,7 @@ export class MapManager extends BaseManager {
         const x = position ? position.x : playerData.posX;
         const y = position ? position.y : playerData.posY;
         
-        const userInfo = this.buildUserInfo(pid, playerData, x, y);
+        const userInfo = this.buildUserInfo(pid, playerData, x, y, playerSession.Player);
         players.push(userInfo);
         Logger.Debug(`[MapManager] 添加玩家到列表: ${pid} (${playerData.nick}) 位置: (${x}, ${y})`);
       } else {
@@ -354,7 +402,7 @@ export class MapManager extends BaseManager {
   /**
    * 发送地图野怪列表（内部方法）
    */
-  private async sendMapOgreList(mapId: number): Promise<void> {
+  public async sendMapOgreList(mapId: number): Promise<void> {
     try {
       // 使用 MapSpawnManager 获取玩家的野怪列表
       const ogres = this.Player.MapSpawnManager.GetMapOgres(mapId);
@@ -377,11 +425,12 @@ export class MapManager extends BaseManager {
   /**
    * 构建用户信息（从数据库数据）
    */
-  private buildUserInfo(
+  public buildUserInfo(
     userId: number,
     playerData: IPlayerInfo,
     x: number,
-    y: number
+    y: number,
+    playerInstance?: PlayerInstance
   ): SeerMapUserInfoProto {
     const userInfo = new SeerMapUserInfoProto();
     
@@ -396,25 +445,29 @@ export class MapManager extends BaseManager {
     let vipFlags = 0;
     if (playerData.vip === 1) vipFlags |= 1;
     if (playerData.viped === 1) vipFlags |= 2;
-    if (playerData.superNono) vipFlags = 3;
+    if (playerData.superNono) vipFlags |= 4;
     
     userInfo.vipFlags = vipFlags;
     userInfo.vipStage = playerData.vipStage;
     
-    // 位置和动�?
-    userInfo.actionType = 0;
+    // 位置和动作
+    userInfo.actionType = playerData.actionType || 0;
     userInfo.x = x;
     userInfo.y = y;
-    userInfo.action = 0;
-    userInfo.direction = 0;
-    userInfo.changeShape = 0;
+    userInfo.action = playerData.action || 0;
+    userInfo.direction = playerData.direction || 0;
+    userInfo.changeShape = playerData.changeShape || 0;
     
-    // 精灵信息
-    userInfo.spiritTime = 0;
-    userInfo.spiritID = 0;
-    userInfo.petDV = 31;
-    userInfo.petSkin = 0;
-    userInfo.fightFlag = 0;
+    // 精灵信息 - 从正确的玩家精灵数据获取
+    let defaultPet = null;
+    if (playerInstance?.PetManager?.PetData) {
+      defaultPet = playerInstance.PetManager.PetData.PetList.find(p => p.isDefault);
+    }
+    userInfo.spiritTime = defaultPet?.catchTime || 0;
+    userInfo.spiritID = defaultPet?.petId || 0;
+    userInfo.petDV = defaultPet?.dvHp || 31;
+    userInfo.petSkin = defaultPet?.skinId || 0;
+    userInfo.fightFlag = playerData.fightFlag || 0;
     
     // 师徒信息
     userInfo.teacherID = playerData.teacherID;
@@ -424,8 +477,8 @@ export class MapManager extends BaseManager {
     userInfo.nonoState = playerData.nonoState;
     userInfo.nonoColor = playerData.nonoColor;
     userInfo.superNono = playerData.superNono ? 1 : 0;
-    userInfo.playerForm = 0;
-    userInfo.transTime = 0;
+    userInfo.playerForm = playerData.playerForm ? 1 : 0;
+    userInfo.transTime = playerData.transTime || 0;
     
     // 战队信息
     userInfo.teamId = playerData.teamInfo.id;
@@ -438,14 +491,39 @@ export class MapManager extends BaseManager {
     userInfo.teamLogoWord = playerData.teamInfo.logoWord;
     
     // 服装列表
-    userInfo.clothes = playerData.clothes.map(cloth => ({
-      id: cloth.id,
-      level: cloth.level || 0
-    }));
+    const wornClothIds = (playerData as any).clothIds as number[] | undefined;
+    Logger.Debug(`[MapManager] buildUserInfo clothIds: ${JSON.stringify(wornClothIds)}`);
+    if (Array.isArray(wornClothIds) && wornClothIds.length > 0) {
+      userInfo.clothes = wornClothIds.map((id) => ({ id, level: 0 }));
+    } else {
+      userInfo.clothes = (playerData.clothes || []).map((cloth: any) => ({
+        id: Number(cloth.id) || 0,
+        level: Number(cloth.level) || 0
+      }));
+    }
     
     // 称号
     userInfo.curTitle = playerData.curTitle;
 
     return userInfo;
+  }
+
+  /**
+   * 是否处于"雷雨天"（赫尔卡星雷伊出场条件）
+   * 用时间模拟：每小时的 20~40 分钟为雷雨天
+   */
+  private IsLeiyiWeather(): boolean {
+    const m = new Date().getMinutes();
+    return m >= 20 && m < 40;
+  }
+
+  /**
+   * 今日盖亚出现的地图 ID
+   * 使用 BossAbilityConfig 中的周几出现规则
+   */
+  private GetGaiyaMapIDForToday(): number {
+    const weekday = new Date().getDay(); // 0=周日, 1=周一, ..., 6=周六
+    const rule = BossAbilityConfig.Instance.GetWeekdayScheduleByWeekday(261, weekday); // 261 = 盖亚
+    return rule?.mapId || 15;
   }
 }

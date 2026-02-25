@@ -27,8 +27,9 @@ export class OnlineTracker {
   // 地图玩家计数缓存: mapId -> count
   private _mapPlayerCount: Map<number, number> = new Map();
   
-  // 地图玩家列表: mapId -> Set<userId>
-  private _mapPlayers: Map<number, Set<number>> = new Map();
+  // 地图玩家列表: mapId -> Map<userId, session>
+  // 以该结构作为“地图在线成员”的唯一权威来源（对齐 go-server 的 MapUsers 机制）
+  private _mapUsers: Map<number, Map<number, IClientSession>> = new Map();
 
   private constructor() {}
 
@@ -60,6 +61,11 @@ export class OnlineTracker {
       const player = this._onlinePlayers.get(userId)!;
       player.session = session;
       player.lastActive = Date.now();
+
+      // 如果该玩家已在某地图，更新权威成员表中的 session 引用（避免广播到旧连接）
+      if (player.mapId > 0) {
+        this.AddUserToMap(player.mapId, userId, session);
+      }
     }
   }
 
@@ -70,10 +76,48 @@ export class OnlineTracker {
     const player = this._onlinePlayers.get(userId);
     if (player && player.mapId > 0) {
       // 从旧地图移除
-      this.removeFromMap(userId, player.mapId);
+      this.RemoveUserFromMap(player.mapId, userId);
     }
     this._onlinePlayers.delete(userId);
     Logger.Info(`[OnlineTracker] 玩家 ${userId} 下线`);
+  }
+
+  /**
+   * 将用户加入地图（权威成员表）
+   */
+  public AddUserToMap(mapId: number, userId: number, session: IClientSession): void {
+    if (mapId <= 0) return;
+    let m = this._mapUsers.get(mapId);
+    if (!m) {
+      m = new Map<number, IClientSession>();
+      this._mapUsers.set(mapId, m);
+    }
+    m.set(userId, session);
+    this._mapPlayerCount.set(mapId, m.size);
+  }
+
+  /**
+   * 将用户从地图移除（权威成员表）
+   */
+  public RemoveUserFromMap(mapId: number, userId: number): void {
+    if (mapId <= 0) return;
+    const m = this._mapUsers.get(mapId);
+    if (!m) return;
+    m.delete(userId);
+    if (m.size === 0) {
+      this._mapUsers.delete(mapId);
+      this._mapPlayerCount.delete(mapId);
+    } else {
+      this._mapPlayerCount.set(mapId, m.size);
+    }
+  }
+
+  /**
+   * 返回指定地图上的所有 Session（快照）
+   */
+  public GetClientsOnMap(mapId: number): IClientSession[] {
+    const m = this._mapUsers.get(mapId);
+    return m ? Array.from(m.values()) : [];
   }
 
   /**
@@ -90,12 +134,12 @@ export class OnlineTracker {
 
     // 从旧地图移除
     if (oldMapId > 0 && oldMapId !== newMapId) {
-      this.removeFromMap(userId, oldMapId);
+      this.RemoveUserFromMap(oldMapId, userId);
     }
 
     // 添加到新地图
     if (newMapId > 0 && oldMapId !== newMapId) {
-      this.addToMap(userId, newMapId);
+      this.AddUserToMap(newMapId, userId, player.session);
     }
 
     // 更新玩家信息（包括位置）
@@ -112,29 +156,19 @@ export class OnlineTracker {
    * 从地图移除玩家
    */
   private removeFromMap(userId: number, mapId: number): void {
-    const players = this._mapPlayers.get(mapId);
-    if (players) {
-      players.delete(userId);
-      if (players.size === 0) {
-        this._mapPlayers.delete(mapId);
-        this._mapPlayerCount.delete(mapId);
-      } else {
-        this._mapPlayerCount.set(mapId, players.size);
-      }
-    }
+    // legacy: 保持空实现以避免旧调用崩溃（已迁移到 RemoveUserFromMap）
+    this.RemoveUserFromMap(mapId, userId);
   }
 
   /**
    * 添加玩家到地图
    */
   private addToMap(userId: number, mapId: number): void {
-    let players = this._mapPlayers.get(mapId);
-    if (!players) {
-      players = new Set();
-      this._mapPlayers.set(mapId, players);
+    // legacy: 保持空实现以避免旧调用崩溃（已迁移到 AddUserToMap）
+    const p = this._onlinePlayers.get(userId);
+    if (p) {
+      this.AddUserToMap(mapId, userId, p.session);
     }
-    players.add(userId);
-    this._mapPlayerCount.set(mapId, players.size);
   }
 
   /**
@@ -186,8 +220,8 @@ export class OnlineTracker {
    * 获取指定地图的所有玩家ID
    */
   public GetPlayersInMap(mapId: number): number[] {
-    const players = this._mapPlayers.get(mapId);
-    return players ? Array.from(players) : [];
+    const m = this._mapUsers.get(mapId);
+    return m ? Array.from(m.keys()) : [];
   }
 
   /**
@@ -199,19 +233,23 @@ export class OnlineTracker {
     excludeUserId?: number
   ): Promise<number> {
     const playerIds = this.GetPlayersInMap(mapId);
+    Logger.Debug(`[OnlineTracker] BroadcastToMap: mapId=${mapId}, excludeUserId=${excludeUserId}, playerIds=${playerIds.join(',')}`);
     let sent = 0;
 
-    for (const userId of playerIds) {
-      if (userId === excludeUserId) continue;
-
-      const player = this._onlinePlayers.get(userId);
-      if (player?.session?.Player) {
+    const sessions = this.GetClientsOnMap(mapId);
+    for (const session of sessions) {
+      const uid = session.UserID;
+      if (excludeUserId !== undefined && uid === excludeUserId) continue;
+      Logger.Debug(`[OnlineTracker] 广播检查: userId=${uid}, hasSession=${!!session}, hasSessionPlayer=${!!session?.Player}, sessionType=${session?.Type}`);
+      if (session?.Player) {
         try {
-          await player.session.Player.SendPacket(proto);
+          await session.Player.SendPacket(proto);
           sent++;
         } catch (err) {
-          Logger.Error(`[OnlineTracker] 广播失败 userId=${userId}`, err as Error);
+          Logger.Error(`[OnlineTracker] 广播失败 userId=${uid}`, err as Error);
         }
+      } else {
+        Logger.Warn(`[OnlineTracker] 广播跳过 userId=${uid}, 原因: session或Player为空`);
       }
     }
 

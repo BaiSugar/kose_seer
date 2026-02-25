@@ -268,7 +268,7 @@ export class BattleTurnService {
     shakeCount: number;
   } {
     // 检查是否可以捕获
-    const isBoss = battle.aiType?.includes('boss') || false;
+    const isBoss = battle.battleType === 'BOSS';
     const canCapture = BattleCaptureSystem.CanCapture(battle.enemy, isBoss);
 
     if (!canCapture.canCapture) {

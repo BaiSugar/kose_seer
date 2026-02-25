@@ -159,7 +159,7 @@ export class ItemManager extends BaseManager {
       const sentCount = await OnlineTracker.Instance.BroadcastToMap(
         mapId,
         new PacketChangeCloth(this.UserID, clothIds),
-        this.UserID
+        undefined
       );
       Logger.Info(`[ItemManager] 广播服装变更到地图 ${mapId}，发送给 ${sentCount} 个玩家`);
     }
@@ -188,18 +188,43 @@ export class ItemManager extends BaseManager {
     const filteredItems: IItemData[] = [];
     const addedItems = new Set<number>();
 
+    // 1300001-1400000 范围实际返回 100001-101000 的物品
+    let actualRangeStart = itemType1;
+    let actualRangeEnd = itemType2;
+    if (itemType1 === 1300001 && itemType2 === 1400000) {
+      actualRangeStart = 100001;
+      actualRangeEnd = 101000;
+      Logger.Debug(`[ItemManager] 映射物品范围: ${itemType1}-${itemType2} -> ${actualRangeStart}-${actualRangeEnd}`);
+    }
+
     for (const item of allItems) {
       const itemId = item.itemId;
       
       // 检查是否在请求范围内
-      if ((itemId >= itemType1 && itemId <= itemType2) || itemId === itemType3) {
+      const inRange = (actualRangeStart === 0 && actualRangeEnd === 0) || 
+                      (itemId >= actualRangeStart && itemId <= actualRangeEnd) ||
+                      itemId === itemType3;
+      if (inRange) {
         if (!addedItems.has(itemId)) {
           addedItems.add(itemId);
+          
+          // flag: 0=装备物品(显示人物身上), 2=收藏物品, 3=超能NONO物品
+          // 根据请求范围设置 flag（对齐 go-server）
+          let itemFlag = 0;
+          if (itemType1 === 300001 && itemType2 === 500000) {
+            itemFlag = 2; // 收藏物品栏
+          } else if (itemType1 === 100001 && itemType2 === 500000) {
+            itemFlag = 3; // 超能NONO物品栏
+          }
+          // 其余(100001-101000、1300001-1400000、全量等)保持 0
+          
+          Logger.Debug(`[ItemManager] 物品详情: itemId=${itemId}, count=${item.count}, expireTime=${item.expireTime}, flag=${itemFlag}, range=${itemType1}-${itemType2}`);
+          
           filteredItems.push({
             itemId: item.itemId,
             count: item.count,
             expireTime: item.expireTime,
-            unknown: 0
+            unknown: itemFlag
           });
         }
       }

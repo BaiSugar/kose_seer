@@ -12,6 +12,7 @@ import { BattleManager } from '../Battle/BattleManager';
 import { MailManager } from '../Mail/MailManager';
 import { FriendManager } from '../Friend/FriendManager';
 import { TaskManager } from '../Task/TaskManager';
+import { ChallengeProgressManager } from '../Challenge/ChallengeProgressManager';
 import { PlayerRepository } from '../../../DataBase/repositories/Player/PlayerRepository';
 import { PlayerData } from '../../../DataBase/models/PlayerData';
 import { DatabaseHelper } from '../../../DataBase/DatabaseHelper';
@@ -53,6 +54,7 @@ export class PlayerInstance {
   public MailManager: MailManager;
   public FriendManager: FriendManager;
   public TaskManager: TaskManager;
+  public ChallengeProgressManager: ChallengeProgressManager;
 
   constructor(session: IClientSession, userID: number, packetBuilder: PacketBuilder) {
     this._session = session;
@@ -71,6 +73,7 @@ export class PlayerInstance {
     this.MailManager = new MailManager(this);
     this.FriendManager = new FriendManager(this);
     this.TaskManager = new TaskManager(this);
+    this.ChallengeProgressManager = new ChallengeProgressManager(this);
   }
 
   /**
@@ -159,6 +162,7 @@ export class PlayerInstance {
     await this.FriendManager.Initialize();
     await this.TaskManager.Initialize();
     await this.NoNoManager.Initialize();
+    await this.ChallengeProgressManager.Initialize();
     
     // 同步服装数据：从 ItemData 提取服装物品到 PlayerData.clothes
     this.syncClothesData();
