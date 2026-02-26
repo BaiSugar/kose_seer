@@ -28,7 +28,7 @@ export class OnlineTracker {
   private _mapPlayerCount: Map<number, number> = new Map();
   
   // 地图玩家列表: mapId -> Map<userId, session>
-  // 以该结构作为“地图在线成员”的唯一权威来源（对齐 go-server 的 MapUsers 机制）
+  // 以该结构作为“地图在线成员”的唯一权威来源
   private _mapUsers: Map<number, Map<number, IClientSession>> = new Map();
 
   private constructor() {}
@@ -118,6 +118,19 @@ export class OnlineTracker {
   public GetClientsOnMap(mapId: number): IClientSession[] {
     const m = this._mapUsers.get(mapId);
     return m ? Array.from(m.values()) : [];
+  }
+
+  /**
+   * 返回所有在线会话（快照）
+   */
+  public GetAllClients(): IClientSession[] {
+    const sessions: IClientSession[] = [];
+    for (const player of this._onlinePlayers.values()) {
+      if (player.session) {
+        sessions.push(player.session);
+      }
+    }
+    return sessions;
   }
 
   /**

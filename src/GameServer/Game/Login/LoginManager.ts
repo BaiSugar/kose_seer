@@ -308,11 +308,14 @@ export class LoginManager {
         Logger.Warn(`[LoginManager] 玩家没有背包精灵！UserID=${userID}`);
       }
       
-      // 加载服装数据并填充到 Proto
-      const clothList = playerInstance.ItemManager.GetClothItems()
-        .map(item => ({
-          id: item.itemId,
-          level: 0  // 服装没有等级概念，默认为0
+      // 优先使用当前穿戴（clothIds）作为登录外观，避免被背包装备覆盖。
+      const wornClothIds = (playerInstance.Data as any).clothIds as number[] | undefined;
+      const clothList = (Array.isArray(wornClothIds) && wornClothIds.length > 0
+        ? wornClothIds.map(id => Number(id) || 0).filter(id => id > 0)
+        : playerInstance.ItemManager.GetClothItems().map(item => item.itemId))
+        .map(id => ({
+          id,
+          level: 0
         }));
       
       proto.clothList = clothList;

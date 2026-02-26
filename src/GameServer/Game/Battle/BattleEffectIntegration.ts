@@ -31,7 +31,7 @@ import { EffectTiming, IEffectResult } from './effects/core/EffectContext';
 import { EffectTrigger } from './EffectTrigger';
 import { EffectConflictResolver } from './effects/core/EffectPriority';
 import { PassiveEffectRunner, IPassiveTriggerContext } from './PassiveEffectRunner';
-import { BattleCore } from './BattleCore';
+import { BattleCore, BattleStatusType } from './BattleCore';
 
 // ==================== 速度判定修正结果 ====================
 
@@ -192,6 +192,8 @@ export class BattleEffectIntegration {
     // 只在有效果时才输出日志
 
     // 技能持续效果
+    this.ApplyTurnStartStatusDamage(battle.player);
+    this.ApplyTurnStartStatusDamage(battle.enemy);
     const playerResults = this.ProcessTurnStartEffects(battle.player, battle.enemy);
     const enemyResults = this.ProcessTurnStartEffects(battle.enemy, battle.player);
     results.push(...playerResults, ...enemyResults);
@@ -615,13 +617,8 @@ export class BattleEffectIntegration {
     Logger.Debug(`[BattleEffectIntegration] 出手流程开始: ${attacker.name} → ${defender.name}`);
 
     // 处理 defender 身上的异常扣血
-    const statusDamage = BattleCore.ProcessStatusEffects(defender);
-    if (statusDamage > 0) {
-      defender.hp = Math.max(0, defender.hp - statusDamage);
-      Logger.Info(`[BattleEffectIntegration] 异常扣血: ${defender.name} 受到 ${statusDamage} 点状态伤害, HP: ${defender.hp + statusDamage} → ${defender.hp}`);
-    }
+    const statusDamage = 0;
 
-    // 技能效果
     const skillResults = EffectTrigger.TriggerSkillEffect(
       skill, attacker, defender, 0, EffectTiming.ATTACK_START
     );
@@ -696,6 +693,17 @@ export class BattleEffectIntegration {
   /**
    * 处理回合开始效果
    */
+  private static ApplyTurnStartStatusDamage(pet: IBattlePet): void {
+    const statusDamage = BattleCore.ProcessStatusEffects(pet);
+    if (statusDamage <= 0) {
+      return;
+    }
+
+    const oldHp = pet.hp;
+    pet.hp = Math.max(0, pet.hp - statusDamage);
+    Logger.Info(`[BattleEffectIntegration] TurnStart status damage: ${pet.name} ${oldHp} -> ${pet.hp} (-${statusDamage})`);
+  }
+
   private static ProcessTurnStartEffects(
     pet: IBattlePet,
     _opponent: IBattlePet
@@ -709,12 +717,7 @@ export class BattleEffectIntegration {
       Logger.Debug(`[BattleEffectIntegration] 持续回复: ${pet.name} +${healAmount}HP`);
     }
 
-    // 处理持续伤害（中毒、烧伤等）
-    if (pet.status !== undefined && pet.status > 0) {
-      const damageAmount = Math.floor(pet.maxHp * 0.0625); // 1/16 HP
-      pet.hp = Math.max(0, pet.hp - damageAmount);
-      Logger.Debug(`[BattleEffectIntegration] 持续伤害: ${pet.name} -${damageAmount}HP`);
-    }
+    // 处理持续伤害（中毒、烧伤等）
 
     return results;
   }
@@ -748,14 +751,35 @@ export class BattleEffectIntegration {
   private static DecrementStatusDurations(pet: IBattlePet): void {
     if (!pet.statusDurations) return;
 
-    for (let i = 0; i < pet.statusDurations.length; i++) {
-      if (pet.statusDurations[i] > 0) {
-        pet.statusDurations[i]--;
+    const coreManagedStatuses = new Set<number>([
+      BattleStatusType.PARALYSIS,
+      BattleStatusType.POISON,
+      BattleStatusType.BURN,
+      BattleStatusType.DRAIN,
+      BattleStatusType.FREEZE,
+      BattleStatusType.FEAR,
+      BattleStatusType.SLEEP,
+      BattleStatusType.PETRIFY,
+      BattleStatusType.CONFUSION,
+      BattleStatusType.ICE_SEAL,
+      BattleStatusType.BLEED
+    ]);
 
-        if (pet.statusDurations[i] === 0 && pet.status === i) {
-          pet.status = undefined;
-          Logger.Debug(`[BattleEffectIntegration] 状态结束: ${pet.name}, status=${i}`);
-        }
+    for (let i = 0; i < pet.statusDurations.length; i++) {
+      if (pet.statusDurations[i] <= 0) continue;
+      if (coreManagedStatuses.has(i)) continue;
+
+      pet.statusDurations[i]--;
+      if (pet.statusDurations[i] === 0 && pet.status === i) {
+        pet.status = undefined;
+        Logger.Debug(`[BattleEffectIntegration] 状态结束: ${pet.name}, status=${i}`);
+      }
+    }
+
+    if (pet.status !== undefined && pet.status !== null) {
+      const current = pet.status as number;
+      if (current >= 0 && current < pet.statusDurations.length && pet.statusDurations[current] <= 0) {
+        pet.status = undefined;
       }
     }
   }

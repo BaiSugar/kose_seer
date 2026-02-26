@@ -5,6 +5,7 @@ import { PacketEmpty } from '../../Server/Packet/Send/PacketEmpty';
 import { Logger } from '../../../shared/utils';
 import { CommandID } from '../../../shared/protocol/CommandID';
 import { OnlineTracker } from '../Player/OnlineTracker';
+import { BroadcastService } from '../Broadcast/BroadcastService';
 
 /**
  * NoNo 管理器
@@ -133,7 +134,7 @@ export class NoNoManager extends BaseManager {
       // 广播给地图上的所有玩家（包括自己）
       const mapId = OnlineTracker.Instance.GetPlayerMap(userId);
       if (mapId > 0) {
-        const sentCount = await OnlineTracker.Instance.BroadcastToMap(mapId, followPacket);
+        const sentCount = await BroadcastService.Instance.BroadcastToMap(mapId, followPacket);
         Logger.Info(`[NoNoManager] 推送NoNo跟随状态到地图 ${mapId}: ${sentCount} 个玩家`);
       } else {
         // 如果不在地图上，只发给自己
@@ -241,7 +242,7 @@ export class NoNoManager extends BaseManager {
     // 广播给地图上的所有玩家（包括自己）
     const mapId = OnlineTracker.Instance.GetPlayerMap(this.UserID);
     if (mapId > 0) {
-      const sentCount = await OnlineTracker.Instance.BroadcastToMap(mapId, packet);
+      const sentCount = await BroadcastService.Instance.BroadcastToMap(mapId, packet);
       Logger.Debug(`[NoNoManager] 广播NoNo状态到地图 ${mapId}: ${sentCount} 个玩家`);
     } else {
       // 如果不在地图上，只发给自己
@@ -308,7 +309,7 @@ export class NoNoManager extends BaseManager {
     // 广播给地图上的所有玩家（包括自己）
     const mapId = OnlineTracker.Instance.GetPlayerMap(this.UserID);
     if (mapId > 0) {
-      const sentCount = await OnlineTracker.Instance.BroadcastToMap(mapId, followPacket);
+      const sentCount = await BroadcastService.Instance.BroadcastToMap(mapId, followPacket);
       Logger.Info(`[NoNoManager] 开启NoNo成功并自动召唤: UserID=${this.UserID}, nick=${playerData.nonoNick}, 广播到地图 ${mapId}: ${sentCount} 个玩家`);
     } else {
       // 如果不在地图上，只发给自己

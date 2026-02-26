@@ -29,7 +29,8 @@ const NO_SAVE_FIELDS = new Set([
   'teamPKInfo',       // 复杂对象，单独处理
   'bossAchievement',  // 复杂对象，单独处理
   '_saveTimer',       // 内部状态
-  '_pendingSave'      // 内部状态
+  '_pendingSave',     // 内部状态
+  '_dirtyFields'      // 内部状态
 ]);
 
 /**
@@ -182,6 +183,7 @@ export class PlayerData implements IPlayerInfo {
   // ============ 内部状态 ============
   private _saveTimer: NodeJS.Timeout | null = null;
   private _pendingSave: boolean = false;
+  private _dirtyFields: Set<string> = new Set();
 
   constructor(data: IPlayerInfo) {
     // 基本信息
@@ -207,6 +209,13 @@ export class PlayerData implements IPlayerInfo {
     this.mapID = data.mapID;
     this.posX = data.posX;
     this.posY = data.posY;
+    this.actionType = data.actionType || 0;
+    this.action = data.action || 0;
+    this.direction = data.direction || 0;
+    this.changeShape = data.changeShape || 0;
+    this.playerForm = data.playerForm || false;
+    this.transTime = data.transTime || 0;
+    this.fightFlag = data.fightFlag || 0;
 
     // 时间信息
     this.timeToday = data.timeToday;
@@ -323,6 +332,7 @@ export class PlayerData implements IPlayerInfo {
   private createProxy(): PlayerData {
     return new Proxy(this, {
       set: (target, property: string, value) => {
+        const oldValue = (target as any)[property];
         // 调试日志
        // Logger.Debug(`[PlayerData] Proxy set: ${property} = ${value}, 黑名单=${NO_SAVE_FIELDS.has(property)}`);
         
@@ -330,7 +340,8 @@ export class PlayerData implements IPlayerInfo {
         (target as any)[property] = value;
 
         // 如果不在黑名单中，触发保存
-        if (!NO_SAVE_FIELDS.has(property)) {
+        if (!NO_SAVE_FIELDS.has(property) && oldValue !== value) {
+          this._dirtyFields.add(property);
          // Logger.Debug(`[PlayerData] 触发自动保存: ${property}`);
           this.scheduleSave();
         }
@@ -386,6 +397,36 @@ export class PlayerData implements IPlayerInfo {
       this._saveTimer = null;
     }
     this._pendingSave = false;
+  }
+
+  /**
+   * 获取当前脏字段列表
+   */
+  public GetDirtyFields(): string[] {
+    return Array.from(this._dirtyFields);
+  }
+
+  /**
+   * 清理脏字段
+   */
+  public ClearDirtyFields(fields?: string[]): void {
+    if (!fields) {
+      this._dirtyFields.clear();
+      return;
+    }
+
+    for (const field of fields) {
+      this._dirtyFields.delete(field);
+    }
+  }
+
+  /**
+   * 手动标记字段为脏
+   */
+  public MarkDirty(field: string): void {
+    if (field && !NO_SAVE_FIELDS.has(field)) {
+      this._dirtyFields.add(field);
+    }
   }
 
   /**

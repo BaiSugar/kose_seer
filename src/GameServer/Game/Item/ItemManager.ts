@@ -9,6 +9,7 @@ import { ItemSystem } from './ItemSystem';
 import { ItemData } from '../../../DataBase/models/ItemData';
 import { DatabaseHelper } from '../../../DataBase/DatabaseHelper';
 import { ItemEventType, IItemGainedEvent, ItemGainSource } from '../Event/EventTypes';
+import { BroadcastService } from '../Broadcast/BroadcastService';
 import { PacketGoldBuyProduct } from '../../Server/Packet/Send/User/PacketGoldBuyProduct';
 import { PacketEmpty } from '../../Server/Packet/Send/PacketEmpty';
 import { CommandID } from '../../../shared/protocol/CommandID';
@@ -25,6 +26,7 @@ import { CommandID } from '../../../shared/protocol/CommandID';
 export class ItemManager extends BaseManager {
   /** 物品数据 */
   public ItemData!: ItemData;
+  private _broadcastService: BroadcastService = BroadcastService.Instance;
 
   constructor(player: PlayerInstance) {
     super(player);
@@ -43,7 +45,7 @@ export class ItemManager extends BaseManager {
    * 从 ItemData 提取服装物品（ID >= 100000）到 PlayerData.clothes
    */
   private syncClothesToPlayerData(): void {
-    const clothItems = this.ItemData.ItemList.filter(item => item.itemId >= 100000);
+    const clothItems = this.GetClothItems();
     
     this.Player.Data.clothes = clothItems.map(item => ({
       id: item.itemId,
@@ -201,7 +203,10 @@ export class ItemManager extends BaseManager {
    */
   public GetClothItems(): Array<{ itemId: number; count: number }> {
     return this.ItemData.ItemList
-      .filter(item => item.itemId >= 100000 && item.itemId < 200000)
+      .filter(item =>
+        (item.itemId >= 100001 && item.itemId <= 200000) ||
+        (item.itemId >= 1300001 && item.itemId <= 1400000)
+      )
       .map(item => ({ itemId: item.itemId, count: item.count }));
   }
 
@@ -223,10 +228,10 @@ export class ItemManager extends BaseManager {
     // 广播给同地图其他玩家
     const mapId = OnlineTracker.Instance.GetPlayerMap(this.UserID);
     if (mapId > 0) {
-      const sentCount = await OnlineTracker.Instance.BroadcastToMap(
+      const sentCount = await this._broadcastService.BroadcastToMap(
         mapId,
         new PacketChangeCloth(this.UserID, clothIds),
-        undefined
+        this.UserID
       );
       Logger.Info(`[ItemManager] 广播服装变更到地图 ${mapId}，发送给 ${sentCount} 个玩家`);
     }

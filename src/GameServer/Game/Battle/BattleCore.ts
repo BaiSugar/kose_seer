@@ -78,7 +78,7 @@ export class BattleCore {
 
     // 冻伤伤害 (每回合损失1/8最大HP)
     if (pet.statusDurations[BattleStatusType.FREEZE] > 0) {
-      statusDamage += Math.floor(pet.maxHp / 8);
+      statusDamage += Math.floor(pet.maxHp / 16);
       pet.statusDurations[BattleStatusType.FREEZE]--;
     }
 

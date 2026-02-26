@@ -16,6 +16,12 @@ import { Logger } from '../../shared/utils';
 export class PlayerDataAccessor {
   private static _instance: PlayerDataAccessor;
   private _playerRepo: PlayerRepository;
+  private static readonly PROP_TO_COLUMN: Record<string, string> = {
+    userID: 'user_id',
+    mapID: 'map_id',
+    posX: 'pos_x',
+    posY: 'pos_y',
+  };
 
   private constructor() {
     this._playerRepo = new PlayerRepository();
@@ -69,52 +75,86 @@ export class PlayerDataAccessor {
    * 保存 PlayerData 到数据库
    */
   public async Save(data: PlayerData): Promise<void> {
+    let dirtyFields: string[] = [];
+
     try {
-      // 使用 PlayerRepository 更新数据库
-      // 注意：这里需要更新所有可能被修改的字段
-      await this._playerRepo.UpdateCurrency(data.userID, data.energy, data.coins, data.gold);
-      await this._playerRepo.UpdatePosition(data.userID, data.mapID, data.posX, data.posY);
-      
-      // 更新可分配经验
-      if (data.allocatableExp !== undefined) {
-        await this._playerRepo.UpdateAllocatableExp(data.userID, data.allocatableExp);
+      dirtyFields = data.GetDirtyFields();
+      const updates = await this.buildColumnUpdates(data, dirtyFields);
+
+      if (Object.keys(updates).length === 0) {
+        Logger.Debug(`[PlayerDataAccessor] No fields to persist: uid=${data.userID}`);
+        return;
       }
-      
-      // 更新 VIP 信息
-      await this._playerRepo.UpdateVIP(data.userID, data.vip, data.vipLevel, data.vipEndTime);
-      
-      // 更新昵称和颜色
-      // await this._playerRepo.UpdateNickname(data.userID, data.nick);
-      // await this._playerRepo.UpdateColor(data.userID, data.color);
-      
-      // 更新 NoNo 相关数据
-      await this._playerRepo.UpdateNoNoData(data.userID, {
-        flag: data.hasNono ? data.nonoFlag : 0,  // 通过 flag 更新 has_nono
-        nick: data.nonoNick,
-        color: data.nonoColor,
-        power: data.nonoPower,
-        mate: data.nonoMate,
-        iq: data.nonoIq,
-        ai: data.nonoAi,
-        superNono: data.superNono,
-        superLevel: data.nonoSuperLevel,
-        superEnergy: data.nonoSuperEnergy,
-        superStage: data.nonoSuperStage,
-        birth: data.nonoBirth,
-        chargeTime: data.nonoChargeTime,
-        state: data.nonoState
-      });
-      
-      // 更新服装ID列表
-      if (Array.isArray(data.clothIds)) {
-        Logger.Debug(`[PlayerDataAccessor] 保存 clothIds: uid=${data.userID}, clothIds=${JSON.stringify(data.clothIds)}`);
-        await this._playerRepo.UpdateClothIds(data.userID, data.clothIds);
-      }
-      
-      Logger.Debug(`[PlayerDataAccessor] PlayerData 已保存: uid=${data.userID}`);
+
+      await this._playerRepo.UpdateByUserIdColumns(data.userID, updates);
+      data.ClearDirtyFields(dirtyFields);
+      Logger.Debug(`[PlayerDataAccessor] PlayerData saved: uid=${data.userID}`);
+      return;
     } catch (error) {
-      Logger.Error(`[PlayerDataAccessor] 保存 PlayerData 失败: uid=${data.userID}`, error as Error);
+      for (const field of dirtyFields) {
+        data.MarkDirty(field);
+      }
+      Logger.Error(`[PlayerDataAccessor] Save PlayerData failed: uid=${data.userID}`, error as Error);
       throw error;
     }
+
+  }
+  private async buildColumnUpdates(data: PlayerData, dirtyFields: string[]): Promise<Record<string, any>> {
+    const updates: Record<string, any> = {};
+    const columnsMeta = await this._playerRepo.GetPlayerColumnsMeta();
+    const sourceFields = dirtyFields.length > 0
+      ? dirtyFields
+      : Object.keys(data as unknown as Record<string, any>);
+
+    for (const prop of sourceFields) {
+      const rawValue = (data as any)[prop];
+      const column = this.toColumnName(prop);
+      if (!column || column === 'user_id') continue;
+
+      const meta = columnsMeta.get(column);
+      if (!meta) continue;
+
+      const serialized = this.serializeValueForColumn(rawValue, meta.type);
+      if (serialized === undefined) continue;
+      updates[column] = serialized;
+    }
+
+    if (columnsMeta.has('team_id') && data.teamInfo) {
+      updates.team_id = Number(data.teamInfo.id) || 0;
+    }
+
+    return updates;
+  }
+
+  private toColumnName(prop: string): string {
+    if (!prop) return '';
+    if (PlayerDataAccessor.PROP_TO_COLUMN[prop]) {
+      return PlayerDataAccessor.PROP_TO_COLUMN[prop];
+    }
+
+    return prop
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+      .toLowerCase();
+  }
+
+  private serializeValueForColumn(value: any, columnType: string): any {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+
+    if (typeof value === 'boolean') {
+      return value ? 1 : 0;
+    }
+
+    if (Array.isArray(value) || typeof value === 'object') {
+      return this.isJsonLikeColumn(columnType) ? JSON.stringify(value) : undefined;
+    }
+
+    return value;
+  }
+
+  private isJsonLikeColumn(columnType: string): boolean {
+    const t = String(columnType || '').toLowerCase();
+    return t.includes('json') || t.includes('text') || t.includes('char') || t.includes('blob');
   }
 }

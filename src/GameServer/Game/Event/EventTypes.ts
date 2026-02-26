@@ -69,6 +69,17 @@ export const EconomyEventType = {
   COIN_CHANGE: 'economy:coin_change',
 } as const;
 
+export const MapEventType = {
+  PEOPLE_WALK: 'map:people_walk',
+  DANCE_ACTION: 'map:dance_action',
+  PEOPLE_TRANSFORM: 'map:people_transform',
+  AIMAT: 'map:aimat',
+  CHAT: 'map:chat',
+  PET_SHOW: 'map:pet_show',
+  CHANGE_NICKNAME: 'map:change_nickname',
+  CHANGE_COLOR: 'map:change_color',
+  ON_OR_OFF_FLYING: 'map:on_or_off_flying',
+} as const;
 // ==================== Event source enums ====================
 
 /** Item gain source */

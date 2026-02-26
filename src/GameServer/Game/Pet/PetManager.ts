@@ -30,7 +30,8 @@ import { PacketPetOneCure } from '../../Server/Packet/Send/Pet/PacketPetOneCure'
 import { PacketGetPetSkill } from '../../Server/Packet/Send/Pet/PacketGetPetSkill';
 import { PacketPetRoomList } from '../../Server/Packet/Send/Pet/PacketPetRoomList';
 import { PacketSkillSort } from '../../Server/Packet/Send/Pet/PacketSkillSort';
-import { PetEventType, IPetObtainedEvent, IPetEvolutionEvent, PetObtainSource } from '../Event/EventTypes';
+import { IMapPetShowEvent } from '../Map/MapEventTypes';
+import { MapEventType, PetEventType, IPetObtainedEvent, IPetEvolutionEvent, PetObtainSource } from '../Event/EventTypes';
 /**
  * 精灵管理器
  * 处理精灵相关的所有逻辑：获取精灵信息、精灵列表、治疗、展示等
@@ -263,7 +264,19 @@ export class PetManager extends BaseManager {
     const pet = this.PetData.GetPetByCatchTime(catchTime);
     
     if (pet) {
-      await this.Player.SendPacket(new PacketPetShow(this.UserID, pet.catchTime, pet.petId, 1, pet.dvHp, 0));
+      const packet = new PacketPetShow(this.UserID, pet.catchTime, pet.petId, 1, pet.dvHp, 0);
+      await this.Player.SendPacket(packet);
+
+      const mapId = this.Player.Data.mapID;
+      if (mapId > 0) {
+        await this.Player.EventBus.Emit({
+          type: MapEventType.PET_SHOW,
+          timestamp: Date.now(),
+          playerId: this.UserID,
+          mapId,
+          packet,
+        } as IMapPetShowEvent);
+      }
     } else {
       Logger.Warn(`[PetManager] 展示精灵失败，精灵不存在: UserID=${this.UserID}, CatchTime=${catchTime}`);
       await this.Player.SendPacket(new PacketEmpty(CommandID.PET_SHOW).setResult(5001));

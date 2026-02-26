@@ -10,12 +10,12 @@ import { ChangeColorReqProto } from '../../../../../shared/proto/packets/req/map
  */
 @Opcode(CommandID.CHANGE_COLOR, InjectType.NONE)
 export class ChangeColorHandler implements IHandler {
-  public async Handle(session: IClientSession, head: HeadInfo, body: Buffer): Promise<void> {
+  public async Handle(session: IClientSession, _head: HeadInfo, body: Buffer): Promise<void> {
     const player = session.Player;
     if (!player) return;
 
     const req = new ChangeColorReqProto();
     req.deserialize(body);
-    await player.MapManager.HandleChangeColor(req.newColor);
+    await player.MapActionManager.HandleChangeColor(req.newColor);
   }
 }

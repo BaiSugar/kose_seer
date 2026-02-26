@@ -10,6 +10,7 @@ import { IBattlePet } from '../../../shared/models/BattleModel';
 import { IEffectResult } from './effects/core/EffectContext';
 import { BossAbilityManager } from './BossAbility/BossAbilityManager';
 import { BossAbilityConfig } from './BossAbility/BossAbilityConfig';
+import { IAbilityEntry } from './BossAbility/BossAbilityConfig';
 import { GameConfig } from '../../../shared/config/game/GameConfig';
 
 /**
@@ -47,8 +48,8 @@ export class PassiveAbilitySystem {
   /**
    * 从玩家精灵的effectList加载特性配置
    */
-  private static LoadPlayerAbilities(pet: IBattlePet): any[] {
-    const entries: any[] = [];
+  private static LoadPlayerAbilities(pet: IBattlePet): IAbilityEntry[] {
+    const entries: IAbilityEntry[] = [];
 
     // 检查精灵是否有特性列表
     const effectList = (pet as any).effectList;
@@ -62,17 +63,18 @@ export class PassiveAbilitySystem {
         continue;
       }
 
-      const abilityId = effect.itemId;
+      const abilityId = effect.itemId ?? effect.effectID;
+      if (abilityId === undefined || abilityId === null) {
+        Logger.Warn(`[PassiveAbilitySystem] 特性数据缺少 itemId/effectID: ${JSON.stringify(effect)}`);
+        continue;
+      }
       // 从pet_abilities.json获取特性配置
       const abilityConfig = GameConfig.GetPetAbilityById(abilityId);
 
       if (abilityConfig) {
         entries.push({
-          abilityId: abilityConfig.abilityId,
-          name: abilityConfig.name,
-          effectId: abilityConfig.effectId,
+          id: abilityConfig.effectId,
           args: abilityConfig.args || [],
-          argsDesc: abilityConfig.argsDesc || []
         });
         Logger.Info(`[PassiveAbilitySystem] 加载玩家特性: ${abilityConfig.name}, effectId=${abilityConfig.effectId}`);
       } else {

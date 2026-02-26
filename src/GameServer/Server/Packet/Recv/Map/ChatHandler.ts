@@ -10,11 +10,11 @@ import { ChatReqProto } from '../../../../../shared/proto/packets/req/map/ChatRe
  */
 @Opcode(CommandID.CHAT, InjectType.NONE)
 export class ChatHandler implements IHandler {
-  public async Handle(session: IClientSession, head: HeadInfo, body: Buffer): Promise<void> {
+  public async Handle(session: IClientSession, _head: HeadInfo, body: Buffer): Promise<void> {
     const player = session.Player;
     if (!player) return;
 
     const req = ChatReqProto.fromBuffer(body);
-    await player.MapManager.HandleChat(req);
+    await player.MapActionManager.HandleMapChat(req);
   }
 }

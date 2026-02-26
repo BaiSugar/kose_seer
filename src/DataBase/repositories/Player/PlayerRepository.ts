@@ -63,8 +63,14 @@ interface IPlayerRow {
   extra_data: string | null;
 }
 
+interface IPlayerColumnMeta {
+  name: string;
+  type: string;
+}
+
 export class PlayerRepository extends BaseRepository<IPlayerRow> {
   protected _tableName = 'players';
+  private _playerColumnsMeta: Map<string, IPlayerColumnMeta> | null = null;
 
   /**
    * 根据用户ID查找玩家
@@ -608,6 +614,74 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
   /**
    * 转换为 IPlayerInfo
    */
+  /**
+   * 获取 players 表列信息（带缓存）
+   */
+  public async GetPlayerColumnsMeta(): Promise<Map<string, IPlayerColumnMeta>> {
+    if (this._playerColumnsMeta) {
+      return this._playerColumnsMeta;
+    }
+
+    const meta = new Map<string, IPlayerColumnMeta>();
+
+    if (this._db.DatabaseType === 'mysql') {
+      const rows = await this._db.Query<Array<{ Field: string; Type: string }>[number]>(
+        'SHOW COLUMNS FROM players'
+      );
+
+      for (const row of rows) {
+        const name = String((row as any).Field || '').toLowerCase();
+        if (!name) continue;
+        meta.set(name, {
+          name,
+          type: String((row as any).Type || '').toLowerCase(),
+        });
+      }
+    } else {
+      const rows = await this._db.Query<Array<{ name: string; type: string }>[number]>(
+        'PRAGMA table_info(players)'
+      );
+
+      for (const row of rows) {
+        const name = String((row as any).name || '').toLowerCase();
+        if (!name) continue;
+        meta.set(name, {
+          name,
+          type: String((row as any).type || '').toLowerCase(),
+        });
+      }
+    }
+
+    this._playerColumnsMeta = meta;
+    return meta;
+  }
+
+  /**
+   * 根据 user_id 批量更新 players 指定列
+   */
+  public async UpdateByUserIdColumns(userId: number, updates: Record<string, any>): Promise<boolean> {
+    const entries = Object.entries(updates)
+      .filter(([key, value]) => key !== 'user_id' && value !== undefined);
+
+    if (entries.length === 0) {
+      return false;
+    }
+
+    const setClause = entries
+      .map(([column]) => `\`${column}\` = ?`)
+      .join(', ');
+    const values = entries.map(([, value]) => value);
+    values.push(userId);
+
+    const result = await this._db.Execute(
+      `UPDATE players SET ${setClause} WHERE user_id = ?`,
+      values
+    );
+
+    // 只要 SQL 成功执行即视为成功（值相同可能 affectedRows=0）
+    return result.affectedRows >= 0;
+  }
+
   private toPlayerInfo(row: IPlayerRow): IPlayerInfo {
     const player = createDefaultPlayerInfo(row.user_id, row.nick);
 
@@ -625,6 +699,10 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
     player.mapID = row.map_id;
     player.posX = row.pos_x;
     player.posY = row.pos_y;
+    player.actionType = Number((row as any).action_type ?? player.actionType ?? 0) || 0;
+    player.action = Number((row as any).action ?? player.action ?? 0) || 0;
+    player.direction = Number((row as any).direction ?? player.direction ?? 0) || 0;
+    player.changeShape = Number((row as any).change_shape ?? player.changeShape ?? 0) || 0;
     player.timeToday = row.time_today;
     player.timeLimit = row.time_limit;
     player.loginCnt = row.login_cnt;
@@ -661,6 +739,9 @@ export class PlayerRepository extends BaseRepository<IPlayerRow> {
     player.badge = row.badge;
     player.curTitle = row.cur_title;
     player.teamInfo.id = row.team_id;
+    player.playerForm = Boolean((row as any).player_form ?? player.playerForm ?? false);
+    player.transTime = Number((row as any).trans_time ?? player.transTime ?? 0) || 0;
+    player.fightFlag = Number((row as any).fight_flag ?? player.fightFlag ?? 0) || 0;
     
     // 解析服装ID列表
     try {

@@ -4,6 +4,8 @@ import { Logger } from '../../../shared/utils';
 import { BaseProto } from '../../../shared/proto';
 import { ItemManager } from '../Item/ItemManager';
 import { MapManager } from '../Map/MapManager';
+import { MapActionManager } from '../Map/MapActionManager';
+import { MapBroadcastManager } from '../Map/MapBroadcastManager';
 import { MapSpawnManager } from '../Map/MapSpawnManager';
 import { PetManager } from '../Pet/PetManager';
 import { SystemManager } from '../System/SystemManager';
@@ -48,6 +50,8 @@ export class PlayerInstance {
   // ===== Managers =====
   public ItemManager: ItemManager;
   public MapManager: MapManager;
+  public MapActionManager: MapActionManager;
+  public MapBroadcastManager: MapBroadcastManager;
   public MapSpawnManager: MapSpawnManager;
   public PetManager: PetManager;
   public SystemManager: SystemManager;
@@ -69,6 +73,8 @@ export class PlayerInstance {
     // 初始化所有 Manager
     this.ItemManager = new ItemManager(this);
     this.MapManager = new MapManager(this);
+    this.MapActionManager = new MapActionManager(this);
+    this.MapBroadcastManager = new MapBroadcastManager(this);
     this.MapSpawnManager = new MapSpawnManager(this);
     this.PetManager = new PetManager(this);
     this.SystemManager = new SystemManager(this);
@@ -90,6 +96,8 @@ export class PlayerInstance {
   private RegisterAllEvents(): void {
     this.ItemManager.RegisterEvents(this.EventBus);
     this.MapManager.RegisterEvents(this.EventBus);
+    this.MapActionManager.RegisterEvents(this.EventBus);
+    this.MapBroadcastManager.RegisterEvents(this.EventBus);
     this.MapSpawnManager.RegisterEvents(this.EventBus);
     this.PetManager.RegisterEvents(this.EventBus);
     this.SystemManager.RegisterEvents(this.EventBus);

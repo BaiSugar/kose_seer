@@ -4,45 +4,43 @@ import { OnlineTracker } from '../Player/OnlineTracker';
 import { GameConfig } from '../../../shared/config';
 import { SeerMapUserInfoProto } from '../../../shared/proto/common/SeerMapUserInfoProto';
 import { EnterMapReqProto } from '../../../shared/proto/packets/req/map/EnterMapReqProto';
-import { ChatReqProto } from '../../../shared/proto/packets/req/map/ChatReqProto';
 import { GetSimUserInfoRspProto } from '../../../shared/proto/packets/rsp/map/GetSimUserInfoRspProto';
-import { ChatRspProto } from '../../../shared/proto/packets/rsp/map/ChatRspProto';
 import { ListMapPlayerRspProto } from '../../../shared/proto/packets/rsp/map/ListMapPlayerRspProto';
 import { PlayerRepository } from '../../../DataBase/repositories/Player/PlayerRepository';
 import { IPlayerInfo } from '../../../shared/models';
 import { PlayerInstance } from '../Player/PlayerInstance';
 import { DatabaseHelper } from '../../../DataBase/DatabaseHelper';
-import { 
+import {
   PacketEnterMap,
   PacketLeaveMap,
   PacketMapOgreList,
-  PacketMapBoss,
-  PacketChangeNickName,
-  PacketChangeColor,
-  PacketOnOrOffFlying
+  PacketMapBoss
 } from '../../Server/Packet/Send';
 import { PacketChangeCloth } from '../../Server/Packet/Send/Item/PacketChangeCloth';
 import { BossAbilityConfig } from '../Battle/BossAbility/BossAbilityConfig';
 import { GameEventBus } from '../Event/GameEventBus';
 import { IPlayerLogoutEvent, PlayerEventType } from '../Event/EventTypes';
+import { MapVisibilityService } from './MapVisibilityService';
 
 /**
- * 地图管理器
- * 处理地图相关的所有逻辑：进入、离开地图、玩家移动、聊天等
- * 
- * 重构说明：
- * - 从全局单例改为 Player 实例 Manager
- * - 继承 BaseManager 获得便捷方法
- * - 不再需要传 userId 参数
+ * 鍦板浘绠＄悊鍣?
+ * 澶勭悊鍦板浘鐩稿叧鐨勬墍鏈夐€昏緫锛氳繘鍏ャ€佺寮€鍦板浘銆佺帺瀹剁Щ鍔ㄣ€佽亰澶╃瓑
+ *
+ * 閲嶆瀯璇存槑锛?
+ * - 浠庡叏灞€鍗曚緥鏀逛负 Player 瀹炰緥 Manager
+ * - 缁ф壙 BaseManager 鑾峰緱渚挎嵎鏂规硶
+ * - 涓嶅啀闇€瑕佷紶 userId 鍙傛暟
  */
 export class MapManager extends BaseManager {
   private _onlineTracker: OnlineTracker;
-  private _playerRepo: PlayerRepository; // 用于查询其他玩家数据
+  private _mapVisibility: MapVisibilityService;
+  private _playerRepo: PlayerRepository; // 鐢ㄤ簬鏌ヨ鍏朵粬鐜╁鏁版嵁
 
   constructor(player: PlayerInstance) {
     super(player);
     this._onlineTracker = OnlineTracker.Instance;
-    this._playerRepo = new PlayerRepository(); // 保留用于查询其他玩家
+    this._mapVisibility = new MapVisibilityService(this._onlineTracker);
+    this._playerRepo = new PlayerRepository(); // 淇濈暀鐢ㄤ簬鏌ヨ鍏朵粬鐜╁
   }
   public RegisterEvents(eventBus: GameEventBus): void {
     // Keep old cleanup order: map leave should happen before battle cleanup.
@@ -54,7 +52,31 @@ export class MapManager extends BaseManager {
   }
 
   /**
-   * 处理进入地图
+   * 鏋勫缓鈥滃綋鍓嶇┛鎴粹€濈殑鏈嶈鍒楄〃锛堢敤浜庝汉鐗╂樉绀猴級
+   * 浼樺厛浣跨敤 clothIds锛涜嫢缂哄け鍒欏洖閫€鍒?clothes锛堝吋瀹硅€佹暟鎹級銆?   */
+  private BuildWornClothes(playerData: any): Array<{ id: number; level: number }> {
+    const wornIds = playerData?.clothIds as number[] | undefined;
+    if (Array.isArray(wornIds) && wornIds.length > 0) {
+      return wornIds
+        .map(id => ({ id: Number(id) || 0, level: 0 }))
+        .filter(c => c.id > 0);
+    }
+
+    const clothes = playerData?.clothes as Array<{ id?: number; level?: number }> | undefined;
+    if (Array.isArray(clothes) && clothes.length > 0) {
+      return clothes
+        .map(cloth => ({
+          id: Number(cloth?.id) || 0,
+          level: Number(cloth?.level) || 0
+        }))
+        .filter(c => c.id > 0);
+    }
+
+    return [];
+  }
+
+  /**
+   * 澶勭悊杩涘叆鍦板浘
    */
   public async HandleEnterMap(req: EnterMapReqProto): Promise<void> {
     let mapId = req.mapId || 1;
@@ -62,145 +84,126 @@ export class MapManager extends BaseManager {
     const x = req.x || 500;
     const y = req.y || 300;
 
-    // 特殊处理：如果 mapId == userId，说明是访问家园
     if (mapId === this.UserID) {
       mapId = this.UserID;
-      Logger.Debug(`[MapManager] 检测到家园访问请求 (mapId == userId)，转换为家园地图ID: ${mapId}`);
+      Logger.Debug(`[MapManager] home map request detected, mapId=${mapId}`);
     }
 
-    Logger.Info(`[MapManager] ========== 玩家 ${this.UserID} 进入地图 ==========`);
-    Logger.Info(`[MapManager] MapID: ${mapId}, MapType: ${mapType}, Pos: (${x}, ${y})`);
-    Logger.Info(`[MapManager] 玩家昵称: ${this.Player.Data.nick}`);
-    Logger.Info(`[MapManager] 当前数据库 MapID: ${this.Player.Data.mapID}`);
+    Logger.Info(`[MapManager] ===== enter map: user=${this.UserID} =====`);
+    Logger.Info(`[MapManager] mapId=${mapId}, mapType=${mapType}, pos=(${x}, ${y})`);
+    Logger.Info(`[MapManager] nick=${this.Player.Data.nick}`);
+    Logger.Info(`[MapManager] current data mapId=${this.Player.Data.mapID}`);
 
-    // 检查地图中已有的玩家
     const existingPlayers = this._onlineTracker.GetPlayersInMap(mapId);
-    Logger.Info(`[MapManager] 地图 ${mapId} 当前已有玩家: ${existingPlayers.length}人 [${existingPlayers.join(', ')}]`);
+    Logger.Info(`[MapManager] map ${mapId} players before update: ${existingPlayers.length} [${existingPlayers.join(', ')}]`);
 
-    // 更新在线追踪（包括位置）
     this._onlineTracker.UpdatePlayerMap(this.UserID, mapId, mapType, x, y);
 
-    // 再次检查更新后的玩家列表
     const updatedPlayers = this._onlineTracker.GetPlayersInMap(mapId);
-    Logger.Info(`[MapManager] 更新后地图 ${mapId} 玩家: ${updatedPlayers.length}人 [${updatedPlayers.join(', ')}]`);
+    Logger.Info(`[MapManager] map ${mapId} players after update: ${updatedPlayers.length} [${updatedPlayers.join(', ')}]`);
 
-    // 更新玩家位置（直接修改 PlayerData，实时保存）
     this.Player.Data.mapID = mapId;
     this.Player.Data.posX = x;
     this.Player.Data.posY = y;
-    Logger.Debug(`[MapManager] 进图前 clothIds: ${JSON.stringify(this.Player.Data.clothIds)}`);
+    Logger.Debug(`[MapManager] enter map before save clothIds=${JSON.stringify(this.Player.Data.clothIds)}`);
     await DatabaseHelper.Instance.SavePlayerData(this.Player.Data);
-    Logger.Debug(`[MapManager] 进图后 clothIds: ${JSON.stringify(this.Player.Data.clothIds)}`);
+    Logger.Debug(`[MapManager] enter map after save clothIds=${JSON.stringify(this.Player.Data.clothIds)}`);
 
-    Logger.Info(`[MapManager] 已更新玩家位置到地图 ${mapId}`);
+    Logger.Info(`[MapManager] player position synced to map ${mapId}`);
 
-    // 通知 MapSpawnManager 玩家进入地图（生成新的野怪列表）
     this.Player.MapSpawnManager.OnEnterMap(mapId);
 
-    // 构建用户信息（使用 PlayerData）
-    Logger.Debug(`[MapManager] HandleEnterMap clothIds: ${JSON.stringify(this.Player.Data.clothIds)}`);
+    Logger.Debug(`[MapManager] HandleEnterMap clothIds=${JSON.stringify(this.Player.Data.clothIds)}`);
     const userInfo = this.buildUserInfo(this.UserID, this.Player.Data, x, y, this.Player);
+    const currentWornClothIds = this.BuildWornClothes(this.Player.Data).map(c => c.id);
 
-    // 发送进入地图响应
     await this.Player.SendPacket(new PacketEnterMap(userInfo));
-    Logger.Info(`[MapManager] 已发送进入地图响应`);
+    Logger.Info('[MapManager] enter map response sent');
 
-    // 主动推送 LIST_MAP_PLAYER (包含自己和其他玩家)
+    if (currentWornClothIds.length > 0) {
+      Logger.Debug(`[MapManager] enter map self cloth sync=${JSON.stringify(currentWornClothIds)}`);
+      await this.Player.SendPacket(new PacketChangeCloth(this.UserID, currentWornClothIds));
+    }
+
     await this.sendMapPlayerList(mapId);
-    
-    // 主动推送 MAP_OGRE_LIST (地图野怪列表)
     await this.sendMapOgreList(mapId);
-    
-    // 主动推送 MAP_BOSS (地图BOSS列表)
     await this.sendMapBossList(mapId);
-    
-    // 特殊地图事件：赫尔卡星荒地(32) 雷雨天推送 2021 触发雷伊出场动画
+
     if (mapId === 32 && this.IsLeiyiWeather()) {
-      Logger.Info(`[MapManager] 雷雨天，将刷新雷伊 (当前分钟=${new Date().getMinutes()})`);
-      // 发送两次，第二次客户端 BOSS 已存在会调用 show() 播放出场动画
+      Logger.Info(`[MapManager] map 32 weather boss refresh triggered, minute=${new Date().getMinutes()}`);
       await this.Player.SendPacket(new PacketMapBoss([{ id: 70, region: 0, hp: 0, pos: 0 }]));
       await this.Player.SendPacket(new PacketMapBoss([{ id: 70, region: 0, hp: 0, pos: 0 }]));
     }
-    
-    // 特殊地图事件：盖亚按周几出现在三张地图之一，推送 2022 显示盖亚
+
     const gaiyaMapId = this.GetGaiyaMapIDForToday();
     if (mapId === gaiyaMapId) {
-      Logger.Info(`[MapManager] 今日盖亚地图: ${mapId}`);
-      // TODO: 推送 2022 (SPECIAL_PET_NOTE) 显示盖亚
+      Logger.Info(`[MapManager] today gaiya map id=${mapId}`);
+      // TODO: special pet note integration.
     }
-    
-    // 广播新玩家进入消息给同地图其他玩家
-    const enterPacket = new PacketEnterMap(userInfo);
-    const sent = await this._onlineTracker.BroadcastToMap(mapId, enterPacket, this.UserID);
-    if (sent > 0) {
-      Logger.Info(`[MapManager] 广播玩家进入到 ${sent} 个玩家`);
 
-      // 同步穿戴服装给同地图其他玩家（避免在 ENTER_MAP 之前广播导致对方未创建角色）
+    const enterPacket = new PacketEnterMap(userInfo);
+    const sent = await this._mapVisibility.BroadcastToMap(mapId, enterPacket, {
+      excludeUserId: this.UserID
+    });
+
+    if (sent > 0) {
+      Logger.Info(`[MapManager] broadcast enter map to ${sent} players`);
+
       const clothIds = (this.Player.Data as any).clothIds as number[] | undefined;
-      if (Array.isArray(clothIds)) {
-        await this._onlineTracker.BroadcastToMap(
+      if (Array.isArray(clothIds) && clothIds.length > 0) {
+        await this._mapVisibility.BroadcastToMap(
           mapId,
           new PacketChangeCloth(this.UserID, clothIds),
-          this.UserID
+          { excludeUserId: this.UserID }
         );
       }
-      
-      // 给老玩家发送更新后的地图玩家列表
-      const sessions = this._onlineTracker.GetClientsOnMap(mapId);
-      for (const session of sessions) {
-        if (session.UserID === this.UserID) continue;
-        if (session.Player) {
-          await session.Player.MapManager.sendMapPlayerList(mapId);
-        }
-      }
     } else {
-      Logger.Info(`[MapManager] 地图中没有其他玩家，无需广播`);
+      Logger.Info('[MapManager] no other players in map, skip enter broadcast');
     }
-    
-    Logger.Info(`[MapManager] ========== 进入地图完成 ==========`);
-  }
 
-  /**
-   * 处理离开地图
-   */
+    const refreshed = await this._mapVisibility.RefreshMapPlayerLists(mapId, {
+      excludeUserId: this.UserID
+    });
+    Logger.Debug(`[MapManager] enter map refresh player list: mapId=${mapId}, refreshed=${refreshed}`);
+
+    Logger.Info('[MapManager] ===== enter map done =====');
+  }
   public async HandleLeaveMap(): Promise<void> {
     const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
-    Logger.Info(`[MapManager] 玩家 ${this.UserID} 离开地图 ${mapId}`);
+    Logger.Info(`[MapManager] 鐜╁ ${this.UserID} 绂诲紑鍦板浘 ${mapId}`);
 
-    // 广播玩家离开消息给同地图其他玩家
+    // 骞挎挱鐜╁绂诲紑娑堟伅缁欏悓鍦板浘鍏朵粬鐜╁
     if (mapId > 0) {
       const leavePacket = new PacketLeaveMap(this.UserID);
-      const sent = await this._onlineTracker.BroadcastToMap(mapId, leavePacket, this.UserID);
+      const sent = await this._mapVisibility.BroadcastToMap(mapId, leavePacket, {
+        excludeUserId: this.UserID
+      });
       if (sent > 0) {
-        Logger.Info(`[MapManager] 广播玩家离开到 ${sent} 个玩家`);
+        Logger.Info(`[MapManager] broadcast leave map to ${sent} players`);
       }
     }
 
-    // 通知 MapSpawnManager 玩家离开地图（清除状态）
+    // 閫氱煡 MapSpawnManager 鐜╁绂诲紑鍦板浘锛堟竻闄ょ姸鎬侊級
     this.Player.MapSpawnManager.OnLeaveMap();
 
-    // 更新在线追踪（设置为地图0）
+    // 鏇存柊鍦ㄧ嚎杩借釜锛堣缃负鍦板浘0锛?
     this._onlineTracker.UpdatePlayerMap(this.UserID, 0, 0);
 
-    // 发送离开地图响应给自己
+    // 鍙戦€佺寮€鍦板浘鍝嶅簲缁欒嚜宸?
     await this.Player.SendPacket(new PacketLeaveMap(this.UserID));
 
-    // 给仍在该地图的玩家推送最新玩家列表（避免客户端残留场景对象）
+    // 缁欎粛鍦ㄨ鍦板浘鐨勭帺瀹舵帹閫佹渶鏂扮帺瀹跺垪琛紙閬垮厤瀹㈡埛绔畫鐣欏満鏅璞★級
     if (mapId > 0) {
-      const sessions = this._onlineTracker.GetClientsOnMap(mapId);
-      for (const session of sessions) {
-        if (session.Player) {
-          await session.Player.MapManager.sendMapPlayerList(mapId);
-        }
-      }
+      const refreshed = await this._mapVisibility.RefreshMapPlayerLists(mapId);
+      Logger.Debug(`[MapManager] LeaveMap refresh map player list: mapId=${mapId}, refreshed=${refreshed}`);
     }
-    
-    // 注意：不需要发送空的野怪列表
-    // 客户端会在 MAP_SWITCH_OPEN 或 MAP_DESTROY 事件时自动清理野怪
+
+    // 娉ㄦ剰锛氫笉闇€瑕佸彂閫佺┖鐨勯噹鎬垪琛?
+    // 瀹㈡埛绔細鍦?MAP_SWITCH_OPEN 鎴?MAP_DESTROY 浜嬩欢鏃惰嚜鍔ㄦ竻鐞嗛噹鎬?
   }
 
   /**
-   * 处理地图玩家列表请求
+   * 澶勭悊鍦板浘鐜╁鍒楄〃璇锋眰
    */
   public async HandleListMapPlayer(): Promise<void> {
     const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
@@ -208,44 +211,44 @@ export class MapManager extends BaseManager {
   }
 
   /**
-   * 处理地图怪物列表
+   * 澶勭悊鍦板浘鎬墿鍒楄〃
    */
   public async HandleMapOgreList(): Promise<void> {
     const mapId = this.Player.Data.mapID || 1;
 
-    // 使用 MapSpawnManager 获取玩家的野怪列表
+    // 浣跨敤 MapSpawnManager 鑾峰彇鐜╁鐨勯噹鎬垪琛?
     const ogres = this.Player.MapSpawnManager.GetMapOgres(mapId);
 
     await this.Player.SendPacket(new PacketMapOgreList(ogres));
   }
 
   /**
-   * 推送地图BOSS列表（只在有BOSS时推送）
-   * @param mapId 地图ID
+   * 鎺ㄩ€佸湴鍥綛OSS鍒楄〃锛堝彧鍦ㄦ湁BOSS鏃舵帹閫侊級
+   * @param mapId 鍦板浘ID
    */
   public async sendMapBossList(mapId: number): Promise<void> {
     const bosses = this.Player.MapSpawnManager.GetMapBosses(mapId);
-    
-    // 只在有BOSS时才推送
+
+    // 鍙湪鏈塀OSS鏃舵墠鎺ㄩ€?
     if (bosses.length > 0) {
       await this.Player.SendPacket(new PacketMapBoss(bosses));
-      Logger.Info(`[MapManager] 推送BOSS列表: mapId=${mapId}, count=${bosses.length}`);
+      Logger.Info(`[MapManager] 鎺ㄩ€丅OSS鍒楄〃: mapId=${mapId}, count=${bosses.length}`);
     } else {
-      Logger.Debug(`[MapManager] 地图无BOSS，跳过推送: mapId=${mapId}`);
+      Logger.Debug(`[MapManager] 鍦板浘鏃燘OSS锛岃烦杩囨帹閫? mapId=${mapId}`);
     }
   }
 
   /**
-   * 处理获取简单用户信息
+   * 澶勭悊鑾峰彇绠€鍗曠敤鎴蜂俊鎭?
    */
   public async HandleGetSimUserInfo(targetId: number): Promise<void> {
-    // 如果没有指定目标，默认查询自己
+    // 濡傛灉娌℃湁鎸囧畾鐩爣锛岄粯璁ゆ煡璇㈣嚜宸?
     const queryId = targetId || this.UserID;
-    const playerData = queryId === this.UserID 
+    const playerData = queryId === this.UserID
       ? this.Player.Data
       : await this._playerRepo.FindByUserId(queryId);
     if (!playerData) {
-      Logger.Warn(`[MapManager] 玩家数据不存在 ${queryId}`);
+      Logger.Warn(`[MapManager] 鐜╁鏁版嵁涓嶅瓨鍦?${queryId}`);
       return;
     }
 
@@ -266,123 +269,34 @@ export class MapManager extends BaseManager {
         .setVipLevel(playerData.vipStage)
         .setTeamId(playerData.teamInfo.id)
         .setTeamIsShow(playerData.teamInfo.isShow ? 1 : 0)
-        .setClothes(playerData.clothes.map((c: any) => ({ id: c.id, level: c.level || 0 })))
+        .setClothes(this.BuildWornClothes(playerData))
     );
   }
 
   /**
-   * 处理修改昵称
-   */
-  public async HandleChangeNickName(newNick: string): Promise<void> {
-    // 更新 PlayerData（自动保存）
-    this.Player.Data.nick = newNick;
-
-    const packet = new PacketChangeNickName(this.UserID, newNick);
-    
-    // 发送给自己
-    await this.Player.SendPacket(packet);
-    
-    // 广播给同地图其他玩家
-    const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
-    if (mapId > 0) {
-      await this._onlineTracker.BroadcastToMap(mapId, packet, this.UserID);
-    }
-    
-    Logger.Info(`[MapManager] 玩家 ${this.UserID} 修改昵称为 ${newNick}`);
-  }
-
-  /**
-   * 处理修改颜色
-   */
-  public async HandleChangeColor(newColor: number): Promise<void> {
-    // 更新 PlayerData（自动保存）
-    this.Player.Data.color = newColor;
-
-    const packet = new PacketChangeColor(this.UserID, newColor, 0, this.Player.Data.coins);
-    
-    // 发送给自己
-    await this.Player.SendPacket(packet);
-    
-    // 广播给同地图其他玩家
-    const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
-    if (mapId > 0) {
-      await this._onlineTracker.BroadcastToMap(mapId, packet, this.UserID);
-    }
-    
-    Logger.Info(`[MapManager] 玩家 ${this.UserID} 修改颜色为 0x${newColor.toString(16)}`);
-  }
-
-  /**
-   * 处理开关飞行模式
-   */
-  public async HandleOnOrOffFlying(flyMode: number): Promise<void> {
-    // 更新 PlayerData (假设有 flyMode 字段)
-    // this.Player.Data.flyMode = flyMode;
-
-    // 广播给同地图玩家
-    const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
-    const packet = new PacketOnOrOffFlying(this.UserID, flyMode);
-    
-    if (mapId > 0) {
-      await this._onlineTracker.BroadcastToMap(mapId, packet);
-    } else {
-      await this.Player.SendPacket(packet);
-    }
-
-    Logger.Info(`[MapManager] 玩家 ${this.UserID} ${flyMode > 0 ? '开启' : '关闭'}飞行模式`);
-  }
-
-  /**
-   * 处理聊天
-   */
-  public async HandleChat(req: ChatReqProto): Promise<void> {
-    Logger.Info(`[MapManager] 玩家 ${this.UserID} 聊天: ${req.msg}`);
-
-    // 构建响应
-    const rsp = new ChatRspProto()
-      .setSenderId(this.UserID)
-      .setSenderNick(this.Player.Data.nick)
-      .setToId(0)
-      .setMsg(req.msg);
-
-    // 广播给同地图的所有玩家
-    const mapId = this._onlineTracker.GetPlayerMap(this.UserID);
-    if (mapId > 0) {
-      await this._onlineTracker.BroadcastToMap(mapId, rsp);
-    } else {
-      await this.Player.SendPacket(rsp);
-    }
-  }
-
-  /**
-   * 发送地图玩家列表
+   * 澶勭悊淇敼鏄电О
    */
   public async sendMapPlayerList(mapId: number): Promise<void> {
     const playerIds = this._onlineTracker.GetPlayersInMap(mapId);
     const players: SeerMapUserInfoProto[] = [];
 
-    Logger.Debug(`[MapManager] 构建地图 ${mapId} 玩家列表，在线玩家: ${playerIds.join(', ')}`);
+    Logger.Debug(`[MapManager] build map player list: mapId=${mapId}, online=[${playerIds.join(', ')}]`);
 
     for (const pid of playerIds) {
       const playerSession = this._onlineTracker.GetPlayerSession(pid);
       if (playerSession?.Player) {
-        // 优先从在线玩家的 PlayerData 读取（实时数据）
         const playerData = playerSession.Player.Data;
-        
-        // 使用 OnlineTracker 中的实时位置，而不是数据库中的旧位置
         const position = this._onlineTracker.GetPlayerPosition(pid);
         const x = position ? position.x : playerData.posX;
         const y = position ? position.y : playerData.posY;
-        
+
         const userInfo = this.buildUserInfo(pid, playerData, x, y, playerSession.Player);
         players.push(userInfo);
-        Logger.Debug(`[MapManager] 添加玩家到列表: ${pid} (${playerData.nick}) 位置: (${x}, ${y})`);
+        Logger.Debug(`[MapManager] add online player to list: id=${pid}, nick=${playerData.nick}, pos=(${x}, ${y})`);
       } else {
-        // 如果玩家不在线（理论上不应该发生），从数据库读取
-        Logger.Warn(`[MapManager] 玩家 ${pid} 在地图列表中但未找到在线会话，从数据库读取`);
+        Logger.Warn(`[MapManager] player ${pid} found in map list but no online session, fallback to repository`);
         const playerData = await this._playerRepo.FindByUserId(pid);
         if (playerData) {
-          // 离线玩家使用数据库位置
           const userInfo = this.buildUserInfo(
             pid,
             playerData,
@@ -399,42 +313,24 @@ export class MapManager extends BaseManager {
 
     await this.Player.SendPacket(rsp);
 
-    Logger.Info(`[MapManager] 发送地图 ${mapId} 玩家列表给玩家 ${this.UserID}，共 ${players.length} 人`);
+    Logger.Info(`[MapManager] map player list sent: mapId=${mapId}, user=${this.UserID}, count=${players.length}`);
   }
-
-  /**
-   * 发送地图野怪列表（公开方法，供外部调用）
-   */
-  public async SendMapOgreList(mapId: number): Promise<void> {
-    await this.sendMapOgreList(mapId);
-  }
-
-  /**
-   * 发送地图野怪列表（内部方法）
-   */
   public async sendMapOgreList(mapId: number): Promise<void> {
     try {
-      // 使用 MapSpawnManager 获取玩家的野怪列表
       const ogres = this.Player.MapSpawnManager.GetMapOgres(mapId);
-      
       const activeOgres = ogres.filter(o => o.petId > 0);
-      
-      // 只在有野怪时才推送
+
       if (activeOgres.length > 0) {
         await this.Player.SendPacket(new PacketMapOgreList(ogres));
-        Logger.Info(`[MapManager] 推送野怪列表: mapId=${mapId}, count=${activeOgres.length}`);
+        Logger.Info(`[MapManager] map ogre list sent: mapId=${mapId}, count=${activeOgres.length}`);
       } else {
-        Logger.Debug(`[MapManager] 地图无野怪，跳过推送: mapId=${mapId}`);
+        Logger.Debug(`[MapManager] map has no active ogres, skip: mapId=${mapId}`);
       }
-      
+
     } catch (error) {
-      Logger.Error(`[MapManager] ❌ 发送野怪列表失败`, error as Error);
+      Logger.Error('[MapManager] failed to send map ogre list', error as Error);
     }
   }
-
-  /**
-   * 构建用户信息（从数据库数据）
-   */
   public buildUserInfo(
     userId: number,
     playerData: IPlayerInfo,
@@ -443,32 +339,32 @@ export class MapManager extends BaseManager {
     playerInstance?: PlayerInstance
   ): SeerMapUserInfoProto {
     const userInfo = new SeerMapUserInfoProto();
-    
-    // 基本信息
+
+    // 鍩烘湰淇℃伅
     userInfo.sysTime = Math.floor(Date.now() / 1000);
     userInfo.userID = userId;
     userInfo.nick = playerData.nick;
     userInfo.color = playerData.color;
     userInfo.texture = playerData.texture;
-    
-    // VIP信息
+
+    // VIP淇℃伅
     let vipFlags = 0;
     if (playerData.vip === 1) vipFlags |= 1;
     if (playerData.viped === 1) vipFlags |= 2;
     if (playerData.superNono) vipFlags |= 4;
-    
+
     userInfo.vipFlags = vipFlags;
     userInfo.vipStage = playerData.vipStage;
-    
-    // 位置和动作
+
+    // 浣嶇疆鍜屽姩浣?
     userInfo.actionType = playerData.actionType || 0;
     userInfo.x = x;
     userInfo.y = y;
     userInfo.action = playerData.action || 0;
     userInfo.direction = playerData.direction || 0;
     userInfo.changeShape = playerData.changeShape || 0;
-    
-    // 精灵信息 - 从正确的玩家精灵数据获取
+
+    // 绮剧伒淇℃伅 - 浠庢纭殑鐜╁绮剧伒鏁版嵁鑾峰彇
     let defaultPet = null;
     if (playerInstance?.PetManager) {
       defaultPet = playerInstance.PetManager.GetDefaultPet();
@@ -478,19 +374,19 @@ export class MapManager extends BaseManager {
     userInfo.petDV = defaultPet?.dvHp || 31;
     userInfo.petSkin = defaultPet?.skinId || 0;
     userInfo.fightFlag = playerData.fightFlag || 0;
-    
-    // 师徒信息
+
+    // 甯堝緬淇℃伅
     userInfo.teacherID = playerData.teacherID;
     userInfo.studentID = playerData.studentID;
-    
-    // NoNo信息
+
+    // NoNo淇℃伅
     userInfo.nonoState = playerData.nonoState;
     userInfo.nonoColor = playerData.nonoColor;
     userInfo.superNono = playerData.superNono ? 1 : 0;
     userInfo.playerForm = playerData.playerForm ? 1 : 0;
     userInfo.transTime = playerData.transTime || 0;
-    
-    // 战队信息
+
+    // 鎴橀槦淇℃伅
     userInfo.teamId = playerData.teamInfo.id;
     userInfo.teamCoreCount = playerData.teamInfo.coreCount;
     userInfo.teamIsShow = playerData.teamInfo.isShow ? 1 : 0;
@@ -499,28 +395,21 @@ export class MapManager extends BaseManager {
     userInfo.teamLogoColor = playerData.teamInfo.logoColor;
     userInfo.teamTxtColor = playerData.teamInfo.txtColor;
     userInfo.teamLogoWord = playerData.teamInfo.logoWord;
-    
-    // 服装列表
+
+    // 鏈嶈鍒楄〃
     const wornClothIds = (playerData as any).clothIds as number[] | undefined;
     Logger.Debug(`[MapManager] buildUserInfo clothIds: ${JSON.stringify(wornClothIds)}`);
-    if (Array.isArray(wornClothIds) && wornClothIds.length > 0) {
-      userInfo.clothes = wornClothIds.map((id) => ({ id, level: 0 }));
-    } else {
-      userInfo.clothes = (playerData.clothes || []).map((cloth: any) => ({
-        id: Number(cloth.id) || 0,
-        level: Number(cloth.level) || 0
-      }));
-    }
-    
-    // 称号
+    userInfo.clothes = this.BuildWornClothes(playerData);
+
+    // 绉板彿
     userInfo.curTitle = playerData.curTitle;
 
     return userInfo;
   }
 
   /**
-   * 是否处于"雷雨天"（赫尔卡星雷伊出场条件）
-   * 用时间模拟：每小时的 20~40 分钟为雷雨天
+   * 鏄惁澶勪簬"闆烽洦澶?锛堣但灏斿崱鏄熼浄浼婂嚭鍦烘潯浠讹級
+   * 鐢ㄦ椂闂存ā鎷燂細姣忓皬鏃剁殑 20~40 鍒嗛挓涓洪浄闆ㄥぉ
    */
   private IsLeiyiWeather(): boolean {
     const m = new Date().getMinutes();
@@ -528,12 +417,12 @@ export class MapManager extends BaseManager {
   }
 
   /**
-   * 今日盖亚出现的地图 ID
-   * 使用 BossAbilityConfig 中的周几出现规则
+   * 浠婃棩鐩栦簹鍑虹幇鐨勫湴鍥?ID
+   * 浣跨敤 BossAbilityConfig 涓殑鍛ㄥ嚑鍑虹幇瑙勫垯
    */
   private GetGaiyaMapIDForToday(): number {
-    const weekday = new Date().getDay(); // 0=周日, 1=周一, ..., 6=周六
-    const rule = BossAbilityConfig.Instance.GetWeekdayScheduleByWeekday(261, weekday); // 261 = 盖亚
+    const weekday = new Date().getDay(); // 0=鍛ㄦ棩, 1=鍛ㄤ竴, ..., 6=鍛ㄥ叚
+    const rule = BossAbilityConfig.Instance.GetWeekdayScheduleByWeekday(261, weekday); // 261 = 鐩栦簹
     return rule?.mapId || 15;
   }
 }

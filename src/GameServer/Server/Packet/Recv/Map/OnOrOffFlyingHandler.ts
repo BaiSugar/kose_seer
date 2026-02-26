@@ -10,12 +10,12 @@ import { OnOrOffFlyingReqProto } from '../../../../../shared/proto/packets/req/m
  */
 @Opcode(CommandID.ON_OR_OFF_FLYING, InjectType.NONE)
 export class OnOrOffFlyingHandler implements IHandler {
-  public async Handle(session: IClientSession, head: HeadInfo, body: Buffer): Promise<void> {
+  public async Handle(session: IClientSession, _head: HeadInfo, body: Buffer): Promise<void> {
     const player = session.Player;
     if (!player) return;
 
     const req = new OnOrOffFlyingReqProto();
     req.deserialize(body);
-    await player.MapManager.HandleOnOrOffFlying(req.flyMode);
+    await player.MapActionManager.HandleOnOrOffFlying(req.flyMode);
   }
 }
