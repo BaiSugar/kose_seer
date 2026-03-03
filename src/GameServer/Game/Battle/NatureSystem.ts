@@ -111,14 +111,33 @@ export class NatureSystem {
       }
 
       const natureMap: { [id: number]: INatureData } = {};
+      const hasZeroBasedIds =
+        config.natures.some((nature: any) => Number(nature.id) === 0) &&
+        !config.natures.some((nature: any) => Number(nature.id) === 26);
+
       for (const nature of config.natures) {
-        natureMap[nature.id] = {
-          id: nature.id,
+        const rawId = Number(nature.id);
+        if (!Number.isFinite(rawId)) {
+          continue;
+        }
+
+        const normalized: INatureData = {
+          id: rawId,
           name: nature.name,
           upStat: nature.upStat,
           downStat: nature.downStat,
           category: nature.category
         };
+
+        natureMap[rawId] = normalized;
+
+        // Compatibility: mirror 0-based nature ids to 1-based ids.
+        if (hasZeroBasedIds) {
+          const oneBasedId = rawId + 1;
+          if (natureMap[oneBasedId] === undefined) {
+            natureMap[oneBasedId] = { ...normalized, id: oneBasedId };
+          }
+        }
       }
 
       this.natureDataCache = natureMap;
@@ -137,192 +156,14 @@ export class NatureSystem {
     return this.LoadNatureData();
   }
 
-  /**
-   * 旧的硬编码数据（已废弃，保留作为备份）
-   */
-  private static readonly NATURE_DATA_BACKUP: { [id: number]: INatureData } = {
-    // ==================== 攻击强化类 (1-4) ====================
-    1: {
-      id: 1,
-      name: '孤独',
-      upStat: StatType.ATTACK,
-      downStat: StatType.DEFENCE,
-      category: '攻击强化'
-    },
-    2: {
-      id: 2,
-      name: '勇敢',
-      upStat: StatType.ATTACK,
-      downStat: StatType.SPEED,
-      category: '攻击强化'
-    },
-    3: {
-      id: 3,
-      name: '固执',
-      upStat: StatType.ATTACK,
-      downStat: StatType.SP_ATTACK,
-      category: '攻击强化'
-    },
-    4: {
-      id: 4,
-      name: '调皮',
-      upStat: StatType.ATTACK,
-      downStat: StatType.SP_DEFENCE,
-      category: '攻击强化'
-    },
+  private static GetAvailableNatureIds(): number[] {
+    const ids = Object.keys(this.NATURE_DATA)
+      .map(id => Number(id))
+      .filter(id => Number.isFinite(id) && id > 0 && this.NATURE_DATA[id] !== undefined)
+      .sort((a, b) => a - b);
+    return ids;
+  }
 
-    // ==================== 速度强化类 (5-8) ====================
-    5: {
-      id: 5,
-      name: '胆小',
-      upStat: StatType.SPEED,
-      downStat: StatType.ATTACK,
-      category: '速度强化'
-    },
-    6: {
-      id: 6,
-      name: '急躁',
-      upStat: StatType.SPEED,
-      downStat: StatType.DEFENCE,
-      category: '速度强化'
-    },
-    7: {
-      id: 7,
-      name: '开朗',
-      upStat: StatType.SPEED,
-      downStat: StatType.SP_ATTACK,
-      category: '速度强化'
-    },
-    8: {
-      id: 8,
-      name: '天真',
-      upStat: StatType.SPEED,
-      downStat: StatType.SP_DEFENCE,
-      category: '速度强化'
-    },
-
-    // ==================== 防御强化类 (9-12) ====================
-    9: {
-      id: 9,
-      name: '大胆',
-      upStat: StatType.DEFENCE,
-      downStat: StatType.ATTACK,
-      category: '防御强化'
-    },
-    10: {
-      id: 10,
-      name: '悠闲',
-      upStat: StatType.DEFENCE,
-      downStat: StatType.SPEED,
-      category: '防御强化'
-    },
-    11: {
-      id: 11,
-      name: '顽皮',
-      upStat: StatType.DEFENCE,
-      downStat: StatType.SP_ATTACK,
-      category: '防御强化'
-    },
-    12: {
-      id: 12,
-      name: '无虑',
-      upStat: StatType.DEFENCE,
-      downStat: StatType.SP_DEFENCE,
-      category: '防御强化'
-    },
-
-    // ==================== 特攻强化类 (13-16) ====================
-    13: {
-      id: 13,
-      name: '保守',
-      upStat: StatType.SP_ATTACK,
-      downStat: StatType.ATTACK,
-      category: '特攻强化'
-    },
-    14: {
-      id: 14,
-      name: '稳重',
-      upStat: StatType.SP_ATTACK,
-      downStat: StatType.DEFENCE,
-      category: '特攻强化'
-    },
-    15: {
-      id: 15,
-      name: '冷静',
-      upStat: StatType.SP_ATTACK,
-      downStat: StatType.SPEED,
-      category: '特攻强化'
-    },
-    16: {
-      id: 16,
-      name: '马虎',
-      upStat: StatType.SP_ATTACK,
-      downStat: StatType.SP_DEFENCE,
-      category: '特攻强化'
-    },
-
-    // ==================== 特防强化类 (17-20) ====================
-    17: {
-      id: 17,
-      name: '沉着',
-      upStat: StatType.SP_DEFENCE,
-      downStat: StatType.ATTACK,
-      category: '特防强化'
-    },
-    18: {
-      id: 18,
-      name: '温顺',
-      upStat: StatType.SP_DEFENCE,
-      downStat: StatType.DEFENCE,
-      category: '特防强化'
-    },
-    19: {
-      id: 19,
-      name: '狂妄',
-      upStat: StatType.SP_DEFENCE,
-      downStat: StatType.SPEED,
-      category: '特防强化'
-    },
-    20: {
-      id: 20,
-      name: '慎重',
-      upStat: StatType.SP_DEFENCE,
-      downStat: StatType.SP_ATTACK,
-      category: '特防强化'
-    },
-
-    // ==================== 平衡型 (21-26) ====================
-    21: {
-      id: 21,
-      name: '害羞',
-      category: '平衡型'
-    },
-    22: {
-      id: 22,
-      name: '浮躁',
-      category: '平衡型'
-    },
-    23: {
-      id: 23,
-      name: '坦率',
-      category: '平衡型'
-    },
-    24: {
-      id: 24,
-      name: '实干',
-      category: '平衡型'
-    },
-    25: {
-      id: 25,
-      name: '认真',
-      category: '平衡型'
-    },
-    26: {
-      id: 26,
-      name: '随和',
-      category: '平衡型'
-    }
-  };
 
   /**
    * 推荐性格映射（根据精灵定位）
@@ -458,7 +299,11 @@ export class NatureSystem {
    * @returns 随机性格ID (1-26)
    */
   public static GetRandomNature(): number {
-    return Math.floor(Math.random() * 26) + 1;
+    const natureIds = this.GetAvailableNatureIds();
+    if (natureIds.length === 0) {
+      return 1;
+    }
+    return natureIds[Math.floor(Math.random() * natureIds.length)];
   }
 
   /**
@@ -468,9 +313,9 @@ export class NatureSystem {
    * @returns 性格ID，如果未找到则返回undefined
    */
   public static GetNatureIdByName(name: string): number | undefined {
-    for (const id in this.NATURE_DATA) {
+    for (const id of this.GetAvailableNatureIds()) {
       if (this.NATURE_DATA[id].name === name) {
-        return parseInt(id);
+        return id;
       }
     }
     return undefined;
@@ -496,7 +341,7 @@ export class NatureSystem {
    */
   public static GetAllNatures(): INatureData[] {
     const natures: INatureData[] = [];
-    for (let id = 1; id <= 26; id++) {
+    for (const id of this.GetAvailableNatureIds()) {
       const nature = this.NATURE_DATA[id];
       if (nature) {
         natures.push(nature);
@@ -513,9 +358,9 @@ export class NatureSystem {
    */
   public static GetNaturesByCategory(category: string): number[] {
     const natureIds: number[] = [];
-    for (const id in this.NATURE_DATA) {
+    for (const id of this.GetAvailableNatureIds()) {
       if (this.NATURE_DATA[id].category === category) {
-        natureIds.push(parseInt(id));
+        natureIds.push(id);
       }
     }
     return natureIds;
@@ -528,7 +373,7 @@ export class NatureSystem {
    * @returns 是否有效
    */
   public static IsValidNature(natureId: number): boolean {
-    return natureId >= 1 && natureId <= 26 && this.NATURE_DATA[natureId] !== undefined;
+    return natureId > 0 && this.NATURE_DATA[natureId] !== undefined;
   }
 
   // ==================== 调试和测试方法 ====================

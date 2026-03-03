@@ -29,6 +29,122 @@ import { BossAbilityConfig } from '../../../GameServer/Game/Battle/BossAbility/B
  * 提供类型安全的配置访问接口
  */
 export class GameConfig {
+  private static _natureConfigSource: unknown = null;
+  private static _natureConfigNormalized: INatureConfig | null = null;
+  private static _petAbilitiesSource: unknown = null;
+  private static _petAbilitiesNormalized: any | null = null;
+
+  private static ToNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && value.trim() !== '') {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  }
+
+  private static ToNumberArray(value: unknown): number[] {
+    if (Array.isArray(value)) {
+      return value
+        .map(v => this.ToNumber(v))
+        .filter((v): v is number => v !== null);
+    }
+
+    if (typeof value === 'string') {
+      const parts = value.split(/[\s,]+/).filter(Boolean);
+      return parts
+        .map(v => this.ToNumber(v))
+        .filter((v): v is number => v !== null);
+    }
+
+    return [];
+  }
+
+  private static NormalizeNatureConfig(raw: any): INatureConfig | null {
+    if (!raw) {
+      return null;
+    }
+
+    const source = Array.isArray(raw) ? raw : raw.natures;
+    if (!Array.isArray(source)) {
+      return null;
+    }
+
+    const natures = source
+      .map((nature: any, index: number) => {
+        const id = this.ToNumber(nature?.id ?? nature?.natureId ?? nature?.ID ?? index);
+        if (id === null) {
+          return null;
+        }
+
+        const category = typeof nature?.category === 'string' && nature.category.trim() !== ''
+          ? nature.category
+          : 'balanced';
+
+        return {
+          ...nature,
+          id,
+          name: typeof nature?.name === 'string' ? nature.name : `nature_${id}`,
+          upStat: this.ToNumber(nature?.upStat ?? nature?.up ?? nature?.statUp) ?? undefined,
+          downStat: this.ToNumber(nature?.downStat ?? nature?.down ?? nature?.statDown) ?? undefined,
+          category,
+        };
+      })
+      .filter((n): n is NonNullable<typeof n> => n !== null);
+
+    const base = (!Array.isArray(raw) && typeof raw === 'object') ? raw : {};
+    return {
+      ...base,
+      natures,
+    } as INatureConfig;
+  }
+
+  private static NormalizePetAbilitiesConfig(raw: any): any | null {
+    if (!raw) {
+      return null;
+    }
+
+    const source = Array.isArray(raw)
+      ? raw
+      : (Array.isArray(raw.abilities) ? raw.abilities : raw.data);
+    if (!Array.isArray(source)) {
+      return null;
+    }
+
+    const abilities = source
+      .map((ability: any) => {
+        const abilityId = this.ToNumber(
+          ability?.abilityId ?? ability?.abilityID ?? ability?.id ?? ability?.itemId
+        );
+        const effectId = this.ToNumber(
+          ability?.effectId ?? ability?.effectID ?? ability?.abilityEffectId ?? ability?.skillEffectId
+        );
+
+        if (abilityId === null || effectId === null) {
+          return null;
+        }
+
+        const args = this.ToNumberArray(ability?.args ?? ability?.params ?? ability?.effectArgs ?? '');
+
+        return {
+          ...ability,
+          abilityId,
+          effectId,
+          args,
+          name: typeof ability?.name === 'string' ? ability.name : `ability_${abilityId}`,
+          description: typeof ability?.description === 'string' ? ability.description : '',
+        };
+      })
+      .filter((a): a is NonNullable<typeof a> => a !== null);
+
+    const base = (!Array.isArray(raw) && typeof raw === 'object') ? raw : {};
+    return {
+      ...base,
+      abilities,
+    };
+  }
   /**
    * 获取地图怪物配置
    */
@@ -159,7 +275,25 @@ export class GameConfig {
    * 获取性格配置
    */
   public static GetNatureConfig(): INatureConfig | null {
-    return ConfigRegistry.Instance.Get<INatureConfig>(ConfigKeys.NATURES_CONFIG);
+    const raw = ConfigRegistry.Instance.Get<any>(ConfigKeys.NATURES_CONFIG);
+    if (!raw) {
+      return null;
+    }
+
+    if (this._natureConfigSource === raw && this._natureConfigNormalized) {
+      return this._natureConfigNormalized;
+    }
+
+    const normalized = this.NormalizeNatureConfig(raw);
+    this._natureConfigSource = raw;
+    this._natureConfigNormalized = normalized;
+
+    if (!normalized) {
+      Logger.Warn('[GameConfig] Failed to normalize natures config, fallback to raw data');
+      return raw as INatureConfig;
+    }
+
+    return normalized;
   }
 
   /**
@@ -517,7 +651,25 @@ export class GameConfig {
    * 获取精灵特性配置
    */
   public static GetPetAbilitiesConfig(): any | null {
-    return ConfigRegistry.Instance.Get<any>(ConfigKeys.PET_ABILITIES);
+    const raw = ConfigRegistry.Instance.Get<any>(ConfigKeys.PET_ABILITIES);
+    if (!raw) {
+      return null;
+    }
+
+    if (this._petAbilitiesSource === raw && this._petAbilitiesNormalized) {
+      return this._petAbilitiesNormalized;
+    }
+
+    const normalized = this.NormalizePetAbilitiesConfig(raw);
+    this._petAbilitiesSource = raw;
+    this._petAbilitiesNormalized = normalized;
+
+    if (!normalized) {
+      Logger.Warn('[GameConfig] Failed to normalize pet_abilities config, fallback to raw data');
+      return raw;
+    }
+
+    return normalized;
   }
 
   /**
@@ -525,7 +677,7 @@ export class GameConfig {
    */
   public static GetAllPetAbilities(): any[] {
     const config = this.GetPetAbilitiesConfig();
-    if (!config || !config.abilities) {
+    if (!config || !Array.isArray(config.abilities)) {
       return [];
     }
     return config.abilities;
@@ -537,7 +689,7 @@ export class GameConfig {
    */
   public static GetPetAbilityById(abilityId: number): any | null {
     const abilities = this.GetAllPetAbilities();
-    return abilities.find((a: any) => a.abilityId === abilityId) || null;
+    return abilities.find((a: any) => Number(a.abilityId) === Number(abilityId)) || null;
   }
 
   /**

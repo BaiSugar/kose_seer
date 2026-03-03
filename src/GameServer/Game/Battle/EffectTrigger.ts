@@ -18,6 +18,7 @@ import { Logger } from '../../../shared/utils';
 import { IBattlePet } from '../../../shared/models/BattleModel';
 import { ISkillConfig } from '../../../shared/models/SkillModel';
 import { EffectTiming, createEffectContext, IEffectResult } from './effects/core/EffectContext';
+import { MatchesEffectTiming } from './effects/core/EffectTimingResolver';
 import { SkillEffectsConfig } from '../../../shared/config/game/SkillEffectsConfig';
 import { AtomicEffectFactory } from './effects/atomic/core/AtomicEffectFactory';
 import { IAtomicEffectParams } from './effects/atomic/core/IAtomicEffect';
@@ -104,7 +105,7 @@ export class EffectTrigger {
       }
 
       // 3. 检查是否在正确的时机触发
-      if (!effectConfig.timing || !effectConfig.timing.includes(timing)) {
+      if (!MatchesEffectTiming(effectConfig.timing, timing)) {
         // 效果时机不匹配，静默跳过
         return [];
       }
@@ -249,7 +250,7 @@ export class EffectTrigger {
         }
 
         // 检查触发时机
-        if (!effectConfig.timing || !effectConfig.timing.includes(timing)) {
+        if (!MatchesEffectTiming(effectConfig.timing, timing)) {
           // 效果时机不匹配，静默跳过
           continue;
         }

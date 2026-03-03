@@ -1169,6 +1169,13 @@
       "description": "命中时，有X%的几率秒杀对方",
       "implemented": true,
       "implementClass": "InstantKillEffect",
+      "passiveCompat": {
+        "enabled": true,
+        "timing": [
+          "BEFORE_DAMAGE_CALC"
+        ],
+        "role": "attacker"
+      },
       "args": [
         {
           "index": 0,
@@ -1184,7 +1191,7 @@
           {
             "type": "conditional",
             "condition": "probability",
-            "value": 30,
+            "value": "$arg0",
             "then": [
               {
                 "type": "fixed_damage",

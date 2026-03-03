@@ -23,6 +23,7 @@ import { TypeCopy, TypeSwap, TypeSkillNullify } from '../special/TypeEffects';
 import { Punishment, Reversal, IvPower, WeightedRandomPower, LevelDamage, Recoil } from '../special/PowerCalcEffects';
 import { Charge, ConsecutiveUse, Encore, PPDrain, PPRestore } from '../special/SkillMechanics';
 import { KoDamageNext, KoTransferBuff, MissPenalty, OnOpponentMiss, OnEvadeBoost, DelayedKill } from '../special/TriggerEffects';
+import { OnHitMultiStatChangeEffect } from '../special/OnHitMultiStatChangeEffect';
 // --- root ---
 import { DamageFloor } from '../DamageFloor';
 import { FixedDamageReduction } from '../FixedDamageReduction';
@@ -97,6 +98,7 @@ const SPECIAL_REGISTRY: ReadonlyMap<string, EffectConstructor | NoArgConstructor
   ['random_status', RandomStatus],
   ['sure_hit', SureHit],
   ['on_hit_stat_boost', OnHitStatBoost],
+  ['on_hit_multi_stat_change', OnHitMultiStatChangeEffect],
   ['charge', Charge],
   ['pp_drain', PPDrain],
   ['type_swap', TypeSwap],

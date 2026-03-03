@@ -81,10 +81,8 @@ export class BattleTurnExecutor {
 
     Logger.Info(`${isPvp ? '玩家1' : '玩家'}技能: ${pet1Skill.name} | ${isPvp ? '玩家2' : '敌人'}技能: ${pet2Skill.name}`);
 
-    // PvE 专用：回合开始时的克制/持续效果
-    if (!isPvp) {
-      this.ProcessTurnStartEffects(battle, pet1Skill, pet2Skill);
-    }
+    // 回合开始时的克制/持续效果
+    this.ProcessTurnStartEffects(battle, pet1Skill, pet2Skill);
 
     // 检查是否可以行动
     // PvP中 skillId=0 表示换精灵，不攻击

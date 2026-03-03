@@ -27,8 +27,7 @@ export class LowHpOhkoPriorityPassive extends BaseAtomicEffect {
       // 百分比模式: args=[0, 50] → hp * 2 < maxHp（原版条件）
       // 使用乘法避免整除误差：hp * (100/percent) < maxHp
       threshold = thresholdLow;
-      const multiplier = Math.floor(100 / thresholdLow);
-      belowThreshold = attacker.hp * multiplier < attacker.maxHp;
+      belowThreshold = attacker.hp * 100 < attacker.maxHp * thresholdLow;
     } else {
       // 固定HP模式: args=[high, low] → HP < (high << 16 | low)
       threshold = (thresholdHigh << 16) | thresholdLow;

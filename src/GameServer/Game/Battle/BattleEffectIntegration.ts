@@ -30,8 +30,10 @@ import { ISkillConfig } from '../../../shared/models/SkillModel';
 import { EffectTiming, IEffectResult } from './effects/core/EffectContext';
 import { EffectTrigger } from './EffectTrigger';
 import { EffectConflictResolver } from './effects/core/EffectPriority';
-import { PassiveEffectRunner, IPassiveTriggerContext } from './PassiveEffectRunner';
+import { PassiveEffectRunner, IPassiveTriggerContext, REGISTERED_PASSIVES_KEY } from './PassiveEffectRunner';
 import { BattleCore, BattleStatusType } from './BattleCore';
+import { SkillEffectsConfig } from '../../../shared/config/game/SkillEffectsConfig';
+import { ON_HIT_MULTI_STAT_CHANGE_COUNTER_PREFIX } from './effects/atomic/special/OnHitMultiStatChangeEffect';
 
 // ==================== 速度判定修正结果 ====================
 
@@ -48,6 +50,37 @@ export interface ISpeedCheckModifiers {
   enemyAlwaysFirst: boolean;
   enemyPriorityMod: number;
 }
+
+const EffectResultType = {
+  DAMAGE_FLOOR: 'damage_floor',
+  DAMAGE_CAP: 'damage_cap',
+  DAMAGE_REDUCTION: 'damage_reduction',
+  FIXED_DAMAGE_REDUCTION: 'fixed_damage_reduction',
+  LOW_HP_PRIORITY: 'low_hp_priority',
+  NEXT_TURN_PRIORITY: 'next_turn_priority',
+  LOW_HP_OHKO: 'low_hp_ohko',
+  PRIORITY_CHANGE: 'priority_change'
+} as const;
+
+const EffectCounterKey = {
+  REGENERATION: 'regeneration',
+  LEECH_SEED: 'leech_seed',
+  DELAYED_FULL_HEAL: 'delayed_full_heal'
+} as const;
+
+const OnHitMultiStatChangeSpecialType = 'on_hit_multi_stat_change';
+
+const SpeedAlwaysFirstResultTypes = new Set<string>([
+  EffectResultType.LOW_HP_PRIORITY,
+  EffectResultType.NEXT_TURN_PRIORITY
+]);
+
+const SpeedPriorityModResultTypes = new Set<string>([
+  EffectResultType.LOW_HP_OHKO,
+  EffectResultType.PRIORITY_CHANGE
+]);
+
+const TemporaryStatBoostPattern = /^stat_(\d+)_boost_(-?\d+)$/;
 
 // ==================== 辅助函数 ====================
 
@@ -130,6 +163,80 @@ export class BattleEffectIntegration {
     results.push(...passiveResults);
 
     return results;
+  }
+
+  private static GetResultType(result: IEffectResult): string {
+    return result.effectType || result.type;
+  }
+
+  private static CollectSpeedModifiers(results: IEffectResult[]): { alwaysFirst: boolean; priorityMod: number } {
+    let alwaysFirst = false;
+    let priorityMod = 0;
+
+    for (const result of results) {
+      if (!result.success) continue;
+
+      const resultType = this.GetResultType(result);
+      if (SpeedAlwaysFirstResultTypes.has(resultType)) {
+        alwaysFirst = true;
+      }
+
+      if (result.value !== undefined && SpeedPriorityModResultTypes.has(resultType)) {
+        priorityMod += result.value;
+      }
+    }
+
+    return { alwaysFirst, priorityMod };
+  }
+
+  private static ApplyAfterDamageCalcResult(
+    baseDamage: number,
+    currentDamage: number,
+    result: IEffectResult
+  ): number {
+    if (!result.success || result.value === undefined) {
+      return currentDamage;
+    }
+
+    const resultType = this.GetResultType(result);
+    if (resultType === EffectResultType.DAMAGE_FLOOR) {
+      const nextDamage = Math.max(currentDamage, result.value);
+      Logger.Debug(`[BattleEffectIntegration] 搴旂敤浼ゅ涓嬮檺: ${baseDamage} 鈫?${nextDamage}`);
+      return nextDamage;
+    }
+
+    if (resultType === EffectResultType.DAMAGE_CAP) {
+      const nextDamage = Math.min(currentDamage, result.value);
+      Logger.Debug(`[BattleEffectIntegration] 搴旂敤浼ゅ涓婇檺: ${baseDamage} 鈫?${nextDamage}`);
+      return nextDamage;
+    }
+
+    if (resultType === EffectResultType.DAMAGE_REDUCTION && result.data?.newDamage !== undefined) {
+      const nextDamage = result.data.newDamage;
+      Logger.Debug(`[BattleEffectIntegration] 琚姩浼ゅ鍑忓厤: ${baseDamage} 鈫?${nextDamage}`);
+      return nextDamage;
+    }
+
+    return currentDamage;
+  }
+
+  private static ApplyBeforeDamageApplyResult(
+    baseDamage: number,
+    currentDamage: number,
+    result: IEffectResult
+  ): number {
+    if (!result.success || result.value === undefined) {
+      return currentDamage;
+    }
+
+    const resultType = this.GetResultType(result);
+    if (resultType !== EffectResultType.FIXED_DAMAGE_REDUCTION) {
+      return currentDamage;
+    }
+
+    const nextDamage = Math.max(0, currentDamage - result.value);
+    Logger.Debug(`[BattleEffectIntegration] 搴旂敤鍥哄畾浼ゅ鍑忓厤: ${baseDamage} 鈫?${nextDamage}`);
+    return nextDamage;
   }
 
   // ==================== 战斗级别时机 ====================
@@ -282,49 +389,15 @@ export class BattleEffectIntegration {
     EffectTrigger.ApplyEffectResults(defenderPassiveResults, defender, attacker);
     results.push(...defenderPassiveResults);
 
-    // 从被动结果中提取修正值
-    // 检查 attacker 侧是否有 alwaysFirst / priorityModifier
-    let playerAlwaysFirst = false;
-    let playerPriorityMod = 0;
-    let enemyAlwaysFirst = false;
-    let enemyPriorityMod = 0;
-
-    // 攻击方被动结果
-    for (const r of attackerPassiveResults) {
-      if (r.success) {
-        if (r.type === 'low_hp_priority' || r.type === 'next_turn_priority') {
-          playerAlwaysFirst = true;
-        }
-        if (r.type === 'low_hp_ohko' && r.value !== undefined) {
-          playerPriorityMod += r.value;
-        }
-        if (r.type === 'priority_change' && r.value !== undefined) {
-          playerPriorityMod += r.value;
-        }
-      }
-    }
-
-    // 防守方被动结果
-    for (const r of defenderPassiveResults) {
-      if (r.success) {
-        if (r.type === 'low_hp_priority' || r.type === 'next_turn_priority') {
-          enemyAlwaysFirst = true;
-        }
-        if (r.type === 'low_hp_ohko' && r.value !== undefined) {
-          enemyPriorityMod += r.value;
-        }
-        if (r.type === 'priority_change' && r.value !== undefined) {
-          enemyPriorityMod += r.value;
-        }
-      }
-    }
+    const attackerModifier = this.CollectSpeedModifiers(attackerPassiveResults);
+    const defenderModifier = this.CollectSpeedModifiers(defenderPassiveResults);
 
     return {
       results,
-      playerAlwaysFirst,
-      playerPriorityMod,
-      enemyAlwaysFirst,
-      enemyPriorityMod,
+      playerAlwaysFirst: attackerModifier.alwaysFirst,
+      playerPriorityMod: attackerModifier.priorityMod,
+      enemyAlwaysFirst: defenderModifier.alwaysFirst,
+      enemyPriorityMod: defenderModifier.priorityMod,
     };
   }
 
@@ -439,21 +512,11 @@ export class BattleEffectIntegration {
 
     // 应用伤害修正
     for (const result of results) {
-      if (!result.success || result.value === undefined) continue;
+      modifiedDamage = this.ApplyAfterDamageCalcResult(damage, modifiedDamage, result);
+    }
 
-      if (result.type === 'damage_floor' || result.effectType === 'damage_floor') {
-        modifiedDamage = Math.max(modifiedDamage, result.value);
-        Logger.Debug(`[BattleEffectIntegration] 应用伤害下限: ${damage} → ${modifiedDamage}`);
-      } else if (result.type === 'damage_cap' || result.effectType === 'damage_cap') {
-        modifiedDamage = Math.min(modifiedDamage, result.value);
-        Logger.Debug(`[BattleEffectIntegration] 应用伤害上限: ${damage} → ${modifiedDamage}`);
-      } else if (result.type === 'damage_reduction' || result.effectType === 'damage_reduction') {
-        // 被动伤害减免 — 原子效果已修改 context.damage，这里读取结果
-        if (result.data?.newDamage !== undefined) {
-          modifiedDamage = result.data.newDamage;
-          Logger.Debug(`[BattleEffectIntegration] 被动伤害减免: ${damage} → ${modifiedDamage}`);
-        }
-      }
+    if (results.length > 0) {
+      EffectTrigger.ApplyEffectResults(results, attacker, defender);
     }
 
     return { damage: modifiedDamage, results };
@@ -487,13 +550,13 @@ export class BattleEffectIntegration {
     results.push(...passiveResults);
 
     // 应用伤害减免
-    for (const result of [...skillResults, ...passiveResults]) {
-      if (result.success && result.value !== undefined) {
-        if (result.type === 'fixed_damage_reduction' || result.effectType === 'fixed_damage_reduction') {
-          modifiedDamage = Math.max(0, modifiedDamage - result.value);
-          Logger.Debug(`[BattleEffectIntegration] 应用固定伤害减免: ${damage} → ${modifiedDamage}`);
-        }
-      }
+    const allResults = [...skillResults, ...passiveResults];
+    for (const result of allResults) {
+      modifiedDamage = this.ApplyBeforeDamageApplyResult(damage, modifiedDamage, result);
+    }
+
+    if (allResults.length > 0) {
+      EffectTrigger.ApplyEffectResults(allResults, attacker, defender);
     }
 
     return { damage: modifiedDamage, results };
@@ -505,7 +568,13 @@ export class BattleEffectIntegration {
   public static OnAfterDamageApply(
     attacker: IBattlePet, defender: IBattlePet, skill: ISkillConfig, damage: number
   ): IEffectResult[] {
-    return this.TriggerAtTiming(attacker, defender, skill, EffectTiming.AFTER_DAMAGE_APPLY, damage);
+    const results = this.TriggerAtTiming(attacker, defender, skill, EffectTiming.AFTER_DAMAGE_APPLY, damage);
+    const counterResults = this.TriggerOnHitCounterEffects(attacker, defender, damage);
+    if (counterResults.length > 0) {
+      EffectTrigger.ApplyEffectResults(counterResults, attacker, defender);
+      results.push(...counterResults);
+    }
+    return results;
   }
 
   // ==================== 受击/攻击时机 ====================
@@ -693,6 +762,79 @@ export class BattleEffectIntegration {
   /**
    * 处理回合开始效果
    */
+  private static GetOnHitMultiStatChangeAtom(effectId: number): any | null {
+    const effectConfig = SkillEffectsConfig.Instance.GetEffectById(effectId);
+    if (!effectConfig?.atomicComposition?.atoms) {
+      return null;
+    }
+
+    for (const atom of effectConfig.atomicComposition.atoms) {
+      if (atom?.specialType === OnHitMultiStatChangeSpecialType) {
+        return atom;
+      }
+    }
+
+    return null;
+  }
+
+  private static TriggerOnHitCounterEffects(
+    attacker: IBattlePet,
+    defender: IBattlePet,
+    damage: number
+  ): IEffectResult[] {
+    if (damage <= 0 || !defender.effectCounters) {
+      return [];
+    }
+
+    const results: IEffectResult[] = [];
+    for (const [counterKey, counterValue] of Object.entries(defender.effectCounters)) {
+      if (!counterKey.startsWith(ON_HIT_MULTI_STAT_CHANGE_COUNTER_PREFIX)) {
+        continue;
+      }
+      if (typeof counterValue !== 'number' || counterValue <= 0) {
+        continue;
+      }
+
+      const effectId = parseInt(counterKey.slice(ON_HIT_MULTI_STAT_CHANGE_COUNTER_PREFIX.length), 10);
+      if (!Number.isFinite(effectId) || effectId <= 0) {
+        continue;
+      }
+
+      const atom = this.GetOnHitMultiStatChangeAtom(effectId);
+      if (!atom || !Array.isArray(atom.statChanges)) {
+        continue;
+      }
+
+      if (atom.probability !== undefined && !EffectTrigger.ShouldTrigger(atom.probability)) {
+        continue;
+      }
+
+      const targetPet = atom.targetSelf === true ? defender : attacker;
+      const target = targetPet === attacker ? 'attacker' : 'defender';
+      for (const statChange of atom.statChanges) {
+        if (typeof statChange?.stat !== 'number' || typeof statChange?.change !== 'number') {
+          continue;
+        }
+
+        results.push({
+          effectId,
+          effectName: OnHitMultiStatChangeSpecialType,
+          success: true,
+          target,
+          type: 'stat_change',
+          value: statChange.change,
+          message: 'on-hit multi stat change triggered',
+          data: {
+            stat: statChange.stat,
+            stages: statChange.change
+          }
+        });
+      }
+    }
+
+    return results;
+  }
+
   private static ApplyTurnStartStatusDamage(pet: IBattlePet): void {
     const statusDamage = BattleCore.ProcessStatusEffects(pet);
     if (statusDamage <= 0) {
@@ -711,7 +853,7 @@ export class BattleEffectIntegration {
     const results: IEffectResult[] = [];
 
     // 处理持续回复
-    if (pet.effectCounters && pet.effectCounters['regeneration']) {
+    if (pet.effectCounters && pet.effectCounters[EffectCounterKey.REGENERATION]) {
       const healAmount = Math.floor(pet.maxHp * 0.0625); // 1/16 HP
       pet.hp = Math.min(pet.maxHp, pet.hp + healAmount);
       Logger.Debug(`[BattleEffectIntegration] 持续回复: ${pet.name} +${healAmount}HP`);
@@ -732,7 +874,7 @@ export class BattleEffectIntegration {
     const results: IEffectResult[] = [];
 
     // 处理寄生种子
-    if (pet.effectCounters && pet.effectCounters['leech_seed']) {
+    if (pet.effectCounters && pet.effectCounters[EffectCounterKey.LEECH_SEED]) {
       const drainAmount = Math.floor(pet.maxHp * 0.125); // 1/8 HP
       pet.hp = Math.max(0, pet.hp - drainAmount);
       opponent.hp = Math.min(opponent.maxHp, opponent.hp + drainAmount);
@@ -794,7 +936,7 @@ export class BattleEffectIntegration {
 
     for (const [key, value] of Object.entries(pet.effectCounters)) {
       // 跳过被动特性存储和非数字值
-      if (key === '_registered_passives') continue;
+      if (key === REGISTERED_PASSIVES_KEY) continue;
       if (typeof value !== 'number' || value <= 0) continue;
 
       pet.effectCounters[key] = value - 1;
@@ -816,7 +958,7 @@ export class BattleEffectIntegration {
    */
   private static HandleExpiredEffect(pet: IBattlePet, effectKey: string): void {
     // 延迟全回复（誓言之约等技能）
-    if (effectKey === 'delayed_full_heal') {
+    if (effectKey === EffectCounterKey.DELAYED_FULL_HEAL) {
       const oldHp = pet.hp;
       pet.hp = pet.maxHp;
       Logger.Info(
@@ -827,11 +969,11 @@ export class BattleEffectIntegration {
     }
 
     // 临时能力变化
-    if (effectKey.startsWith('stat_') && effectKey.includes('_boost_')) {
-      const match = effectKey.match(/stat_(\d+)_boost_(-?\d+)/);
-      if (match && pet.battleLv) {
-        const statIndex = parseInt(match[1]);
-        const stages = parseInt(match[2]);
+    const statBoostMatch = effectKey.match(TemporaryStatBoostPattern);
+    if (statBoostMatch) {
+      if (pet.battleLv) {
+        const statIndex = parseInt(statBoostMatch[1], 10);
+        const stages = parseInt(statBoostMatch[2], 10);
         const oldStage = pet.battleLv[statIndex] || 0;
         const newStage = Math.max(-6, Math.min(6, oldStage - stages));
         pet.battleLv[statIndex] = newStage;

@@ -542,6 +542,6 @@ export class PetCalculator {
    * @returns 随机性格ID (1-26)
    */
   public static GenerateRandomNature(): number {
-    return Math.floor(Math.random() * 26) + 1;
+    return NatureSystem.GetRandomNature();
   }
 }
